@@ -8,22 +8,29 @@
  *
  * NO con la sintaxis text-[--color-ink]. Tailwind 4 la acepta sin rechistar y emite
  * `color: --color-ink`, que es CSS inválido y que el navegador tira a la basura. El build
- * dice "✓ built" y la página sale SIN MAQUETAR. Pasó: toda la parrilla se pintó sin un
- * solo color del tema y el único aviso fue mirarla.
+ * dice "✓ built" y la página sale SIN MAQUETAR. Ya pasó una vez.
  *
  * @theme genera las utilidades solo: si la variable es --color-ink, la clase es text-ink.
- * Para una variable suelta, la sintaxis de v4 es text-(--color-ink), con paréntesis.
+ */
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * EL SISTEMA VISUAL
+ * ═══════════════════════════════════════════════════════════════════════════════
  *
- * LA SEMÁNTICA DEL COLOR ESTÁ RESERVADA, y es la única regla de estilo que no se
- * negocia:
+ * ⚠️ EL DIAGNÓSTICO QUE OBLIGÓ A ESCRIBIR ESTO: el gris hacía CUATRO trabajos a la vez
+ * —fondo de la tira, borde de celda, separador de puestos, y encima significaba
+ * "cubierto"— y por eso no hacía ninguno. Un color con cuatro funciones incompatibles no
+ * separa nada: la parrilla era una sopa continua de gris y blanco.
  *
- *   ROJO   = imposible / incumplimiento
- *   ÁMBAR  = aviso
- *   VERDE  = correcto
+ * DOS REGLAS, Y LO GOBIERNAN TODO:
  *
- * La marca es ÍNDIGO precisamente para no competir con eso. Ningún elemento
- * decorativo puede usar rojo, ámbar ni verde: el día que un botón sea verde, el
- * verde deja de significar "correcto" y el encargado deja de creérselo.
+ * 1. LA ESTRUCTURA ES SILENCIOSA. Se entiende sin mirarla. Superficies y bordes NO
+ *    llaman la atención: solo ordenan.
+ *
+ * 2. EL COLOR SEMÁNTICO ES LO ÚNICO QUE GRITA. Rojo, naranja, ámbar, verde e índigo son
+ *    los únicos que llevan INFORMACIÓN. Ningún elemento decorativo puede usarlos: el día
+ *    que un botón sea verde, el verde deja de significar "correcto".
  */
 @theme {
     --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
@@ -31,30 +38,63 @@
     /* Mono para las HORAS: números tabulares, para que no bailen entre filas. */
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-    /* Marca */
+    /*
+     * ── ESCALA DE SUPERFICIES ─────────────────────────────────────────────────
+     * Cinco niveles, del más hundido al más elevado. Cada uno se distingue del de al
+     * lado sin necesidad de un borde: la superficie ya dice dónde estás.
+     */
+    --color-page: #e4e2ec; /* fondo de página: el suelo */
+    --color-panel: #eceaf4; /* panel lateral: otra ZONA. Casi blanco no separaba nada. */
+    --color-card: #ffffff; /* la parrilla: la zona de trabajo */
+    --color-rail: #f1f0f7; /* el chrome de la rejilla: cabeceras y columna de puestos */
+    --color-band: #f7f6fc; /* el bloque de puesto alterno: raya cebra silenciosa */
+    --color-sunken: #e7e5f0; /* hundido: el fondo de las pistas y de la tira */
+
+    /*
+     * ── BORDES CON JERARQUÍA ──────────────────────────────────────────────────
+     * TRES pesos, y el peso ES la jerarquía. Antes todos eran la misma línea de 1px y
+     * por eso no separaban nada.
+     */
+    --color-edge: #c3bfd6; /* SECCIÓN (2px): entre bloques de puesto, y parrilla/panel */
+    --color-line: #dddbe9; /* CELDA (1px): entre columnas de día */
+    --color-line-soft: #eeecf4; /* PELO (1px): dentro de la celda */
+
+    /* ── TINTA ───────────────────────────────────────────────────────────────── */
+    --color-ink: #2c2643;
+    --color-ink-soft: #5f5d70;
+    --color-ink-faint: #8f8da0;
+
+    /* ── MARCA (índigo: nunca lleva información de estado) ───────────────────── */
     --color-brand-50: #eeedfe;
     --color-brand-300: #7f77dd;
     --color-brand-600: #534ab7;
     --color-brand-800: #3c3489;
 
-    /* Estado: reservado */
+    /*
+     * ── ESTADO: RESERVADO ─────────────────────────────────────────────────────
+     * El trazo (fuerte) y el relleno (legible pero silencioso). El relleno del verde
+     * estaba a un 18 % de opacidad sobre gris: el color resultante era #DDE6DE, o sea
+     * UN GRIS. El dato estaba y el píxel no. Ahora son colores sólidos.
+     */
     --color-impossible: #c81e1e;
     --color-breach: #e8590c;
     --color-notice: #c2870a;
     --color-ok: #15803d;
     --color-missing: #dc2626;
 
-    /* Superficies */
-    --color-canvas: #edecf2;
-    --color-line: #e5e4ef;
-    --color-line-soft: #f0eff5;
-    --color-ink: #2c2643;
-    --color-ink-soft: #6b6a78;
-    --color-ink-faint: #9e9cac;
+    --color-ok-fill: #c3e6d1;
+    --color-missing-fill: #f7c9c9;
+    --color-excess-fill: #d3cff1;
+    --color-void-fill: #d7d4e2; /* rayado del puesto sin candidato */
+}
+
+html,
+body {
+    height: 100%;
 }
 
 body {
-    background: var(--color-canvas);
+    background: var(--color-page);
     color: var(--color-ink);
 }
 
@@ -62,4 +102,32 @@ body {
 .tabular {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+}
+
+/*
+ * LA COLUMNA DE PUESTOS SE QUEDA QUIETA AL DESPLAZARSE.
+ *
+ * A 1366 px no caben los siete días: hay que desplazar en horizontal, y sin esto se te
+ * va el nombre del puesto y dejas de saber qué fila estás mirando. Es lo que convierte
+ * el scroll de "molesto" en "usable".
+ */
+.rail-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    box-shadow: 2px 0 6px -3px rgb(40 36 80 / 22%);
+}
+
+.head-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 11;
+}
+
+.corner-sticky {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    box-shadow: 2px 0 6px -3px rgb(40 36 80 / 22%);
 }

@@ -198,29 +198,55 @@ const bandStyle = (b) => ({
 /** Los puestos que nadie de la plantilla puede cubrir: el badge, una vez, donde se pide. */
 const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
     .some((s) => s.state === 'uncoverable');
+
+/**
+ * LOS PUESTOS SON BLOQUES, NO FILAS SUELTAS.
+ *
+ * Barra, Cocina, Sala y Caja son cuatro cosas distintas, y hasta ahora eran una sopa
+ * continua de gris y blanco: cinco bloques separados por la misma línea de 1 px que separa
+ * dos columnas. Con la misma línea no se puede decir "esto es otra cosa".
+ *
+ * Ahora cada bloque se identifica por TRES señales a la vez, y ninguna de ellas grita:
+ *   · una raya de cebra silenciosa (blanco / casi-blanco)
+ *   · un borde de SECCIÓN de 2 px arriba, que pesa el doble que el de una columna
+ *   · el nombre del puesto, en un raíl fijo que no se va al desplazar
+ */
+const esPar = (i) => i % 2 === 0;
 </script>
 
 <template>
-    <div class="min-w-0 flex-1 overflow-x-auto py-4 pl-5 pr-3">
+    <!--
+        LA PARRILLA ES SU PROPIO CONTENEDOR DE SCROLL, en los dos ejes.
+
+        Así la página no se desborda nunca, la cabecera de días se queda arriba y la columna
+        de puestos se queda a la izquierda. A 1366 px no caben los siete días: sin el raíl
+        fijo, al desplazarte pierdes el nombre del puesto y dejas de saber qué estás mirando.
+    -->
+    <div class="min-w-0 flex-1 bg-page p-4">
+        <!--
+            ⚠️ EL REDONDEO Y EL SCROLL VAN EN EL MISMO DIV, Y LA REJILLA NO LLEVA overflow.
+            Si la rejilla lleva overflow-hidden (para redondear esquinas), ELLA pasa a ser el
+            contenedor de scroll y los sticky se pegan a ella en vez de a la ventana: el raíl
+            de puestos desaparecía al desplazarse. Se veía al mirar, no al medir.
+        -->
         <div
-            class="w-max overflow-hidden border border-line bg-white"
-            style="display: grid; grid-template-columns: 118px repeat(7, 320px); border-radius: 11px"
+            class="h-full overflow-auto rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]"
         >
-            <!-- Cabecera: día y fecha APILADOS, como la referencia. Sin regla horaria: el
-                 rango lo dice la leyenda, y así se validó. -->
-            <div class="border-b border-r border-line-soft bg-[#FAFAFD]" />
+            <div
+                class="w-max"
+                style="display: grid; grid-template-columns: 124px repeat(7, 300px)"
+            >
+            <!-- Cabecera: día y fecha APILADOS. Sin regla horaria: el rango lo dice la leyenda. -->
+            <div class="corner-sticky border-b-2 border-r-2 border-edge bg-rail" />
 
             <div
                 v-for="(day, i) in window.days"
                 :key="day.date"
-                class="border-b border-line-soft px-3 py-2.5"
-                :class="[
-                    i < 6 ? 'border-r' : '',
-                    day.isWorkingDay ? 'bg-[#FAFAFD]' : 'bg-[#F3F2F8]',
-                ]"
+                class="head-sticky border-b-2 border-edge bg-rail px-3 py-2.5"
+                :class="i < 6 ? 'border-r border-r-line' : ''"
             >
                 <Link :href="dayUrl(day.date)" class="group block">
-                    <div class="text-[12.5px] font-bold text-[#41404E] group-hover:text-brand-600">
+                    <div class="text-[12.5px] font-bold text-ink group-hover:text-brand-600">
                         {{ day.weekday }}
                     </div>
                     <div class="tabular text-[10px] text-ink-faint">
@@ -230,17 +256,32 @@ const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
                 </Link>
             </div>
 
-            <!-- Los puestos -->
-            <template v-for="position in positions" :key="position.id">
-                <div class="flex items-center border-b border-r border-line-soft bg-[#FAFAFD] px-2.5 py-2.5 text-[13px] font-bold text-[#41404E]">
+            <!--
+                LOS PUESTOS, COMO BLOQUES.
+
+                Tres señales silenciosas para que se vea dónde empieza y acaba cada uno:
+                cebra, borde de SECCIÓN de 2 px arriba, y el nombre en un raíl fijo.
+            -->
+            <template v-for="(position, p) in positions" :key="position.id">
+                <div
+                    class="rail-sticky flex items-center border-r-2 border-edge px-3 py-2.5 text-[13px] font-bold text-ink"
+                    :class="[
+                        p > 0 ? 'border-t-2 border-t-edge' : '',
+                        esPar(p) ? 'bg-rail' : 'bg-[#EBE9F3]',
+                    ]"
+                >
                     {{ position.name }}
                 </div>
 
                 <div
                     v-for="(day, i) in window.days"
                     :key="`${position.id}-${day.date}`"
-                    class="relative flex min-h-[124px] flex-col border-b border-line-soft"
-                    :class="i < 6 ? 'border-r' : ''"
+                    class="relative flex min-h-[124px] flex-col"
+                    :class="[
+                        i < 6 ? 'border-r border-line' : '',
+                        p > 0 ? 'border-t-2 border-t-edge' : '',
+                        esPar(p) ? 'bg-card' : 'bg-band',
+                    ]"
                     style="padding: 10px 11px 12px"
                 >
                     <!-- La banda de la baja: atraviesa los días, rotula solo en el primero. -->
@@ -302,6 +343,7 @@ const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
                     </div>
                 </div>
             </template>
+            </div>
         </div>
     </div>
 </template>

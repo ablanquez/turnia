@@ -47,7 +47,7 @@ const day = computed(() => props.window.days[0]);
         </template>
 
         <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
-            <div class="min-w-0 flex-1 overflow-x-auto">
+            <div class="flex min-w-0 flex-1">
                 <DayGrid
                     :day="day"
                     :axis="axis"

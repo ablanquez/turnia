@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import { BRAND, BRAND_DARK, severityColor, shortText, worst } from '../../composables/useSeverity.js';
 import { gridEvery } from '../../composables/useAxis.js';
@@ -36,6 +36,43 @@ const IMPOSIBLE = {
 
 const LANE_H = 30;
 const LANE_GAP = 3;
+
+/**
+ * LA BARRA SE ADAPTA A LO QUE DE VERDAD CABE.
+ *
+ * A 1366 px la pista mide ~915 px, así que una barra de 4 h son 152 px: no caben "Lucía
+ * Díaz" y "09:00–13:00". Antes se recortaba a media cadena ("13:00–17:") y quedaba como un
+ * error, mientras la cabecera prometía "nombre y hora completos, siempre". Una promesa
+ * falsa en la propia interfaz.
+ *
+ * EL NOMBRE ES LA PRIORIDAD y no se trunca nunca ("Hu…" puede ser Hugo o Humberto). La hora
+ * se enseña solo si cabe ENTERA, y si no cabe se lee en el tooltip. Y si no cabe ni el
+ * nombre, queda el avatar con su color.
+ */
+const pista = ref(null);
+const anchoPista = ref(0);
+
+let observador = null;
+
+onMounted(() => {
+    if (!pista.value) {
+        return;
+    }
+
+    observador = new ResizeObserver(([e]) => {
+        anchoPista.value = e.contentRect.width;
+    });
+
+    observador.observe(pista.value);
+    anchoPista.value = pista.value.getBoundingClientRect().width;
+});
+
+onBeforeUnmount(() => observador?.disconnect());
+
+const anchoDe = (bar) => (bar.width / 100) * anchoPista.value;
+
+const muestraNombre = (bar) => anchoDe(bar) >= 60;
+const muestraHora = (bar) => anchoDe(bar) >= 168;
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((p) => [p.id, p])));
 
@@ -205,17 +242,17 @@ const ausentes = computed(() => props.absences.filter(
 </script>
 
 <template>
-    <div class="px-6 py-4">
-        <div class="overflow-hidden rounded-xl border border-line bg-white">
-            <div class="flex items-center gap-3 border-b border-line-soft px-5 py-3.5">
+    <div class="min-w-0 flex-1 overflow-auto bg-page p-4">
+        <div class="overflow-hidden rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]">
+            <div class="flex items-center gap-3 border-b-2 border-edge bg-rail px-5 py-3.5">
                 <span class="rounded bg-brand-50 px-2 py-1 text-[11px] font-bold text-brand-800">ZOOM · DÍA</span>
                 <div class="flex-1">
                     <div class="text-sm font-bold text-ink">
-                        {{ day.weekday }} {{ day.label }} — aquí cabe todo: nombre y hora completos, siempre.
+                        {{ day.weekday }} {{ day.label }}
                     </div>
                     <div class="text-[11.5px] text-ink-soft">
-                        Misma parrilla, mismo eje temporal; solo cambia la densidad. Y el hueco de
-                        cobertura tiene su anchura real y su etiqueta entera.
+                        Misma parrilla, mismo eje temporal; solo cambia la densidad. Aquí el hueco
+                        de cobertura tiene su anchura real y su etiqueta entera: "faltan 3", no "-3".
                     </div>
                 </div>
                 <div
@@ -226,7 +263,7 @@ const ausentes = computed(() => props.absences.filter(
                 </div>
             </div>
 
-            <div v-if="ausentes.length" class="flex flex-wrap gap-2 border-b border-line-soft px-5 py-2.5">
+            <div v-if="ausentes.length" class="flex flex-wrap gap-2 border-b border-line bg-band px-5 py-2.5">
                 <span
                     v-for="a in ausentes"
                     :key="a.id"
@@ -256,13 +293,14 @@ const ausentes = computed(() => props.absences.filter(
                 </div>
 
                 <div
-                    v-for="row in rows"
+                    v-for="(row, p) in rows"
                     :key="row.position.id"
-                    class="grid items-start border-t border-line-soft py-2.5"
+                    class="-mx-5 grid items-start px-5 py-3"
+                    :class="[p > 0 ? 'border-t-2 border-edge' : '', p % 2 ? 'bg-band' : 'bg-card']"
                     style="grid-template-columns: 110px 1fr"
                 >
                     <div class="flex flex-col gap-1 pt-0.5">
-                        <span class="text-[13px] font-bold text-[#41404E]">{{ row.position.name }}</span>
+                        <span class="text-[13px] font-bold text-ink">{{ row.position.name }}</span>
                     </div>
 
                     <div>
@@ -281,11 +319,12 @@ const ausentes = computed(() => props.absences.filter(
                         </div>
 
                         <div
+                            :ref="p === 0 ? (el) => (pista = el) : undefined"
                             class="relative"
                             :style="{
                                 height: `${row.lanes * (30 + 3) - 3}px`,
                                 minHeight: '30px',
-                                backgroundImage: 'linear-gradient(90deg,#EDEDF2 1px,transparent 1px)',
+                                backgroundImage: 'linear-gradient(90deg, var(--color-line-soft) 1px, transparent 1px)',
                                 backgroundSize: gridEvery(axis, 3),
                             }"
                         >
@@ -306,13 +345,15 @@ const ausentes = computed(() => props.absences.filter(
                                 >◷</span>
 
                                 <span
+                                    v-if="muestraNombre(bar)"
                                     class="shrink-0 whitespace-nowrap text-[12.5px] font-semibold"
                                     :class="bar.kind === 'concept' ? 'text-brand-600' : 'text-ink'"
                                 >{{ nombre(bar) }}</span>
 
-                                <span class="tabular shrink-0 whitespace-nowrap text-[11px] text-[#8A8896]">
-                                    {{ bar.label }}
-                                </span>
+                                <span
+                                    v-if="muestraHora(bar)"
+                                    class="tabular shrink-0 whitespace-nowrap text-[11px] text-[#8A8896]"
+                                >{{ bar.label }}</span>
 
                                 <span
                                     v-if="icono(bar)"

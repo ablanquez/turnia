@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/vue3';
 </script>
 
 <template>
-    <div class="flex min-h-full w-full min-w-0 flex-col overflow-x-hidden">
+    <div class="flex h-full w-full min-w-0 flex-col overflow-hidden">
         <header
             class="sticky top-0 z-20 flex items-center gap-4 border-b border-line bg-white px-6 py-3.5"
         >

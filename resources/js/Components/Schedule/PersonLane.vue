@@ -192,11 +192,15 @@ const title = computed(() => {
             >{{ severityIcon(laneSeverity) }}</span>
         </div>
 
+        <!--
+            La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y
+            se confundía con el fondo, con el borde y con la tira de cobertura: el mismo gris
+            haciendo cuatro trabajos. Aquí solo hace uno — decir por dónde va el día.
+        -->
         <div
-            class="relative mt-[3px] h-2 overflow-hidden rounded"
+            class="bg-sunken relative mt-[3px] h-2 overflow-hidden rounded"
             :style="{
-                background: '#F1F0F6',
-                backgroundImage: 'linear-gradient(90deg,#E4E3EC 1px,transparent 1px)',
+                backgroundImage: 'linear-gradient(90deg, rgb(255 255 255 / 55%) 1px, transparent 1px)',
                 backgroundSize: gridEvery(axis, 6),
             }"
         >

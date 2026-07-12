@@ -4,13 +4,18 @@ import { gridEvery } from '../../composables/useAxis.js';
 /**
  * LA TIRA DE COBERTURA. Se pinta EL DÍA ENTERO, no solo lo que está mal.
  *
- * Aquí solo salían los huecos, y el resto quedaba en gris. Parecía razonable y era un
- * SILENCIO FALSO DIBUJADO: el gris decía a la vez "esto está cubierto" y "aquí no se pide
- * nada". Dos cosas OPUESTAS con el mismo color. Ahora el verde dice "resuelto" y el gris
- * dice, solo, "aquí nadie ha pedido gente".
+ * ⚠️ Y SE PINTA CON COLORES QUE SE VEN.
  *
- * Y el hueco se pinta DONDE OCURRE: "de 12 a 14 faltan 3; de 14 a 16 faltan 2". Decir que
- * falta gente toda la tarde sería un aviso falso, y un aviso falso entrena a ignorar los
+ * El verde iba a rgba(21,128,61,.18) sobre un gris claro: el color que salía de esa mezcla
+ * era #DDE6DE — o sea, UN GRIS. Los 27 tramos verdes estaban en el DOM y en la pantalla no
+ * había ni uno. Medí el array y no el píxel.
+ *
+ * Y el verde NO es decorativo: es lo que da ESTRUCTURA al día. Sin él, cada celda es un
+ * rectángulo gris indistinguible del de al lado; con él, se ve de un vistazo qué está
+ * resuelto y qué no. Es la única fila de la celda que se lee sin leer.
+ *
+ * El hueco se pinta DONDE OCURRE: "de 12 a 16 faltan 3; de 16 a 20 faltan 2". Decir que
+ * falta gente todo el sábado sería un aviso falso, y un aviso falso entrena a ignorar los
  * avisos.
  */
 const props = defineProps({
@@ -21,15 +26,15 @@ const props = defineProps({
 });
 
 const ESTILO = {
-    covered: { bg: 'rgba(21,128,61,.18)', border: '2px solid #15803D', color: null },
-    missing: { bg: 'rgba(220,38,38,.24)', border: '2px solid #DC2626', color: '#B0141C' },
-    excess: { bg: 'rgba(127,119,221,.26)', border: '2px solid #7F77DD', color: '#534AB7' },
-    // Rayado gris, NO rojo. Un hueco rojo dice "ponle a alguien", y aquí no hay a quién
-    // poner: el problema no está en el cuadrante, está en el catálogo.
+    covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: '#0F5C2C' },
+    missing: { bg: 'var(--color-missing-fill)', border: 'var(--color-missing)', color: '#9E1616' },
+    excess: { bg: 'var(--color-excess-fill)', border: 'var(--color-brand-300)', color: 'var(--color-brand-600)' },
+    // Rayado, NO rojo. Un hueco rojo dice "ponle a alguien", y aquí no hay a quién poner:
+    // el problema no está en el cuadrante, está en el catálogo.
     uncoverable: {
-        bg: 'repeating-linear-gradient(45deg,#DEDEE6 0 5px,#F2F2F6 5px 10px)',
-        border: '2px solid #8A8A99',
-        color: '#5A5A66',
+        bg: 'repeating-linear-gradient(45deg, var(--color-void-fill) 0 5px, #EFEDF5 5px 10px)',
+        border: '#8A8699',
+        color: '#57536A',
     },
 };
 
@@ -41,7 +46,7 @@ const style = (s) => ({
     bottom: 0,
     boxSizing: 'border-box',
     background: ESTILO[s.state].bg,
-    borderTop: ESTILO[s.state].border,
+    borderTop: `2px solid ${ESTILO[s.state].border}`,
 });
 
 const label = (s) => {
@@ -54,7 +59,7 @@ const label = (s) => {
     if (s.state === 'excess') {
         return props.wide ? `sobra${s.excess > 1 ? 'n' : ''} ${s.excess}` : `+${s.excess}`;
     }
-    // El tramo correcto NO lleva número: el verde ya lo dice, y un "0" sería ruido.
+    // El tramo correcto no lleva número: el verde ya lo dice, y un "0" sería ruido.
     return '';
 };
 
@@ -63,11 +68,10 @@ const tip = (s) => `${s.label} · pide ${s.required}, hay ${s.covered}`;
 
 <template>
     <div
-        class="relative overflow-hidden rounded-sm"
-        :class="wide ? 'h-4' : 'h-[15px]'"
+        class="relative overflow-hidden rounded-sm bg-sunken"
+        :class="wide ? 'h-[18px]' : 'h-[15px]'"
         :style="{
-            background: '#F5F4F8',
-            backgroundImage: 'linear-gradient(90deg,#E6E5EE 1px,transparent 1px)',
+            backgroundImage: 'linear-gradient(90deg, rgb(255 255 255 / 55%) 1px, transparent 1px)',
             backgroundSize: gridEvery(axis, wide ? 3 : 6),
         }"
     >
@@ -77,7 +81,7 @@ const tip = (s) => `${s.label} · pide ${s.required}, hay ${s.covered}`;
             v-for="(s, i) in segments"
             :key="`l${i}`"
             class="tabular pointer-events-none absolute top-0 truncate text-center font-bold"
-            :class="wide ? 'text-[9.5px] leading-4' : 'text-[10px] leading-[15px]'"
+            :class="wide ? 'text-[10px] leading-[18px]' : 'text-[10px] leading-[15px]'"
             :style="{ left: `${s.left}%`, width: `${s.width}%`, color: ESTILO[s.state].color }"
         >{{ label(s) }}</span>
     </div>

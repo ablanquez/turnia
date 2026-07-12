@@ -100,8 +100,16 @@ const visibles = computed(() => {
 </script>
 
 <template>
+    <!--
+        EL PANEL ES OTRA ZONA, NO MÁS PARRILLA.
+
+        Antes los dos eran blancos, sin borde ni sombra: el ojo no sabía dónde acababa una
+        cosa y empezaba la otra. Ahora se separa por TRES vías a la vez —superficie propia,
+        borde de SECCIÓN de 2 px y una sombra que lo despega—, y ninguna de las tres necesita
+        color semántico para hacerse entender.
+    -->
     <aside
-        class="flex w-[248px] shrink-0 flex-col gap-3 self-stretch border-l border-line bg-[#FBFBFD] px-3.5 pb-[18px] pt-3.5"
+        class="bg-panel flex w-[264px] shrink-0 flex-col gap-3 self-stretch overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
     >
         <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-ink">Plantilla disponible</span>
@@ -112,7 +120,7 @@ const visibles = computed(() => {
             v-model="busqueda"
             type="text"
             placeholder="Buscar persona…"
-            class="w-full rounded-[7px] border border-line bg-white px-2.5 py-[7px] text-[11.5px] text-ink-soft outline-none focus:border-brand-300"
+            class="bg-card w-full rounded-[7px] border border-line px-2.5 py-[7px] text-[11.5px] text-ink-soft outline-none focus:border-brand-300"
         >
 
         <!--
@@ -127,7 +135,7 @@ const visibles = computed(() => {
         <div
             v-for="persona in visibles"
             :key="persona.employmentId"
-            class="flex flex-col gap-[7px] rounded-[9px] border border-[#E9E8F1] bg-white px-2.5 py-[9px]"
+            class="bg-card flex flex-col gap-[7px] rounded-[9px] border border-line px-2.5 py-[9px] shadow-[0_1px_3px_-1px_rgb(40_36_80/10%)]"
         >
             <div class="flex items-center gap-[9px]">
                 <span class="relative flex shrink-0">
