@@ -68,22 +68,109 @@ const medida = await page.evaluate(() => {
     };
 });
 
-// Y el raíl, al desplazarse de verdad hasta el domingo.
-const railVisibleTrasDesplazar = await page.evaluate(() => {
+/*
+ * El raíl, al desplazarse de verdad.
+ *
+ * ⚠️ Con el panel RECOGIDO la semana cabe entera y NO HAY SCROLL: preguntar aquí por el raíl
+ * fijo no prueba nada. Hay que abrir el panel —que es cuando la parrilla sí se queda sin
+ * sitio— y desplazarse hasta el domingo.
+ */
+const railVisibleTrasDesplazar = await page.evaluate(async () => {
+    document.querySelector('aside button').click();
+    await new Promise((r) => setTimeout(r, 300));
+
     const scroller = [...document.querySelectorAll('div')].find((e) => e.scrollWidth > e.clientWidth + 50);
+
     if (!scroller) {
         return false;
     }
 
     scroller.scrollLeft = scroller.scrollWidth;
-    const raíl = document.querySelector('.rail-sticky');
+    await new Promise((r) => setTimeout(r, 150));
 
-    return raíl.getBoundingClientRect().left < 200;
+    const raíl = document.querySelector('.rail-sticky');
+    const sigueAhi = raíl.getBoundingClientRect().left < 200;
+
+    document.querySelector('aside button').click();
+    await new Promise((r) => setTimeout(r, 300));
+
+    return sigueAhi;
+});
+
+/*
+ * ── LA SEMANA, EL ALTO Y LOS SCROLLS ─────────────────────────────────────────────────
+ *
+ * Con el panel RECOGIDO (que es como arranca), la semana entera tiene que caber a 1366 px:
+ * el sábado y el domingo son el pico de carga de un bar, y esconderlos detrás de un scroll
+ * es esconder justo lo que más importa.
+ *
+ * Y la altura la manda LA PARRILLA. Estaba al revés: el panel (diez personas) estiraba el
+ * contenedor y la parrilla —cinco puestos— flotaba sobre un vacío blanco enorme.
+ */
+const layout = await page.evaluate(() => {
+    const scroller = [...document.querySelectorAll('div')]
+        .find((e) => e.className.includes?.('max-h-full') && e.className.includes('overflow-auto'));
+    const rejilla = scroller?.firstElementChild;
+    const panel = document.querySelector('aside');
+    const tarjeta = scroller?.getBoundingClientRect();
+
+    return {
+        cabeLaSemana: rejilla ? rejilla.scrollWidth <= scroller.clientWidth + 1 : false,
+        faltan: rejilla ? Math.max(0, Math.round(rejilla.scrollWidth - scroller.clientWidth)) : -1,
+        anchoPanelRecogido: panel ? Math.round(panel.getBoundingClientRect().width) : -1,
+        // El alto de la tarjeta lo dan las filas, no el panel.
+        altoParrilla: tarjeta ? Math.round(tarjeta.height) : 0,
+        altoPanel: panel ? Math.round(panel.getBoundingClientRect().height) : 0,
+        panelScrollaSolo: panel ? getComputedStyle(panel).overflowY : null,
+    };
+});
+
+/*
+ * Se despliega, se mide ABIERTO y se vuelve a recoger.
+ *
+ * ⚠️ La primera versión de esta comprobación le preguntaba al panel RECOGIDO si tenía scroll
+ * vertical. Un raíl de 40 px nunca lo tiene, claro. Preguntar a la cosa equivocada da una
+ * respuesta correcta a una pregunta que no era la que había que hacer.
+ */
+const abre = await page.evaluate(async () => {
+    document.querySelector('aside button').click();
+    await new Promise((r) => setTimeout(r, 300));
+
+    const panel = document.querySelector('aside');
+    const caja = panel.getBoundingClientRect();
+
+    const abierto = {
+        ancho: Math.round(caja.width),
+        alto: Math.round(caja.height),
+        overflowY: getComputedStyle(panel).overflowY,
+        // La lista de diez personas no cabe en el alto de cinco puestos: tiene que scrollear
+        // POR DENTRO, sin arrastrar a la página.
+        scrolleaPorDentro: panel.scrollHeight > panel.clientHeight + 1,
+        paginaDesborda: document.documentElement.scrollHeight > window.innerHeight,
+    };
+
+    panel.querySelector('button').click();
+    await new Promise((r) => setTimeout(r, 300));
+
+    return {
+        ...abierto,
+        vuelveARecogerse: Math.round(document.querySelector('aside').getBoundingClientRect().width) < 60,
+    };
 });
 
 const verdes = medida.rellenos.filter((c) => esVerde(rgb(c))).length;
 
 const pruebas = [
+    ['¿Cabe la SEMANA ENTERA con el panel recogido?', layout.cabeLaSemana,
+        layout.cabeLaSemana ? 'cabe, sin scroll' : `faltan ${layout.faltan}px`],
+    ['¿El panel arranca RECOGIDO?', layout.anchoPanelRecogido < 60, `${layout.anchoPanelRecogido}px`],
+    ['¿Se despliega y se vuelve a recoger?', abre.ancho > 200 && abre.vuelveARecogerse,
+        `abierto ${abre.ancho}px · vuelve a recogerse: ${abre.vuelveARecogerse}`],
+    ['¿La altura la manda la PARRILLA, no el panel?', Math.abs(abre.alto - layout.altoParrilla) <= 3,
+        `parrilla ${layout.altoParrilla}px · panel abierto ${abre.alto}px`],
+    ['¿El panel scrollea POR DENTRO, sin arrastrar la página?', abre.scrolleaPorDentro && !abre.paginaDesborda,
+        `overflow-y: ${abre.overflowY} · scroll interno: ${abre.scrolleaPorDentro} · página desborda: ${abre.paginaDesborda}`],
+
     ['¿HAY VERDE de verdad en la pantalla?', verdes > 0, `${verdes} tramos verdes`],
     ['¿El borde de SECCIÓN pesa más que el de columna?', medida.bordeSeccion > medida.bordeCelda,
         `sección ${medida.bordeSeccion}px vs columna ${medida.bordeCelda}px`],

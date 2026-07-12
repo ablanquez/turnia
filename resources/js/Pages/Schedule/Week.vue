@@ -1,10 +1,13 @@
 <script setup>
+import { ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import CatalogueConflicts from '../../Components/Schedule/CatalogueConflicts.vue';
 import Legend from '../../Components/Schedule/Legend.vue';
 import ScheduleHeader from '../../Components/Schedule/ScheduleHeader.vue';
 import WeekGrid from '../../Components/Schedule/WeekGrid.vue';
 import StaffPanel from '../../Components/Staff/StaffPanel.vue';
+
+const altoParrilla = ref(0);
 
 defineProps({
     company: { type: Object, required: true },
@@ -43,8 +46,9 @@ defineProps({
             <CatalogueConflicts :conflicts="coverage.conflicts" />
         </template>
 
-        <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
+        <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch overflow-hidden">
             <WeekGrid
+                @alto="(h) => (altoParrilla = h)"
                 :company="company"
                 :calendar="calendar"
                 :window="window"
@@ -62,6 +66,7 @@ defineProps({
                 v-if="can.seeStaff"
                 :staff="staff"
                 :assignments="assignments"
+                :alto="altoParrilla"
                 :violations="violations ?? null"
             />
         </div>

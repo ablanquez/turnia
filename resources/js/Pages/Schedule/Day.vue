@@ -1,11 +1,13 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import CatalogueConflicts from '../../Components/Schedule/CatalogueConflicts.vue';
 import DayGrid from '../../Components/Schedule/DayGrid.vue';
 import Legend from '../../Components/Schedule/Legend.vue';
 import ScheduleHeader from '../../Components/Schedule/ScheduleHeader.vue';
 import StaffPanel from '../../Components/Staff/StaffPanel.vue';
+
+const altoParrilla = ref(0);
 
 const props = defineProps({
     company: { type: Object, required: true },
@@ -46,9 +48,10 @@ const day = computed(() => props.window.days[0]);
             <CatalogueConflicts :conflicts="coverage.conflicts" />
         </template>
 
-        <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
+        <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch overflow-hidden">
             <div class="flex min-w-0 flex-1">
                 <DayGrid
+                @alto="(h) => (altoParrilla = h)"
                     :day="day"
                     :axis="axis"
                     :positions="positions"
@@ -65,6 +68,7 @@ const day = computed(() => props.window.days[0]);
                 v-if="can.seeStaff"
                 :staff="staff"
                 :assignments="assignments"
+                :alto="altoParrilla"
                 :violations="violations ?? null"
             />
         </div>

@@ -1,6 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import PersonLane from './PersonLane.vue';
 
@@ -212,6 +212,56 @@ const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
  *   · el nombre del puesto, en un raíl fijo que no se va al desplazar
  */
 const esPar = (i) => i % 2 === 0;
+
+/**
+ * LAS COLUMNAS SON FLUIDAS, Y ES LO QUE HACE QUE LA SEMANA QUEPA.
+ *
+ * Con columnas fijas de 300 px la semana pide 2.224 px y a 1366 solo hay 1.290: faltan 934,
+ * y el sábado y el domingo —el pico de carga de un bar— se quedaban escondidos detrás del
+ * scroll. Con minmax(168px, 1fr) la columna se estira cuando hay sitio y se comprime cuando
+ * no lo hay, y a 1366 con el panel recogido la semana entera CABE.
+ *
+ * ⚠️ Lo que se sacrifica al comprimir es LA HORA del carril, nunca el nombre.
+ *
+ * El nombre no se puede truncar ("Hu…" puede ser Hugo o Humberto) y una hora recortada a
+ * media cadena ("12:00–2…") parece un error. Así que por debajo de ~200 px la hora
+ * desaparece del rótulo: sigue estando EN EL EJE (la barra está donde está), en el tooltip y
+ * entera en el zoom Día. Se pierde un rótulo, no un dato.
+ */
+const celda = ref(null);
+const tarjeta = ref(null);
+const anchoColumna = ref(300);
+
+const emit = defineEmits(['alto']);
+
+let observador = null;
+
+onMounted(() => {
+    observador = new ResizeObserver(() => {
+        if (celda.value) {
+            anchoColumna.value = celda.value.getBoundingClientRect().width;
+        }
+
+        // LA PARRILLA MANDA EN LA ALTURA: la anuncia, y el panel se adapta a ella.
+        if (tarjeta.value) {
+            emit('alto', tarjeta.value.getBoundingClientRect().height);
+        }
+    });
+
+    if (celda.value) {
+        observador.observe(celda.value);
+        anchoColumna.value = celda.value.getBoundingClientRect().width;
+    }
+
+    if (tarjeta.value) {
+        observador.observe(tarjeta.value);
+        emit('alto', tarjeta.value.getBoundingClientRect().height);
+    }
+});
+
+onBeforeUnmount(() => observador?.disconnect());
+
+const columnaEstrecha = computed(() => anchoColumna.value < 200);
 </script>
 
 <template>
@@ -222,7 +272,16 @@ const esPar = (i) => i % 2 === 0;
         de puestos se queda a la izquierda. A 1366 px no caben los siete días: sin el raíl
         fijo, al desplazarte pierdes el nombre del puesto y dejas de saber qué estás mirando.
     -->
-    <div class="min-w-0 flex-1 bg-page p-4">
+    <!--
+        LA PARRILLA MANDA EN LA ALTURA. El panel es la barra lateral y se adapta.
+        Estaba al revés: el panel (diez personas) estiraba el contenedor y la parrilla —cinco
+        puestos— se quedaba flotando sobre un vacío blanco enorme. El contenido define el
+        alto; la barra lateral, no.
+
+        Por eso la tarjeta tiene altura AUTOMÁTICA (crece con las filas de puestos) y solo se
+        topa con max-h-full. Lo que quede por debajo es el SUELO de la página, no un hueco.
+    -->
+    <div class="flex min-h-0 min-w-0 flex-1 bg-page p-4">
         <!--
             ⚠️ EL REDONDEO Y EL SCROLL VAN EN EL MISMO DIV, Y LA REJILLA NO LLEVA overflow.
             Si la rejilla lleva overflow-hidden (para redondear esquinas), ELLA pasa a ser el
@@ -230,11 +289,12 @@ const esPar = (i) => i % 2 === 0;
             de puestos desaparecía al desplazarse. Se veía al mirar, no al medir.
         -->
         <div
-            class="h-full overflow-auto rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]"
+            ref="tarjeta"
+            class="max-h-full w-full self-start overflow-auto rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]"
         >
             <div
-                class="w-max"
-                style="display: grid; grid-template-columns: 124px repeat(7, 300px)"
+                class="w-full"
+                style="display: grid; grid-template-columns: 124px repeat(7, minmax(160px, 1fr))"
             >
             <!-- Cabecera: día y fecha APILADOS. Sin regla horaria: el rango lo dice la leyenda. -->
             <div class="corner-sticky border-b-2 border-r-2 border-edge bg-rail" />
@@ -242,6 +302,7 @@ const esPar = (i) => i % 2 === 0;
             <div
                 v-for="(day, i) in window.days"
                 :key="day.date"
+                :ref="i === 0 ? (el) => (celda = el) : undefined"
                 class="head-sticky border-b-2 border-edge bg-rail px-3 py-2.5"
                 :class="i < 6 ? 'border-r border-r-line' : ''"
             >
@@ -315,6 +376,7 @@ const esPar = (i) => i % 2 === 0;
                             :person="lane.person"
                             :blocks="lane.blocks"
                             :axis="axis"
+                            :compact="columnaEstrecha"
                             :violations-by-id="violations?.assignments ?? null"
                         />
 
@@ -324,6 +386,7 @@ const esPar = (i) => i % 2 === 0;
                             :person="lane.person"
                             :blocks="lane.blocks"
                             :axis="axis"
+                            :compact="columnaEstrecha"
                             :violations-by-id="violations?.assignments ?? null"
                         />
                     </div>

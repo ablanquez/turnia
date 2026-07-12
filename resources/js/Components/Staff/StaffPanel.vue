@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { shortText } from '../../composables/useSeverity.js';
+import { alternarPanel, panelAbierto } from '../../composables/useStaffPanel.js';
 
 /**
  * EL PANEL DE PLANTILLA. Solo lo ve quien gestiona.
@@ -21,7 +22,20 @@ const props = defineProps({
     // Diferidas: hasta que llegan, las banderas de REGLA (descanso corto, tope pasado) no
     // se pueden afirmar. Afirmarlas antes sería inventárselas.
     violations: { type: Object, default: null },
+    /**
+     * EL ALTO DE LA PARRILLA. El panel se adapta a él, no al revés.
+     *
+     * Estaba invertido: el panel (diez personas) estiraba el contenedor y la parrilla —cinco
+     * puestos— flotaba sobre un vacío blanco enorme. La parrilla es EL CONTENIDO y el panel
+     * es la BARRA LATERAL: el contenido define el alto.
+     *
+     * Y si la plantilla no cabe en ese alto, el panel scrollea POR DENTRO. Nunca arrastra a
+     * la página entera.
+     */
+    alto: { type: Number, default: 0 },
 });
+
+const altoDelPanel = computed(() => (props.alto ? `${Math.round(props.alto)}px` : '100%'));
 
 const busqueda = ref('');
 
@@ -108,12 +122,51 @@ const visibles = computed(() => {
         borde de SECCIÓN de 2 px y una sombra que lo despega—, y ninguna de las tres necesita
         color semántico para hacerse entender.
     -->
+    <!--
+        RECOGIDO: un raíl de 40 px con el número de gente. Sigue estando —se sabe que hay un
+        panel y cuánta plantilla hay— pero devuelve 224 px de ancho a la parrilla, que es
+        justo lo que a la parrilla le falta.
+    -->
     <aside
-        class="bg-panel flex w-[264px] shrink-0 flex-col gap-3 self-stretch overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
+        v-if="!panelAbierto"
+        class="bg-panel flex w-10 shrink-0 flex-col items-center gap-3 self-start border-l-2 border-edge py-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
+        :style="{ height: altoDelPanel }"
+    >
+        <button
+            class="bg-card flex h-7 w-7 items-center justify-center rounded-lg border border-line text-ink-soft hover:text-brand-600"
+            title="Abrir el panel de plantilla"
+            @click="alternarPanel"
+        >
+            «
+        </button>
+
+        <span class="tabular text-[10px] font-bold text-ink-faint">{{ staff.length }}</span>
+
+        <span
+            class="text-[10px] font-bold uppercase tracking-wider text-ink-faint"
+            style="writing-mode: vertical-rl"
+        >Plantilla</span>
+    </aside>
+
+    <aside
+        v-else
+        class="bg-panel flex min-h-0 w-[264px] shrink-0 flex-col gap-3 self-start overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
+        :style="{ height: altoDelPanel }"
     >
         <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-ink">Plantilla disponible</span>
-            <span class="tabular text-[10px] text-ink-faint">{{ staff.length }} activos</span>
+
+            <div class="flex items-center gap-2">
+                <span class="tabular text-[10px] text-ink-faint">{{ staff.length }} activos</span>
+
+                <button
+                    class="bg-card flex h-6 w-6 items-center justify-center rounded-md border border-line text-ink-soft hover:text-brand-600"
+                    title="Recoger el panel"
+                    @click="alternarPanel"
+                >
+                    »
+                </button>
+            </div>
         </div>
 
         <input

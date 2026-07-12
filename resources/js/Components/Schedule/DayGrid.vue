@@ -52,6 +52,10 @@ const LANE_GAP = 3;
 const pista = ref(null);
 const anchoPista = ref(0);
 
+// LA PARRILLA MANDA EN LA ALTURA: la anuncia, y el panel se adapta a ella.
+const tarjeta = ref(null);
+const emit = defineEmits(['alto']);
+
 let observador = null;
 
 onMounted(() => {
@@ -59,12 +63,23 @@ onMounted(() => {
         return;
     }
 
-    observador = new ResizeObserver(([e]) => {
-        anchoPista.value = e.contentRect.width;
+    observador = new ResizeObserver(() => {
+        if (pista.value) {
+            anchoPista.value = pista.value.getBoundingClientRect().width;
+        }
+
+        if (tarjeta.value) {
+            emit('alto', tarjeta.value.getBoundingClientRect().height);
+        }
     });
 
     observador.observe(pista.value);
     anchoPista.value = pista.value.getBoundingClientRect().width;
+
+    if (tarjeta.value) {
+        observador.observe(tarjeta.value);
+        emit('alto', tarjeta.value.getBoundingClientRect().height);
+    }
 });
 
 onBeforeUnmount(() => observador?.disconnect());
@@ -242,8 +257,8 @@ const ausentes = computed(() => props.absences.filter(
 </script>
 
 <template>
-    <div class="min-w-0 flex-1 overflow-auto bg-page p-4">
-        <div class="overflow-hidden rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]">
+    <div class="flex min-h-0 min-w-0 flex-1 bg-page p-4">
+        <div ref="tarjeta" class="max-h-full w-full self-start overflow-auto rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]">
             <div class="flex items-center gap-3 border-b-2 border-edge bg-rail px-5 py-3.5">
                 <span class="rounded bg-brand-50 px-2 py-1 text-[11px] font-bold text-brand-800">ZOOM · DÍA</span>
                 <div class="flex-1">

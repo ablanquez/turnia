@@ -88,8 +88,15 @@
     --color-void-fill: #d7d4e2; /* rayado del puesto sin candidato */
 }
 
+/*
+ * ⚠️ #app TAMBIÉN. Inertia monta ahí dentro, y si ese div no tiene altura, el h-full del
+ * layout se resuelve contra la nada: la parrilla crece sin tope, la página entera desborda
+ * a lo alto y los scrolls internos dejan de servir para nada. Se veía como "hay dos scrolls
+ * y ninguno hace lo que debe".
+ */
 html,
-body {
+body,
+#app {
     height: 100%;
 }
 

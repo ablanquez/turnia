@@ -25,6 +25,17 @@ const props = defineProps({
     // del turno de 9 a 17, en vez de haber que buscarla en otra fila.
     blocks: { type: Array, required: true },
     axis: { type: Object, required: true },
+    /**
+     * La columna es estrecha: la semana entera cabe a 1366 px, pero a costa de columnas de
+     * ~160 px, y ahí no caben el nombre y la hora en la MISMA línea.
+     *
+     * ⚠️ LA HORA NO SE PIERDE: BAJA DE LÍNEA.
+     *
+     * Ocultarla habría sido la salida fácil, y habría sido perder un dato para ganar
+     * espacio. Recortarla ("12:00–2…") habría parecido un error. Debajo del nombre cabe
+     * entera, y el nombre —que es lo que jamás se puede truncar— sigue en su línea.
+     */
+    compact: { type: Boolean, default: false },
     // null mientras el informe no ha llegado. NO significa "sin incidencias".
     violationsById: { type: Object, default: null },
 });
@@ -179,10 +190,13 @@ const title = computed(() => {
             <!-- El nombre NO se trunca. Nunca. -->
             <span class="shrink-0 whitespace-nowrap text-[12px] font-semibold text-ink">{{ person.name }}</span>
 
-            <!-- La hora SÍ, si no cabe: se lee entera en el tooltip. -->
-            <span class="tabular min-w-0 flex-1 truncate whitespace-nowrap text-[10px] text-[#8A8896]">
-                {{ summary }}
-            </span>
+            <!-- Ancha: la hora va al lado. Estrecha: baja de línea, pero NO desaparece. -->
+            <span
+                v-if="!compact"
+                class="tabular min-w-0 flex-1 truncate whitespace-nowrap text-[10px] text-[#8A8896]"
+            >{{ summary }}</span>
+
+            <span v-else class="flex-1" />
 
             <!-- El icono dice QUÉ pasa. Un punto solo diría QUE pasa algo. -->
             <span
@@ -191,6 +205,16 @@ const title = computed(() => {
                 :style="{ color: severityColor(laneSeverity) }"
             >{{ severityIcon(laneSeverity) }}</span>
         </div>
+
+        <!--
+            Y ENVUELVE, no recorta. Una jornada partida son dos horas ("09:00–13:00 · 17:00–21:00")
+            y truncarla dejaba "17:00–…", que parece un error. Que ocupe dos líneas: la celda
+            tiene alto de sobra, y el dato no se pierde.
+        -->
+        <div
+            v-if="compact"
+            class="tabular ml-[22px] text-[9.5px] leading-tight text-[#8A8896]"
+        >{{ summary }}</div>
 
         <!--
             La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y
