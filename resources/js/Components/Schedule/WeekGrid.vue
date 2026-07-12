@@ -289,8 +289,15 @@ const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
 
                     <div class="flex-1" />
 
-                    <!-- Con un imposible dentro, la cobertura es una ficción: no se pinta. -->
-                    <div v-if="!impossibleIn(position.id, day.date)" class="mt-[9px]">
+                    <!--
+                        Con un imposible dentro, la cobertura es una ficción: no se pinta.
+                        Y donde no se pide gente ni hay nadie, tampoco: una tira gris vacía no
+                        informa de nada y llena la rejilla de ruido.
+                    -->
+                    <div
+                        v-if="!impossibleIn(position.id, day.date) && coverageOf(position.id, day.date).length"
+                        class="mt-[9px]"
+                    >
                         <CoverageStrip :segments="coverageOf(position.id, day.date)" :axis="axis" />
                     </div>
                 </div>

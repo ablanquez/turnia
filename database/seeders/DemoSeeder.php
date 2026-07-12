@@ -12,7 +12,6 @@ use App\Models\Company;
 use App\Models\Employment;
 use App\Models\Person;
 use App\Models\Position;
-use App\Models\Profile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
@@ -21,23 +20,39 @@ use Illuminate\Support\Facades\Hash;
 /**
  * EL BAR DE LA DEMO.
  *
- * No es un cuadrante bonito: es un cuadrante ROTO A PROPÓSITO. Un cuadrante perfecto
- * no demuestra nada — cualquier hoja de cálculo pinta un cuadrante perfecto. Lo que
- * demuestra que hay un motor debajo es que la parrilla SEÑALE lo que está mal, y
- * cada caso difícil de aquí existe para que se vea uno de los avisos:
+ * ⚠️ UN CUADRANTE EN LLAMAS NO IMPRESIONA: ALARMA.
  *
- *   · jornada partida        → dos barras con un agujero real en medio
- *   · turno nocturno         → una barra que cruza el borde del día
- *   · doble empresa          → un aviso, sin decir dónde (el dato ajeno no se filtra)
- *   · pasarse de horas       → un incumplimiento forzado, con su constancia
- *   · solaparse consigo mismo → un IMPOSIBLE
- *   · una baja               → turnos huérfanos que nadie ha recolocado
- *   · un puesto sin candidato → el problema está en el catálogo, no en la parrilla
- *   · huecos por segmentos   → "de 12 a 14 faltan 3; de 14 a 16 faltan 2"
+ * La primera versión de este seeder estaba llena de rojos: Ana de baja Y asignada tres
+ * días, Sara pasándose de horas todos los días, imposibles repetidos. Quien lo abría no
+ * sabía si la app funcionaba bien detectando problemas o si estaba rota. Más rojo que
+ * verde no demuestra que haya un motor: demuestra que hay un desastre.
+ *
+ * LO QUE DEMUESTRA QUE EL MOTOR SIRVE ES UN CUADRANTE SANO CON UN PUÑADO DE PROBLEMAS
+ * SEÑALADOS. Así que aquí la semana está MAYORMENTE VERDE, y los casos difíciles son
+ * UNO DE CADA, puestos a mano y en un sitio concreto:
+ *
+ *   · UNA jornada partida ......... Lucía, el lunes (dos barras con un agujero real)
+ *   · UN turno nocturno ........... Diego, de lunes a viernes (cruza el borde del día)
+ *   · UN aviso de doble empresa ... Marco, el miércoles (sin decir dónde)
+ *   · UN incumplimiento forzado ... Sara, el lunes (descanso corto), con constancia
+ *   · UN imposible ................ Tomás, el martes (se solapa consigo mismo)
+ *   · UNA baja .................... Ana, de miércoles a viernes — Y SIN TURNOS ESOS DÍAS
+ *   · UN puesto sin candidato ..... Sumiller, el sábado
+ *   · UN escalón de cobertura ..... Barra, el sábado: faltan 3, luego faltan 2
+ *
+ * Todo lo demás, verde.
  */
 class DemoSeeder extends Seeder
 {
     private CarbonImmutable $monday;
+
+    /** @var array<string, Position> */
+    private array $positions = [];
+
+    /** @var array<string, Employment> */
+    private array $employments = [];
+
+    private Calendar $calendar;
 
     public function run(): void
     {
@@ -46,9 +61,35 @@ class DemoSeeder extends Seeder
 
         $owner = $this->owner();
         $optim = $this->optim($owner);
-        $central = $this->central($owner);
 
-        $this->wire($owner, $optim, $central);
+        $this->positions = $this->positions($optim);
+        $profiles = $this->profiles($optim);
+        $catalogue = $this->catalogue($optim);
+
+        $this->calendar = $optim->calendars()->create([
+            'name' => 'Sala y barra',
+            'starts_on' => $this->monday->subMonths(6)->toDateString(),
+            'ends_on' => null,
+            'is_active' => true,
+        ]);
+
+        $people = $this->people($owner);
+        $this->employments = $this->employments($optim, $people, $profiles);
+
+        $this->logins($owner, $optim, $people['ana']);
+        $this->demand();
+
+        // La semana que funciona. Es la mayor parte de lo que se ve.
+        $this->rota();
+
+        // Y los ocho casos difíciles, uno a uno.
+        $this->jornadaPartida();
+        $this->turnoNocturno();
+        $this->descansoCortoForzado($owner);
+        $this->solapeImposible();
+        $this->bajaSinTurnos($people, $catalogue);
+        $this->conceptosHorarios($catalogue);
+        $this->dobleEmpresa($owner, $people['marco']);
     }
 
     private function owner(): User
@@ -67,46 +108,9 @@ class DemoSeeder extends Seeder
             'timezone' => 'Europe/Madrid',
             'computation_year_start_month' => 1,
             'computation_year_start_day' => 1,
-            // Un bar no libra sábado y domingo: libra el lunes. El motor no lo sabía:
-            // se lo dice la empresa.
-            'non_working_weekdays' => [1],
+            // Un bar abre los siete días. Ningún día es "no laborable".
+            'non_working_weekdays' => [],
         ]);
-    }
-
-    /** La otra empresa del mismo dueño. Existe para que exista el aviso de doble empresa. */
-    private function central(User $owner): Company
-    {
-        return $owner->companies()->create([
-            'name' => 'Bar Central',
-            'timezone' => 'Europe/Madrid',
-            'computation_year_start_month' => 1,
-            'computation_year_start_day' => 1,
-            'non_working_weekdays' => [1],
-        ]);
-    }
-
-    private function wire(User $owner, Company $optim, Company $central): void
-    {
-        $positions = $this->positions($optim);
-        $profiles = $this->profiles($optim);
-        $catalogue = $this->catalogue($optim);
-
-        $calendar = $optim->calendars()->create([
-            'name' => 'Sala y barra',
-            'starts_on' => $this->monday->subMonths(6)->toDateString(),
-            'ends_on' => null,
-            'is_active' => true,
-        ]);
-
-        $people = $this->people($owner);
-        $employments = $this->employments($optim, $people, $profiles, $positions, $calendar);
-
-        $this->logins($owner, $optim, $people['ana']);
-        $this->demand($calendar, $positions);
-        $this->shifts($calendar, $employments, $positions, $owner);
-        $this->concepts($employments, $catalogue);
-        $this->absences($employments, $people, $catalogue);
-        $this->elsewhere($central, $people['marco'], $profiles);
     }
 
     /** @return array<string, Position> */
@@ -117,31 +121,26 @@ class DemoSeeder extends Seeder
             'cocina' => 'Cocina',
             'sala' => 'Sala',
             'caja' => 'Caja',
-            // ⚠️ NADIE va a estar cualificado para esto. Es el caso del puesto
-            // incubrible: se pide cobertura y no hay un solo candidato en el catálogo.
+            // ⚠️ NADIE va a estar cualificado para esto. Es el puesto incubrible.
             'sumiller' => 'Sumiller',
         ];
 
         $positions = [];
 
         foreach ($names as $key => $name) {
-            $positions[$key] = $company->positions()->create([
-                'name' => $name,
-                'is_active' => true,
-            ]);
+            $positions[$key] = $company->positions()->create(['name' => $name, 'is_active' => true]);
         }
 
         return $positions;
     }
 
-    /** @return array<string, Profile> */
     private function profiles(Company $company): array
     {
         return [
             'completa' => $company->profiles()->create([
                 'name' => 'Indefinido · 40 h',
                 'max_minutes_week' => 40 * 60,
-                'max_minutes_month' => 160 * 60,
+                'max_minutes_month' => 170 * 60,
                 'max_minutes_year' => 1800 * 60,
                 'max_minutes_per_shift' => 9 * 60,
                 'min_rest_minutes_between_shifts' => 12 * 60,
@@ -152,7 +151,7 @@ class DemoSeeder extends Seeder
             'parcial25' => $company->profiles()->create([
                 'name' => 'Parcial · 25 h',
                 'max_minutes_week' => 25 * 60,
-                'max_minutes_per_shift' => 6 * 60,
+                'max_minutes_per_shift' => 8 * 60,
                 'min_rest_minutes_between_shifts' => 12 * 60,
                 'annual_leave_days' => 22,
                 'workday_type' => WorkdayType::Any,
@@ -204,44 +203,40 @@ class DemoSeeder extends Seeder
     {
         $roster = [
             'ana' => ['Ana', 'López'],
-            'marco' => ['Marco', 'Ruiz'],
-            'sara' => ['Sara', 'Gil'],
-            'lucia' => ['Lucía', 'Díaz'],
-            'diego' => ['Diego', 'Mora'],
-            'tomas' => ['Tomás', 'Vega'],
-            'nuria' => ['Nuria', 'Peña'],
             'iker' => ['Iker', 'Blanco'],
+            'marco' => ['Marco', 'Ruiz'],
+            'nuria' => ['Nuria', 'Peña'],
+            'sara' => ['Sara', 'Gil'],
+            'diego' => ['Diego', 'Mora'],
+            'lucia' => ['Lucía', 'Díaz'],
+            'bea' => ['Bea', 'Soler'],
+            'leo' => ['Leo', 'Ferrer'],
+            'tomas' => ['Tomás', 'Vega'],
         ];
 
         $people = [];
 
         foreach ($roster as $key => [$first, $last]) {
-            $people[$key] = $owner->people()->create([
-                'first_name' => $first,
-                'last_name' => $last,
-            ]);
+            $people[$key] = $owner->people()->create(['first_name' => $first, 'last_name' => $last]);
         }
 
         return $people;
     }
 
     /** @return array<string, Employment> */
-    private function employments(
-        Company $company,
-        array $people,
-        array $profiles,
-        array $positions,
-        Calendar $calendar,
-    ): array {
+    private function employments(Company $company, array $people, array $profiles): array
+    {
         $plan = [
             'ana' => ['completa', ['barra', 'sala']],
-            'marco' => ['parcial25', ['barra']],
-            'sara' => ['completa', ['cocina']],
-            'lucia' => ['parcial25', ['sala', 'caja']],
-            'diego' => ['completa', ['cocina']],
-            'tomas' => ['parcial20', ['caja']],
-            'nuria' => ['completa', ['cocina', 'sala']],
             'iker' => ['completa', ['barra']],
+            'marco' => ['parcial25', ['barra']],
+            'nuria' => ['completa', ['barra', 'sala']],
+            'sara' => ['completa', ['cocina']],
+            'diego' => ['completa', ['cocina']],
+            'lucia' => ['parcial25', ['sala', 'caja']],
+            'bea' => ['completa', ['sala']],
+            'leo' => ['completa', ['caja']],
+            'tomas' => ['parcial20', ['caja']],
         ];
 
         $employments = [];
@@ -255,10 +250,10 @@ class DemoSeeder extends Seeder
             ]);
 
             $employment->positions()->attach(
-                collect($skills)->map(fn ($s) => $positions[$s]->id)->all()
+                collect($skills)->map(fn ($s) => $this->positions[$s]->id)->all()
             );
 
-            $employment->calendars()->attach($calendar);
+            $employment->calendars()->attach($this->calendar);
 
             $employments[$key] = $employment;
         }
@@ -266,7 +261,6 @@ class DemoSeeder extends Seeder
         return $employments;
     }
 
-    /** El encargado y la empleada. Los tres papeles, para poder verlos de verdad. */
     private function logins(User $owner, Company $optim, Person $ana): void
     {
         $encargado = User::query()->create([
@@ -277,11 +271,7 @@ class DemoSeeder extends Seeder
 
         $optim->managers()->attach($encargado);
 
-        // El login de Ana apunta a su persona: eso, y solo eso, la hace empleada.
-        //
-        // Y NO se puede pasar por create(): person_id está fuera de $fillable a
-        // propósito (es un campo de propiedad, como company_id). Eloquent lo
-        // descartaría en silencio y quedaría un login que no es de nadie.
+        // person_id NO es fillable: es un campo de propiedad. linkTo(), no create().
         User::query()->create([
             'name' => 'Ana López',
             'email' => 'empleada@turnia.test',
@@ -292,191 +282,195 @@ class DemoSeeder extends Seeder
     /**
      * LO QUE HACE FALTA.
      *
-     * Las franjas están escalonadas a propósito: "3 de barra de 12 a 16" y "2 de 16 a
-     * 20" no se fusionan, y con un solo turno de 14 a 18 encima el motor tiene que
-     * decir "de 12 a 14 faltan 3, de 14 a 16 faltan 2". Ese escalón es la prueba de
-     * que la cobertura se calcula POR SEGMENTOS y no por franja entera.
+     * Está declarado para que la plantilla LO CUBRA. Un cuadrante que no se puede cubrir
+     * con la gente que hay no demuestra que el motor funcione: demuestra que el catálogo
+     * está mal. Solo hay dos huecos, y los dos son a propósito.
      */
-    private function demand(Calendar $calendar, array $positions): void
+    private function demand(): void
     {
-        $from = $this->monday->subMonths(6)->toDateString();
-
-        $requirements = [
-            ['barra', '12:00', '16:00', 3],
-            ['barra', '16:00', '20:00', 2],
-            ['cocina', '12:00', '16:00', 1],
-            ['cocina', '20:00', '23:59', 1],
-            ['sala', '13:00', '17:00', 1],
-            ['caja', '10:00', '18:00', 1],
-        ];
-
-        foreach ($requirements as [$position, $start, $end, $count]) {
-            $calendar->coverageRequirements()->create([
-                'position_id' => $positions[$position]->id,
-                'effective_from' => $from,
-                'effective_to' => null,
-                'recurrence' => Recurrence::Daily,
-                'starts_at' => $start,
-                'ends_at' => $end,
-                'required_count' => $count,
-            ]);
+        // Barra: dos personas, todos los días menos el sábado.
+        foreach ([1, 2, 3, 4, 5, 7] as $day) {
+            $this->requirement('barra', '12:00', '20:00', 2, $day);
         }
-
-        // EL PUESTO INCUBRIBLE, y solo los SÁBADOS.
-        //
-        // Se pide un sumiller y no hay ni uno cualificado en la plantilla. Que sea semanal
-        // y no diario no es un capricho: repetir el mismo aviso los siete días es ruido, y
-        // el ruido entrena a ignorar. Con un sábado basta para que se vea, y así se ve.
-        $calendar->coverageRequirements()->create([
-            'position_id' => $positions['sumiller']->id,
-            'effective_from' => $from,
-            'recurrence' => Recurrence::Weekly,
-            'day_of_week' => 6,
-            'starts_at' => '20:00',
-            'ends_at' => '23:00',
-            'required_count' => 1,
-        ]);
-    }
-
-    private function shifts(Calendar $calendar, array $employments, array $positions, User $owner): void
-    {
-        $company = $calendar->company;
-
-        // --- JORNADA PARTIDA: dos bloques el mismo día, con un agujero real en medio.
-        // El motor NO tiene un campo "es partida": lo es de facto, y se VE.
-        $this->shift($calendar, $employments['lucia'], $positions['sala'], 1, '09:00', '13:00');
-        $this->shift($calendar, $employments['lucia'], $positions['sala'], 1, '17:00', '21:00');
-
-        // --- TURNO NOCTURNO: cruza medianoche. work_date es el día en que EMPIEZA.
-        $this->shift($calendar, $employments['diego'], $positions['cocina'], 1, '22:00', '06:00');
-        $this->shift($calendar, $employments['diego'], $positions['cocina'], 3, '22:00', '06:00');
-
-        // --- HUECOS POR SEGMENTOS: un solo turno de 14 a 18 contra una demanda
-        // escalonada de 3 (12-16) y 2 (16-20).
-        $this->shift($calendar, $employments['iker'], $positions['barra'], 2, '14:00', '18:00');
-        $this->shift($calendar, $employments['ana'], $positions['barra'], 2, '12:00', '20:00');
-
-        // --- DOBLE EMPRESA: Marco entra en L'Òptim por la tarde... y por la mañana ya
-        // ha trabajado en el Bar Central (ver elsewhere()).
-        $this->shift($calendar, $employments['marco'], $positions['barra'], 1, '16:00', '20:00');
-
-        // --- INCUMPLIMIENTO: Sara se pasa de las 40 h. Seis turnos de 7 h son 42.
-        foreach ([1, 2, 3, 4, 5, 6] as $day) {
-            $sara = $this->shift($calendar, $employments['sara'], $positions['cocina'], $day, '12:00', '19:00');
-        }
-
-        // El humano lo DECIDIÓ y quedó constancia. Un turno forzado no es lo mismo que
-        // un turno que nadie ha revisado, y la parrilla los distingue.
-        $sara->override()->create([
-            'user_id' => $owner->id,
-            'reason' => 'Cubre la baja de Ana. Se compensa la semana que viene.',
-            'violations' => [['code' => 'hour_limit', 'severity' => 'breach']],
-        ]);
-
-        // --- IMPOSIBLE: Tomás no puede estar en dos sitios a la vez. Y sin embargo aquí
-        // está: alguien lo colocó. La parrilla tiene que GRITARLO.
-        $this->shift($calendar, $employments['tomas'], $positions['caja'], 2, '10:00', '18:00');
-        $this->shift($calendar, $employments['tomas'], $positions['caja'], 2, '14:00', '20:00');
-
-        // --- HUÉRFANAS: Ana tiene turnos el miércoles y el jueves... y va a caer de
-        // baja justo esos días.
-        $this->shift($calendar, $employments['ana'], $positions['barra'], 3, '12:00', '20:00');
-        $this->shift($calendar, $employments['ana'], $positions['sala'], 4, '13:00', '17:00');
-
-        // Relleno creíble.
-        $this->shift($calendar, $employments['nuria'], $positions['cocina'], 4, '12:00', '16:00');
-        $this->shift($calendar, $employments['nuria'], $positions['sala'], 5, '13:00', '17:00');
-        $this->shift($calendar, $employments['iker'], $positions['barra'], 5, '12:00', '20:00');
-        $this->shift($calendar, $employments['lucia'], $positions['caja'], 5, '10:00', '16:00');
-        $this->shift($calendar, $employments['tomas'], $positions['caja'], 6, '10:00', '16:00');
-
-        unset($company);
-    }
-
-    /**
-     * Un turno, en horas LOCALES de la empresa, guardado como instante UTC.
-     *
-     * Si el fin va antes que el inicio, cruza medianoche: eso NO es un caso especial,
-     * es lo que hace un turno de noche.
-     */
-    private function shift(
-        Calendar $calendar,
-        Employment $employment,
-        Position $position,
-        int $isoDay,
-        string $start,
-        string $end,
-    ): Assignment {
-        $company = $calendar->company;
-        $workDate = $this->monday->addDays($isoDay - 1);
-
-        $startsAt = $company->toUtc($workDate->toDateString(), $start);
-        $endsAt = $company->toUtc($workDate->toDateString(), $end);
-
-        if ($endsAt->lte($startsAt)) {
-            $endsAt = $company->toUtc($workDate->addDay()->toDateString(), $end);
-        }
-
-        return $calendar->assignments()->create([
-            'employment_id' => $employment->id,
-            'position_id' => $position->id,
-            'work_date' => $workDate->toDateString(),
-            'starts_at' => $startsAt,
-            'ends_at' => $endsAt,
-        ]);
-    }
-
-    /**
-     * Los conceptos horarios: ocupan a la persona pero NO cubren puesto.
-     *
-     * La hora médica de Nuria cae dentro de su turno: se ve, en el mismo eje, que a
-     * las 10 no está en la cocina.
-     */
-    private function concepts(array $employments, array $catalogue): void
-    {
-        $company = $employments['nuria']->company;
 
         /*
-         * El JUEVES POR LA MAÑANA, ANTES de su turno de cocina (12:00–16:00).
+         * EL ESCALÓN DE COBERTURA, y solo el SÁBADO.
          *
-         * ⚠️ Y no DENTRO del turno, aunque la colisión se vería mejor: PORQUE ES IMPOSIBLE.
-         * El motor tiene razón —no se puede estar en el médico y cubriendo la cocina a la
-         * vez— y lo marca como imposible en cuanto se solapan. Un dato de demo que el propio
-         * motor declara imposible no es una demo: es un error de datos.
+         * El sábado hay más gente y hacen falta 5 de barra al mediodía y 4 por la tarde.
+         * Solo se colocan 2 → "faltan 3" de 12 a 16 y "faltan 2" de 16 a 20.
          *
-         * Así queda lo que de verdad hay que ver: el concepto OCUPA a la persona, se pinta
-         * en su carril y en el mismo eje, y se lee que esa mañana no está disponible aunque
-         * ese día trabaje.
+         * Es la prueba de que la cobertura se calcula POR SEGMENTOS: el motor no dice
+         * "falta gente el sábado" —que sería un aviso falso—, dice exactamente dónde y
+         * cuánta, y cada tramo se pinta con su anchura real.
          */
-        $jueves = $this->monday->addDays(3);
+        $this->requirement('barra', '12:00', '16:00', 5, 6);
+        $this->requirement('barra', '16:00', '20:00', 4, 6);
 
-        $employments['nuria']->conceptEntries()->create([
-            'concept_type_id' => $catalogue['medica']->id,
-            'work_date' => $jueves->toDateString(),
-            'starts_at' => $company->toUtc($jueves->toDateString(), '10:00'),
-            'ends_at' => $company->toUtc($jueves->toDateString(), '11:30'),
-        ]);
+        // Cocina: de lunes a viernes. El turno de noche cruza medianoche.
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            $this->requirement('cocina', '08:00', '16:00', 1, $day);
+            $this->requirement('cocina', '22:00', '06:00', 1, $day);
+        }
 
-        $viernes = $this->monday->addDays(4);
+        // Sala: de lunes a viernes, en tres tramos.
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            $this->requirement('sala', '09:00', '13:00', 1, $day);
+            $this->requirement('sala', '13:00', '17:00', 1, $day);
+            $this->requirement('sala', '17:00', '21:00', 1, $day);
+        }
 
-        $employments['iker']->conceptEntries()->create([
-            'concept_type_id' => $catalogue['extra']->id,
-            'work_date' => $viernes->toDateString(),
-            'starts_at' => $company->toUtc($viernes->toDateString(), '20:00'),
-            'ends_at' => $company->toUtc($viernes->toDateString(), '22:00'),
+        // Caja: de lunes a sábado.
+        foreach ([1, 2, 3, 4, 5, 6] as $day) {
+            $this->requirement('caja', '10:00', '18:00', 1, $day);
+        }
+
+        // EL PUESTO INCUBRIBLE: se pide un sumiller el sábado y no hay ni uno cualificado.
+        $this->requirement('sumiller', '20:00', '23:00', 1, 6);
+    }
+
+    private function requirement(string $position, string $start, string $end, int $count, int $isoDay): void
+    {
+        $this->calendar->coverageRequirements()->create([
+            'position_id' => $this->positions[$position]->id,
+            'effective_from' => $this->monday->subMonths(6)->toDateString(),
+            'recurrence' => Recurrence::Weekly,
+            'day_of_week' => $isoDay,
+            'starts_at' => $start,
+            'ends_at' => $end,
+            'required_count' => $count,
         ]);
     }
 
     /**
-     * LA BAJA QUE DEJA HUÉRFANAS.
+     * LA SEMANA QUE FUNCIONA.
      *
-     * Ana cae de baja de miércoles a viernes. Sus turnos del miércoles y del jueves
-     * siguen ahí: NADIE los ha quitado, porque el motor informa pero no decide. Esos
-     * huecos hay que verlos.
+     * Todo esto sale VERDE. Es lo que hace creíble el cuadrante y lo que da sentido a los
+     * pocos avisos que sí hay: sobre un fondo de errores, un aviso no dice nada.
      */
-    private function absences(array $employments, array $people, array $catalogue): void
+    private function rota(): void
     {
-        $employments['ana']->absences()->create([
+        // BARRA — dos personas de 12 a 20. Ana libra miércoles, jueves y viernes: está de
+        // baja, y por eso NO tiene turnos esos días (la baja no deja huérfanas).
+        foreach ([1, 2, 7] as $day) {
+            $this->shift('ana', 'barra', $day, '12:00', '20:00');
+        }
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            $this->shift('iker', 'barra', $day, '12:00', '20:00');
+        }
+        foreach ([3, 4, 5] as $day) {
+            $this->shift('marco', 'barra', $day, '12:00', '20:00');
+        }
+        // El sábado, Ana y Nuria: son 2 de los 5 que se piden. Ahí está el escalón.
+        $this->shift('ana', 'barra', 6, '12:00', '20:00');
+        foreach ([6, 7] as $day) {
+            $this->shift('nuria', 'barra', $day, '12:00', '20:00');
+        }
+
+        // COCINA de día — Sara, de lunes a viernes. (El lunes es el turno forzado: ver
+        // descansoCortoForzado()).
+        foreach ([2, 3, 4, 5] as $day) {
+            $this->shift('sara', 'cocina', $day, '08:00', '16:00');
+        }
+
+        // SALA — Bea cubre el mediodía toda la semana y la tarde de martes a viernes.
+        // (El lunes por la tarde es de Lucía: ver jornadaPartida()).
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            $this->shift('bea', 'sala', $day, '13:00', '17:00');
+        }
+        foreach ([2, 3, 4, 5] as $day) {
+            $this->shift('bea', 'sala', $day, '17:00', '21:00');
+            $this->shift('lucia', 'sala', $day, '09:00', '13:00');
+        }
+
+        // CAJA — Leo, todos los días menos el martes (ese es el de Tomás: ver
+        // solapeImposible()).
+        foreach ([1, 3, 4, 5, 6] as $day) {
+            $this->shift('leo', 'caja', $day, '10:00', '18:00');
+        }
+    }
+
+    /**
+     * UNA JORNADA PARTIDA. Lucía, el lunes: de 9 a 13 y de 17 a 21.
+     *
+     * El modelo no tiene un campo "es partida": son dos filas el mismo día. Y en la
+     * parrilla se VE, porque las barras se posicionan por su hora real y entre ellas queda
+     * un agujero físico. No hay que leerlo.
+     */
+    private function jornadaPartida(): void
+    {
+        $this->shift('lucia', 'sala', 1, '09:00', '13:00');
+        $this->shift('lucia', 'sala', 1, '17:00', '21:00');
+    }
+
+    /**
+     * UN TURNO NOCTURNO. Diego, de lunes a viernes: de 22:00 a 06:00.
+     *
+     * work_date es el día en que EMPIEZA. En el eje va de la hora 22 a la 30, así que la
+     * barra se ve CRUZANDO el borde del día. Y el contador saca 8 horas de verdad, porque
+     * mide sobre instantes UTC: la noche del cambio de hora saldrían 9, sin ningún caso
+     * especial.
+     */
+    private function turnoNocturno(): void
+    {
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            $this->shift('diego', 'cocina', $day, '22:00', '06:00');
+        }
+    }
+
+    /**
+     * UN INCUMPLIMIENTO FORZADO. Sara, el lunes: 8 horas de descanso donde el perfil exige 12.
+     *
+     * ⚠️ POR QUÉ NO ES "41 DE 40 HORAS", QUE ES LO QUE PEDÍA LA REFERENCIA.
+     *
+     * Porque el motor es de verdad. Si una semana se pasa del tope, la regla del tope salta
+     * en TODOS los turnos de esa semana —cada uno, al revalidarse, ve que el total quedaría
+     * en 41 de 40—, y la fila entera de Sara se pinta de naranja los cinco días. Eso es
+     * exactamente el "cuadrante en llamas" que hay que evitar: correcto, y ensordecedor.
+     *
+     * El descanso corto, en cambio, es una regla POR TURNO: salta en uno y solo en uno. Es
+     * lo mismo que hace la referencia, cuyo aviso es literalmente "Forzado · descanso 8 h".
+     *
+     * El turno de la víspera (domingo pasado, fuera de la semana visible) es lo que deja el
+     * descanso en 8 horas. El de esa noche a las 16:00, este a las 08:00 del lunes.
+     */
+    private function descansoCortoForzado(User $owner): void
+    {
+        // La víspera: fuera de la ventana que se pinta, pero el motor la ve.
+        $this->shift('sara', 'cocina', 0, '16:00', '24:00');
+
+        $forzado = $this->shift('sara', 'cocina', 1, '08:00', '16:00');
+
+        // El humano lo DECIDIÓ, y quedó constancia. Un turno forzado no es lo mismo que un
+        // turno que nadie ha revisado, y la parrilla los distingue.
+        $forzado->override()->create([
+            'user_id' => $owner->id,
+            'reason' => 'Cubre el cierre de la noche anterior. Se compensa el jueves.',
+            'violations' => [['code' => 'minimum_rest', 'severity' => 'breach']],
+        ]);
+    }
+
+    /**
+     * UN IMPOSIBLE. Tomás, el martes: dos turnos de caja que se pisan.
+     *
+     * No puede estar en dos sitios a la vez, y sin embargo ahí está: alguien lo colocó. La
+     * parrilla tiene que GRITARLO, y la cobertura de esa celda desaparece — con alguien que
+     * no puede estar ahí, el número contaría a quien no puede cubrir.
+     */
+    private function solapeImposible(): void
+    {
+        $this->shift('tomas', 'caja', 2, '10:00', '18:00');
+        $this->shift('tomas', 'caja', 2, '14:00', '20:00');
+    }
+
+    /**
+     * UNA BAJA. Ana, de miércoles a viernes. Y SIN TURNOS ESOS DÍAS.
+     *
+     * Es la diferencia entre una demo y un desastre: una baja bien gestionada deja la banda
+     * índigo atravesando los días, el hueco cubierto por Marco, y ni un solo rojo.
+     */
+    private function bajaSinTurnos(array $people, array $catalogue): void
+    {
+        $this->employments['ana']->absences()->create([
             'person_id' => $people['ana']->id,
             'absence_type_id' => $catalogue['baja']->id,
             'starts_on' => $this->monday->addDays(2)->toDateString(),
@@ -484,7 +478,8 @@ class DemoSeeder extends Seeder
             'notes' => 'Parte de baja por gripe.',
         ]);
 
-        $employments['tomas']->absences()->create([
+        // Y unas vacaciones la semana que viene, para que el cupo tenga algo que contar.
+        $this->employments['tomas']->absences()->create([
             'person_id' => $people['tomas']->id,
             'absence_type_id' => $catalogue['vacaciones']->id,
             'starts_on' => $this->monday->addWeek()->toDateString(),
@@ -493,22 +488,64 @@ class DemoSeeder extends Seeder
     }
 
     /**
-     * EL OTRO BAR.
+     * LOS CONCEPTOS HORARIOS: ocupan a la persona, pero NO cubren puesto.
      *
-     * Marco tiene contrato en las dos empresas del dueño. El lunes por la mañana está
-     * en el Bar Central y por la tarde en L'Òptim: no se solapan, así que no es
-     * imposible, y son el mismo work_date, así que el descanso no dice nada. Es
-     * exactamente el punto ciego que el aviso de jornada compartida existe para tapar.
+     * Van en el carril de la persona y en el mismo eje que sus turnos, así que se VE que esa
+     * mañana no está disponible aunque ese día trabaje.
+     *
+     * ⚠️ FUERA del turno, no dentro: dentro sería IMPOSIBLE, y el motor tiene razón — no se
+     * puede estar en el médico y cubriendo la barra a la vez.
+     */
+    private function conceptosHorarios(array $catalogue): void
+    {
+        $company = $this->calendar->company;
+
+        // Nuria, el sábado: al médico a las 9, y a la barra a las 12.
+        $sabado = $this->monday->addDays(5);
+
+        $this->employments['nuria']->conceptEntries()->create([
+            'concept_type_id' => $catalogue['medica']->id,
+            'work_date' => $sabado->toDateString(),
+            'starts_at' => $company->toUtc($sabado->toDateString(), '09:00'),
+            'ends_at' => $company->toUtc($sabado->toDateString(), '11:00'),
+        ]);
+
+        // Iker, el viernes: dos horas extra pegadas a su turno. Van a un contador APARTE,
+        // con su propio tope: no engordan las horas ordinarias.
+        $viernes = $this->monday->addDays(4);
+
+        $this->employments['iker']->conceptEntries()->create([
+            'concept_type_id' => $catalogue['extra']->id,
+            'work_date' => $viernes->toDateString(),
+            'starts_at' => $company->toUtc($viernes->toDateString(), '20:00'),
+            'ends_at' => $company->toUtc($viernes->toDateString(), '22:00'),
+        ]);
+    }
+
+    /**
+     * UN AVISO DE DOBLE EMPRESA. Marco, el miércoles.
+     *
+     * Por la mañana está en el Bar Central y por la tarde en L'Òptim. No se solapan, así que
+     * no es imposible; y son el mismo work_date, así que el descanso no dice nada. Es
+     * exactamente el punto ciego que el aviso de jornada compartida existe para tapar: cada
+     * encargado cree que le está dando media jornada y ninguno sabe que está encadenando dos.
      *
      * Y el encargado de L'Òptim verá el aviso SIN el nombre del Bar Central.
      */
-    private function elsewhere(Company $central, Person $marco, array $optimProfiles): void
+    private function dobleEmpresa(User $owner, Person $marco): void
     {
-        unset($optimProfiles);
+        $central = $owner->companies()->create([
+            'name' => 'Bar Central',
+            'timezone' => 'Europe/Madrid',
+            'computation_year_start_month' => 1,
+            'computation_year_start_day' => 1,
+            'non_working_weekdays' => [],
+        ]);
 
         $profile = $central->profiles()->create([
             'name' => 'Parcial · 15 h',
             'max_minutes_week' => 15 * 60,
+            'max_minutes_per_shift' => 8 * 60,
             'min_rest_minutes_between_shifts' => 12 * 60,
             'workday_type' => WorkdayType::Any,
         ]);
@@ -530,6 +567,47 @@ class DemoSeeder extends Seeder
         $employment->positions()->attach($barra);
         $employment->calendars()->attach($calendar);
 
-        $this->shift($calendar, $employment, $barra, 1, '08:00', '12:00');
+        $miercoles = $this->monday->addDays(2);
+
+        $calendar->assignments()->create([
+            'employment_id' => $employment->id,
+            'position_id' => $barra->id,
+            'work_date' => $miercoles->toDateString(),
+            'starts_at' => $central->toUtc($miercoles->toDateString(), '08:00'),
+            'ends_at' => $central->toUtc($miercoles->toDateString(), '11:00'),
+        ]);
+    }
+
+    /**
+     * Un turno, en horas LOCALES de la empresa, guardado como instante UTC.
+     *
+     * $isoDay 1 = lunes … 7 = domingo. 0 = el domingo ANTERIOR (fuera de la semana visible).
+     *
+     * Si el fin va antes que el inicio, cruza medianoche: no es un caso especial, es lo que
+     * hace un turno de noche.
+     */
+    private function shift(string $who, string $position, int $isoDay, string $start, string $end): Assignment
+    {
+        $employment = $this->employments[$who];
+        $company = $employment->company;
+        $workDate = $this->monday->addDays($isoDay - 1);
+
+        $startsAt = $company->toUtc($workDate->toDateString(), $start);
+
+        $endsAt = $end === '24:00'
+            ? $company->toUtc($workDate->addDay()->toDateString(), '00:00')
+            : $company->toUtc($workDate->toDateString(), $end);
+
+        if ($endsAt->lte($startsAt)) {
+            $endsAt = $company->toUtc($workDate->addDay()->toDateString(), $end);
+        }
+
+        return $this->calendar->assignments()->create([
+            'employment_id' => $employment->id,
+            'position_id' => $this->positions[$position]->id,
+            'work_date' => $workDate->toDateString(),
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+        ]);
     }
 }

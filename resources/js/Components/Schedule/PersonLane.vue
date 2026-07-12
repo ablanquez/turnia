@@ -43,6 +43,8 @@ const tambienEnOtraEmpresa = computed(() => props.blocks
     .flatMap(violationsOf)
     .some((v) => v.code === 'shared_workday'));
 
+const sinIcono = (texto) => texto.replace(/^[●⚠↗·]\s*/, '').toLowerCase();
+
 const summary = computed(() => props.blocks
     .map((b) => (b.kind === 'concept' ? `◷ ${b.label}` : b.label))
     .join('   ·   '));
@@ -119,11 +121,23 @@ const notes = computed(() => {
             añadir(`☾ ${block.label} · cruza medianoche`, BRAND_DARK);
         }
 
+        const rotas = violationsOf(block);
+
+        // "⚠ Forzado · descanso corto entre turnos", en UNA línea. Separar el "forzado" de
+        // su motivo daba dos notas para un solo hecho, y la celda crecía por nada.
+        if (block.forced && rotas.length) {
+            for (const v of rotas) {
+                añadir(`⚠ Forzado · ${sinIcono(shortText(v))}`, severityColor(v.severity));
+            }
+
+            continue;
+        }
+
         if (block.forced) {
             añadir('⚠ Forzado, con constancia', '#E8590C');
         }
 
-        for (const v of violationsOf(block)) {
+        for (const v of rotas) {
             añadir(shortText(v), severityColor(v.severity), v.severity === 'notice');
         }
     }
