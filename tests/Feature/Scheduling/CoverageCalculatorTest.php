@@ -5,10 +5,12 @@ namespace Tests\Feature\Scheduling;
 use App\Enums\Recurrence;
 use App\Enums\RuleCode;
 use App\Services\Scheduling\CoverageCalculator;
+use App\Services\Scheduling\CoverageReport;
 use App\Services\Scheduling\CoverageSegment;
 use App\Support\TimeWindow;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Concerns\BuildsSchedulingWorld;
 use Tests\TestCase;
@@ -31,6 +33,16 @@ class CoverageCalculatorTest extends TestCase
     private function un(string $date): TimeWindow
     {
         return new TimeWindow(CarbonImmutable::parse($date), CarbonImmutable::parse($date));
+    }
+
+    /**
+     * Estos escenarios no tienen empleados cualificados, así que el motor emite
+     * (correctamente) un aviso de puesto incubrible. Aquí solo interesa el conflicto
+     * que se está probando.
+     */
+    private function conflictsOf(CoverageReport $report, RuleCode $code): Collection
+    {
+        return $report->conflicts->filter(fn ($v) => $v->code === $code)->values();
     }
 
     /** Crea un contrato nuevo con su persona: cada turno lo cubre alguien distinto. */
@@ -161,9 +173,10 @@ class CoverageCalculatorTest extends TestCase
         $this->assertSame(1, $report->gaps()->first()->missing());
 
         // Pero el motor lo grita: hay un requisito recurrente anulado.
-        $this->assertCount(1, $report->conflicts);
-        $this->assertSame(RuleCode::RequirementOverridden, $report->conflicts->first()->code);
-        $this->assertSame(1, count($report->conflicts->first()->context['overridden_ids']));
+        $anulados = $this->conflictsOf($report, RuleCode::RequirementOverridden);
+
+        $this->assertCount(1, $anulados);
+        $this->assertSame(1, count($anulados->first()->context['overridden_ids']));
     }
 
     #[Test]
@@ -175,7 +188,7 @@ class CoverageCalculatorTest extends TestCase
 
         $report = app(CoverageCalculator::class)->forCalendar($calendar, $this->un('2026-08-15'));
 
-        $this->assertCount(0, $report->conflicts);
+        $this->assertCount(0, $this->conflictsOf($report, RuleCode::RequirementOverridden));
     }
 
     // ─────────── LOS SEGMENTOS ───────────
@@ -305,8 +318,7 @@ class CoverageCalculatorTest extends TestCase
 
         $report = app(CoverageCalculator::class)->forCalendar($calendar, $this->un('2026-07-15'));
 
-        $this->assertCount(1, $report->conflicts);
-        $this->assertSame(RuleCode::DuplicateRequirement, $report->conflicts->first()->code);
+        $this->assertCount(1, $this->conflictsOf($report, RuleCode::DuplicateRequirement));
 
         // La demanda se ha doblado a 6, y por eso hay que avisar en vez de fusionar en
         // silencio: nadie ha pedido 6.

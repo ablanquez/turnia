@@ -55,14 +55,15 @@ class ConceptEntry extends Model
         });
     }
 
+    /** withTrashed(): un concepto sobrevive a su empresa borrada y sigue ocupando tiempo. */
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class)->withTrashed();
     }
 
     public function employment(): BelongsTo
     {
-        return $this->belongsTo(Employment::class);
+        return $this->belongsTo(Employment::class)->withTrashed();
     }
 
     public function conceptType(): BelongsTo
@@ -72,6 +73,6 @@ class ConceptEntry extends Model
 
     public function person(): BelongsTo
     {
-        return $this->belongsTo(Person::class);
+        return $this->belongsTo(Person::class)->withTrashed();
     }
 }

@@ -71,9 +71,18 @@ class Assignment extends Model
         });
     }
 
+    /**
+     * withTrashed() en las tres relaciones a padres con soft delete, y es OBLIGATORIO.
+     *
+     * El soft delete NO cascadea a propósito: borrar una empresa no borra su histórico,
+     * porque los turnos ocurrieron. Pero si la relación filtra al padre borrado, el hijo
+     * vive y su padre es invisible: `$assignment->company` devuelve null y el motor
+     * revienta al intentar nombrarlo ("ya tiene un turno en ___"). Un turno huérfano de
+     * empresa sigue ocupando físicamente a la persona, y hay que poder nombrarlo.
+     */
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class)->withTrashed();
     }
 
     public function calendar(): BelongsTo
@@ -83,7 +92,7 @@ class Assignment extends Model
 
     public function employment(): BelongsTo
     {
-        return $this->belongsTo(Employment::class);
+        return $this->belongsTo(Employment::class)->withTrashed();
     }
 
     public function position(): BelongsTo
@@ -94,7 +103,7 @@ class Assignment extends Model
     /** Denormalizada: el solape y el descanso se validan a nivel de persona. */
     public function person(): BelongsTo
     {
-        return $this->belongsTo(Person::class);
+        return $this->belongsTo(Person::class)->withTrashed();
     }
 
     /** La decisión humana de forzar este turno, si la hubo. */

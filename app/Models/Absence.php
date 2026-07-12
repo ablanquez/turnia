@@ -56,20 +56,21 @@ class Absence extends Model
         });
     }
 
+    /** withTrashed(): una baja sigue bloqueando aunque se borre la empresa que la registró. */
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class)->withTrashed();
     }
 
     public function person(): BelongsTo
     {
-        return $this->belongsTo(Person::class);
+        return $this->belongsTo(Person::class)->withTrashed();
     }
 
     /** NULL: afecta a todos los contratos de la persona. */
     public function employment(): BelongsTo
     {
-        return $this->belongsTo(Employment::class);
+        return $this->belongsTo(Employment::class)->withTrashed();
     }
 
     public function absenceType(): BelongsTo

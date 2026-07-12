@@ -45,14 +45,15 @@ class Employment extends Model
         ];
     }
 
+    /** withTrashed(): el contrato sobrevive a la empresa borrada, y sus horas siguen contando. */
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class)->withTrashed();
     }
 
     public function person(): BelongsTo
     {
-        return $this->belongsTo(Person::class);
+        return $this->belongsTo(Person::class)->withTrashed();
     }
 
     public function profile(): BelongsTo

@@ -132,8 +132,9 @@ class OrphanAndReportTest extends TestCase
         $this->assertCount(2, $report);
 
         foreach ($report as $row) {
-            $this->assertTrue($row['result']->has(RuleCode::MinimumRest));
-            $this->assertTrue($row['result']->has(RuleCode::HourLimit));
+            $this->assertSame('assignment', $row->kind);
+            $this->assertTrue($row->result->has(RuleCode::MinimumRest));
+            $this->assertTrue($row->result->has(RuleCode::HourLimit));
         }
     }
 
@@ -161,6 +162,6 @@ class OrphanAndReportTest extends TestCase
         $report = app(ViolationReport::class)->forCompany($company, $window);
 
         $this->assertCount(1, $report);
-        $this->assertTrue($report->first()['result']->has(RuleCode::HourLimit));
+        $this->assertTrue($report->first()->result->has(RuleCode::HourLimit));
     }
 }

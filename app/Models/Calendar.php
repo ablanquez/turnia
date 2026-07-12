@@ -32,9 +32,10 @@ class Calendar extends Model
         ];
     }
 
+    /** withTrashed(): el calendario de una empresa borrada sigue siendo consultable. */
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class)->withTrashed();
     }
 
     /** Qué contratos juegan en este calendario. */

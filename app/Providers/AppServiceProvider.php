@@ -60,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
             AbsenceValidator::class,
             fn ($app) => new AbsenceValidator($this->resolve($app, self::ABSENCE_RULES)),
         );
+
     }
 
     public function boot(): void

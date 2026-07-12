@@ -80,4 +80,7 @@ enum RuleCode: string
 
     /** Un requisito de fecha ha anulado a los recurrentes de ese día: revisa las franjas. */
     case RequirementOverridden = 'requirement_overridden';
+
+    /** Se pide cobertura de un puesto que NADIE de la plantilla puede cubrir. */
+    case UncoverablePosition = 'uncoverable_position';
 }

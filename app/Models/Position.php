@@ -29,7 +29,7 @@ class Position extends Model
 
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class)->withTrashed();
     }
 
     /** Quién PUEDE cubrirlo. Es capacidad, no asignación. */

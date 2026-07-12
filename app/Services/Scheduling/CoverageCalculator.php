@@ -6,11 +6,13 @@ use App\Enums\Recurrence;
 use App\Enums\RuleCode;
 use App\Models\Assignment;
 use App\Models\Calendar;
+use App\Models\Company;
 use App\Models\CoverageRequirement;
 use App\Services\Scheduling\Validation\Violation;
 use App\Support\TimeWindow;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * "Hacen falta 3 de barra" contra "hay 2 colocados".
@@ -40,7 +42,7 @@ class CoverageCalculator
         $requirements = $this->requirementsOf($calendar);
 
         $segments = new Collection;
-        $conflicts = new Collection;
+        $conflicts = $this->uncoverablePositions($company, $requirements);
 
         for ($date = $window->from->startOfDay(); $date->lte($window->to); $date = $date->addDay()) {
             [$effective, $overridden] = $this->effectiveOn($requirements, $date);
@@ -69,6 +71,46 @@ class CoverageCalculator
             ->where('calendar_id', $calendar->id)
             ->with('position')
             ->get();
+    }
+
+    /**
+     * Se pide cobertura de un puesto que NADIE de la plantilla puede cubrir.
+     *
+     * Sin este aviso, el hueco sale como un hueco cualquiera ("faltan 2 de Sumiller") y
+     * el encargado se pone a buscar a quién colocar... para descubrir que no hay nadie
+     * cualificado. El problema no está en el cuadrante: está en el catálogo. Callarlo
+     * es un silencio falso, porque el motor SÍ lo sabe.
+     *
+     * @return Collection<int, Violation>
+     */
+    private function uncoverablePositions(Company $company, Collection $requirements): Collection
+    {
+        $required = $requirements->pluck('position_id')->unique();
+
+        if ($required->isEmpty()) {
+            return new Collection;
+        }
+
+        $coverable = DB::table('employment_position')
+            ->join('employments', 'employments.id', '=', 'employment_position.employment_id')
+            ->where('employments.company_id', $company->id)
+            ->whereNull('employments.deleted_at')
+            ->whereIn('employment_position.position_id', $required)
+            ->distinct()
+            ->pluck('employment_position.position_id');
+
+        return $requirements
+            ->reject(fn (CoverageRequirement $r) => $coverable->contains($r->position_id))
+            ->unique('position_id')
+            ->map(fn (CoverageRequirement $r) => Violation::notice(
+                RuleCode::UncoverablePosition,
+                sprintf(
+                    'Se pide cobertura de "%s", pero NADIE de la plantilla está cualificado para ese puesto.',
+                    $r->position->name,
+                ),
+                ['position_id' => $r->position_id, 'requirement_ids' => [$r->id]],
+            ))
+            ->values();
     }
 
     /**
