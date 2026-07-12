@@ -39,7 +39,7 @@ defineProps({
         </template>
 
         <template #banner>
-            <Legend />
+            <Legend :axis="axis" />
             <CatalogueConflicts :conflicts="coverage.conflicts" />
         </template>
 
@@ -58,7 +58,12 @@ defineProps({
                 :violations="violations ?? null"
             />
 
-            <StaffPanel v-if="can.seeStaff" :staff="staff" />
+            <StaffPanel
+                v-if="can.seeStaff"
+                :staff="staff"
+                :assignments="assignments"
+                :violations="violations ?? null"
+            />
         </div>
     </AppLayout>
 </template>

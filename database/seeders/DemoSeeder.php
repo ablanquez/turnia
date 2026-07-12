@@ -308,8 +308,6 @@ class DemoSeeder extends Seeder
             ['cocina', '20:00', '23:59', 1],
             ['sala', '13:00', '17:00', 1],
             ['caja', '10:00', '18:00', 1],
-            // El puesto incubrible: se pide, y no hay nadie cualificado en la plantilla.
-            ['sumiller', '20:00', '23:00', 1],
         ];
 
         foreach ($requirements as [$position, $start, $end, $count]) {
@@ -323,6 +321,21 @@ class DemoSeeder extends Seeder
                 'required_count' => $count,
             ]);
         }
+
+        // EL PUESTO INCUBRIBLE, y solo los SÁBADOS.
+        //
+        // Se pide un sumiller y no hay ni uno cualificado en la plantilla. Que sea semanal
+        // y no diario no es un capricho: repetir el mismo aviso los siete días es ruido, y
+        // el ruido entrena a ignorar. Con un sábado basta para que se vea, y así se ve.
+        $calendar->coverageRequirements()->create([
+            'position_id' => $positions['sumiller']->id,
+            'effective_from' => $from,
+            'recurrence' => Recurrence::Weekly,
+            'day_of_week' => 6,
+            'starts_at' => '20:00',
+            'ends_at' => '23:00',
+            'required_count' => 1,
+        ]);
     }
 
     private function shifts(Calendar $calendar, array $employments, array $positions, User $owner): void
@@ -422,13 +435,26 @@ class DemoSeeder extends Seeder
     private function concepts(array $employments, array $catalogue): void
     {
         $company = $employments['nuria']->company;
-        $martes = $this->monday->addDay();
+
+        /*
+         * El JUEVES POR LA MAÑANA, ANTES de su turno de cocina (12:00–16:00).
+         *
+         * ⚠️ Y no DENTRO del turno, aunque la colisión se vería mejor: PORQUE ES IMPOSIBLE.
+         * El motor tiene razón —no se puede estar en el médico y cubriendo la cocina a la
+         * vez— y lo marca como imposible en cuanto se solapan. Un dato de demo que el propio
+         * motor declara imposible no es una demo: es un error de datos.
+         *
+         * Así queda lo que de verdad hay que ver: el concepto OCUPA a la persona, se pinta
+         * en su carril y en el mismo eje, y se lee que esa mañana no está disponible aunque
+         * ese día trabaje.
+         */
+        $jueves = $this->monday->addDays(3);
 
         $employments['nuria']->conceptEntries()->create([
             'concept_type_id' => $catalogue['medica']->id,
-            'work_date' => $martes->toDateString(),
-            'starts_at' => $company->toUtc($martes->toDateString(), '10:00'),
-            'ends_at' => $company->toUtc($martes->toDateString(), '11:30'),
+            'work_date' => $jueves->toDateString(),
+            'starts_at' => $company->toUtc($jueves->toDateString(), '10:00'),
+            'ends_at' => $company->toUtc($jueves->toDateString(), '11:30'),
         ]);
 
         $viernes = $this->monday->addDays(4);

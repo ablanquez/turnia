@@ -21,9 +21,18 @@ final class PersonPalette
         '#4E7FD1', '#7A73C9', '#5566B8', '#9166C0', '#6C74C6',
     ];
 
-    public static function for(int $personId): string
+    /**
+     * El color se deriva del NOMBRE, no del id.
+     *
+     * Del id sería igual de estable, pero cambiaría al recrear la base de datos: la demo
+     * saldría de otro color cada vez que se resiembra, y las capturas de referencia dejarían
+     * de servir. Del nombre, Ana es del mismo color hoy, mañana y en otra instalación.
+     */
+    public static function for(string $name): string
     {
-        return self::COLORS[$personId % count(self::COLORS)];
+        $hash = crc32(mb_strtolower(trim($name)));
+
+        return self::COLORS[$hash % count(self::COLORS)];
     }
 
     /** "Ana López" -> "AL". Cabe donde no cabe el nombre. */

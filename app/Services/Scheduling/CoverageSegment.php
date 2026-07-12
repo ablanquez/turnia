@@ -47,4 +47,25 @@ final readonly class CoverageSegment
     {
         return $this->excess() > 0;
     }
+
+    /** Ni cubierto ni ignorado: exactamente la gente que se pedía. Es el verde. */
+    public function isCovered(): bool
+    {
+        return $this->required > 0 && $this->required === $this->covered;
+    }
+
+    /**
+     * El estado del tramo, en una palabra.
+     *
+     * Vive aquí y no en la vista porque es la MISMA pregunta que se hace el informe, y dos
+     * respuestas distintas a la misma pregunta acaban divergiendo.
+     */
+    public function state(): string
+    {
+        return match (true) {
+            $this->isGap() => 'missing',
+            $this->isExcess() => 'excess',
+            default => 'covered',
+        };
+    }
 }

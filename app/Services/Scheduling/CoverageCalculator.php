@@ -64,10 +64,19 @@ class CoverageCalculator
             }
         }
 
-        return new CoverageReport(
-            $segments->filter(fn (CoverageSegment $s) => $s->required !== $s->covered)->values(),
-            $conflicts,
-        );
+        /*
+         * ⚠️ SALEN TODOS LOS TRAMOS, TAMBIÉN LOS QUE ESTÁN BIEN.
+         *
+         * Aquí había un filtro que tiraba los tramos correctos (required === covered) antes
+         * de que salieran del motor. Parecía inofensivo —"solo interesa lo que está mal"—
+         * y era un SILENCIO FALSO DIBUJADO: sin los tramos correctos, la parrilla no puede
+         * pintar el verde, y entonces el gris significa a la vez "esto está cubierto" y
+         * "aquí no se pide nada". Dos cosas OPUESTAS con el mismo color.
+         *
+         * El que solo quiera las desviaciones tiene gaps(), excesses() y deviations().
+         * Pero el motor no decide por él qué es interesante: informa de lo que hay.
+         */
+        return new CoverageReport($segments->values(), $conflicts);
     }
 
     /** @return Collection<int, CoverageRequirement> */

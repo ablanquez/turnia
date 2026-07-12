@@ -249,7 +249,19 @@ class CoverageCalculatorTest extends TestCase
         $report = app(CoverageCalculator::class)->forCalendar($calendar, $this->un('2026-07-15'));
 
         $this->assertTrue($report->isFullyCovered());
-        $this->assertCount(0, $report->segments);
+        $this->assertCount(0, $report->deviations());
+
+        /*
+         * Y EL TRAMO CORRECTO SÍ SALE, que antes se tiraba a la basura.
+         *
+         * Parecía inofensivo ("solo interesa lo que está mal") y era un silencio falso
+         * dibujado: sin esto, la parrilla no puede pintar el verde, y el gris pasa a
+         * significar a la vez "cubierto" y "no se pide nada". Dos cosas opuestas con el
+         * mismo color.
+         */
+        $this->assertCount(1, $report->covered());
+        $this->assertSame(2, $report->covered()->first()->required);
+        $this->assertSame(2, $report->covered()->first()->covered);
     }
 
     #[Test]

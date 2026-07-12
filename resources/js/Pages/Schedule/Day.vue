@@ -42,7 +42,7 @@ const day = computed(() => props.window.days[0]);
         </template>
 
         <template #banner>
-            <Legend />
+            <Legend :axis="axis" />
             <CatalogueConflicts :conflicts="coverage.conflicts" />
         </template>
 
@@ -61,7 +61,12 @@ const day = computed(() => props.window.days[0]);
                 />
             </div>
 
-            <StaffPanel v-if="can.seeStaff" :staff="staff" />
+            <StaffPanel
+                v-if="can.seeStaff"
+                :staff="staff"
+                :assignments="assignments"
+                :violations="violations ?? null"
+            />
         </div>
     </AppLayout>
 </template>

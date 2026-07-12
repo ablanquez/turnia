@@ -1,3 +1,15 @@
+<script setup>
+import { computed } from 'vue';
+
+const props = defineProps({
+    axis: { type: Object, required: true },
+});
+
+const reloj = (h) => String(Math.floor(((h % 24) + 24) % 24)).padStart(2, '0') + ':00';
+
+const rango = computed(() => `${reloj(props.axis.from)} → ${reloj(props.axis.to)}`);
+</script>
+
 <template>
     <div
         class="flex flex-wrap items-center gap-5 border-b border-line bg-[#F7F7FB] px-6 py-2.5 text-[11.5px]"
@@ -57,8 +69,14 @@
 
         <div class="flex-1" />
 
+        <!--
+            El rango del eje se dice AQUÍ, y por eso la semana no lleva regla horaria: así se
+            validó el diseño y así se lee bien. El eje ARRANCA en 06:00, pero se ensancha si
+            algún turno cae fuera (una panadería que entra a las 04:00): recortarlo sería
+            dibujar una mentira.
+        -->
         <span class="tabular text-[10px] text-[#A9A7B6]">
-            cada columna = 1 día · el eje es la hora real
+            cada columna = 1 día · {{ rango }} · pasa el ratón sobre una barra estrecha
         </span>
     </div>
 </template>

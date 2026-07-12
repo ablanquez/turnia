@@ -8,8 +8,15 @@ use Illuminate\Support\Collection;
 /**
  * El resultado de comparar lo que hace falta con lo que hay.
  *
- * `conflicts` son errores de CONFIGURACIÓN (requisitos duplicados), no de la
- * parrilla: la demanda se doblaría sin que nadie lo hubiera querido.
+ * `segments` son TODOS los tramos, incluidos los que están CORRECTOS.
+ *
+ * Antes solo salían las desviaciones, y sonaba razonable —"solo interesa lo que está
+ * mal"—, pero era un silencio falso dibujado: sin los tramos correctos la parrilla no
+ * puede pintar el verde, y entonces el gris significa a la vez "esto está cubierto" y
+ * "aquí no se pide nada". Dos cosas opuestas, el mismo color.
+ *
+ * `conflicts` son errores de CONFIGURACIÓN (requisitos duplicados, puestos que nadie de la
+ * plantilla puede cubrir): el problema no está en el cuadrante, está en el catálogo.
  */
 final readonly class CoverageReport
 {
@@ -30,6 +37,22 @@ final readonly class CoverageReport
     public function excesses(): Collection
     {
         return $this->segments->filter(fn (CoverageSegment $s) => $s->isExcess())->values();
+    }
+
+    /** Lo que NO cuadra. Es lo único que salía antes del motor. */
+    public function deviations(): Collection
+    {
+        return $this->segments
+            ->filter(fn (CoverageSegment $s) => $s->required !== $s->covered)
+            ->values();
+    }
+
+    /** Lo que SÍ cuadra. Es lo que faltaba, y es lo que se pinta en verde. */
+    public function covered(): Collection
+    {
+        return $this->segments
+            ->filter(fn (CoverageSegment $s) => $s->required > 0 && $s->required === $s->covered)
+            ->values();
     }
 
     public function isFullyCovered(): bool

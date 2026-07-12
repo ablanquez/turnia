@@ -121,6 +121,55 @@ class ScheduleDayTest extends TestCase
     }
 
     #[Test]
+    public function el_tramo_correcto_llega_en_verde_y_el_incubrible_no_llega_en_rojo(): void
+    {
+        /*
+         * LOS CUATRO ESTADOS DE LA TIRA, PROBADOS EN EL CABLE.
+         *
+         * El "covered" faltaba entero: el motor tiraba los tramos correctos y la parrilla no
+         * podía pintar verde. Sin verde, el gris significaba a la vez "cubierto" y "aquí no
+         * se pide nada" — dos cosas opuestas, el mismo color.
+         *
+         * Y el "uncoverable" salía ROJO, como un hueco normal. El rojo dice "ponle a
+         * alguien", y aquí no hay a quién poner: deshacía el aviso que el motor daba.
+         *
+         * ⚠️ Este test también existe porque la clausura que marca el incubrible NUNCA se
+         * ejecutaba en los tests (sin conflictos de catálogo, no se entra en ella), y un
+         * `use` que faltaba solo reventó al abrir la página con datos de verdad.
+         */
+        $world = $this->world();
+        $company = $world['company'];
+        $calendar = $world['calendar'];
+
+        // Un puesto que NADIE puede cubrir.
+        $sumiller = $this->makePosition($company, 'Sumiller');
+        $this->makeRequirement($calendar, $sumiller, Recurrence::Daily, '20:00', '23:00', 1);
+
+        // Y un puesto donde la cobertura queda EXACTA.
+        $cocina = $this->makePosition($company, 'Cocina');
+        $nuria = $this->makePerson($world['owner']);
+        $empleo = $this->makeEmployment($company, $nuria);
+        $empleo->positions()->attach($cocina);
+        $empleo->calendars()->attach($calendar);
+        $this->assign($empleo, $cocina, '2026-07-06', '12:00', '16:00', calendar: $calendar);
+        $this->makeRequirement($calendar, $cocina, Recurrence::Daily, '12:00', '16:00', 1);
+
+        $props = $this->actingAs($world['owner'])
+            ->get($this->url($world))
+            ->viewData('page')['props'];
+
+        $estados = collect($props['coverage']['segments'])->pluck('state')->unique();
+
+        $this->assertContains('covered', $estados, 'El tramo correcto no llega: sin él no hay verde.');
+        $this->assertContains('missing', $estados);
+        $this->assertContains('uncoverable', $estados, 'El puesto incubrible sale como un hueco normal.');
+
+        // Y el incubrible NO se marca como hueco corriente.
+        $incubrible = collect($props['coverage']['segments'])->firstWhere('state', 'uncoverable');
+        $this->assertSame($sumiller->id, $incubrible['positionId']);
+    }
+
+    #[Test]
     public function el_informe_tampoco_viaja_en_la_carga_del_dia(): void
     {
         $world = $this->world();

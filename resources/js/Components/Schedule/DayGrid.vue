@@ -1,18 +1,18 @@
 <script setup>
 import { computed } from 'vue';
-import { severityColor, worst } from '../../composables/useSeverity.js';
+import CoverageStrip from './CoverageStrip.vue';
+import { BRAND, BRAND_DARK, severityColor, shortText, worst } from '../../composables/useSeverity.js';
+import { gridEvery } from '../../composables/useAxis.js';
 
 /**
  * EL ZOOM DÍA. La vista donde la COBERTURA POR SEGMENTOS por fin se lee.
  *
- * En la semana, un día ocupa 320px: el "faltan 3 de 12 a 14, faltan 2 de 14 a 16" cabe,
- * pero apretado. Aquí el día ocupa el ancho entero, así que cada tramo tiene su anchura
- * REAL sobre el eje y su etiqueta completa. Es donde se ve que el motor NO dice "falta
- * gente toda la tarde" —que sería un aviso falso— sino exactamente dónde y cuánta.
+ * En la semana, un día ocupa 320 px: el "-3 / -2" cabe, pero apretado. Aquí el día ocupa el
+ * ancho entero, así que cada tramo tiene su anchura REAL y su etiqueta ENTERA ("faltan 3").
+ * Es donde se ve que el motor no dice "falta gente toda la tarde" —que sería un aviso
+ * falso— sino exactamente dónde y cuánta.
  *
- * Y con sitio de sobra, el nombre y la hora van COMPLETOS dentro de la barra. Truncar es
- * ilegible: "Hu…" puede ser Hugo o Humberto, y en un cuadrante eso es un error de
- * plantilla esperando a ocurrir.
+ * Y con sitio de sobra, el nombre y la hora van COMPLETOS DENTRO de la barra.
  */
 const props = defineProps({
     day: { type: Object, required: true },
@@ -26,28 +26,20 @@ const props = defineProps({
     violations: { type: Object, default: null },
 });
 
+const IMPOSIBLE = {
+    overlap: 'solape de la misma persona',
+    unavailable: 'la persona está ausente',
+    contract_inactive: 'fuera de la vigencia del contrato',
+    invalid_interval: 'intervalo imposible',
+    shift_too_long: 'más de 24 horas',
+};
+
 const LANE_H = 30;
 const LANE_GAP = 3;
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((p) => [p.id, p])));
 
-const uncoverable = computed(() => {
-    const set = new Set();
-    for (const c of props.coverage.conflicts) {
-        if (c.code === 'uncoverable_position' && c.context?.position_id) {
-            set.add(c.context.position_id);
-        }
-    }
-    return set;
-});
-
-/**
- * Reparte las barras en carriles para que NINGUNA tape a otra.
- *
- * Si dos turnos de la misma persona se solapan (el imposible que el motor denuncia),
- * apilarlos en la misma línea escondería justo lo que hay que ver. Así se ven los dos,
- * uno debajo del otro, pisándose en el eje.
- */
+/** Reparte las barras en carriles para que ninguna tape a otra: el solape hay que VERLO. */
 const pack = (bars) => {
     const ordenadas = [...bars].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
     const finDeCarril = [];
@@ -67,14 +59,17 @@ const pack = (bars) => {
     return { bars: ordenadas, lanes: Math.max(1, finDeCarril.length) };
 };
 
+const violationsOf = (bar) => (
+    bar.kind === 'shift' && props.violations
+        ? props.violations.assignments[bar.id] ?? []
+        : []
+);
+
 const rows = computed(() => props.positions.map((position) => {
     const turnos = props.assignments
         .filter((a) => a.positionId === position.id && a.workDate === props.day.date)
         .map((a) => ({ ...a, kind: 'shift' }));
 
-    // Los conceptos NO cubren puesto, pero SÍ ocupan a la persona. Se pintan en la fila
-    // del puesto donde esa persona tiene turno ese día, para que se VEA que a las 10 no
-    // está en la barra aunque su turno diga que sí.
     const conTurno = new Set(turnos.map((t) => t.personId));
     const conceptos = props.conceptEntries
         .filter((c) => c.workDate === props.day.date && conTurno.has(c.personId))
@@ -82,24 +77,52 @@ const rows = computed(() => props.positions.map((position) => {
 
     const { bars, lanes } = pack([...turnos, ...conceptos]);
 
+    // El cartel dice QUÉ es imposible. Lo tenía cableado a "solape de la misma persona", y
+    // en las celdas donde el imposible era una BAJA afirmaba un solape que no existía.
+    const motivos = [...new Set(
+        bars
+            .flatMap(violationsOf)
+            .filter((v) => v.severity === 'impossible')
+            .map((v) => IMPOSIBLE[v.code] ?? 'no se puede colocar'),
+    )];
+
+    const imposible = motivos.length ? `IMPOSIBLE · ${motivos.join(' · ')}` : null;
+
+    const segments = props.coverage.segments.filter(
+        (s) => s.positionId === position.id && s.workDate === props.day.date,
+    );
+
+    const notas = [];
+    const vistas = new Set();
+
+    for (const bar of bars) {
+        if (bar.kind === 'concept' && !vistas.has(bar.name)) {
+            vistas.add(bar.name);
+            notas.push({ text: `${bar.name} · no cubre puesto`, color: BRAND_DARK });
+        }
+
+        for (const v of violationsOf(bar)) {
+            const t = shortText(v);
+            if (!vistas.has(t)) {
+                vistas.add(t);
+                notas.push({ text: t, color: severityColor(v.severity) });
+            }
+        }
+    }
+
     return {
         position,
         bars,
         lanes,
-        uncoverable: uncoverable.value.has(position.id),
-        segments: props.coverage.segments.filter(
-            (s) => s.positionId === position.id && s.workDate === props.day.date,
-        ),
+        imposible,
+        segments,
+        notas,
+        // Con un imposible dentro, la cobertura cuenta a alguien que no puede estar ahí.
+        // Es una ficción, y una ficción con apariencia de dato es lo peor que se puede pintar.
+        muestraCobertura: !imposible,
+        sinCandidato: segments.some((s) => s.state === 'uncoverable'),
     };
 }));
-
-const severityOf = (bar) => {
-    if (bar.kind !== 'shift' || !props.violations) {
-        return null;
-    }
-
-    return worst(props.violations.assignments[bar.id] ?? []);
-};
 
 const barStyle = (bar) => {
     const base = {
@@ -123,61 +146,58 @@ const barStyle = (bar) => {
         return {
             ...base,
             background: 'repeating-linear-gradient(45deg,#F3F2FC 0 5px,#FFFFFF 5px 10px)',
-            border: '1.5px dashed #7F77DD',
-            borderLeft: '1.5px dashed #7F77DD',
+            border: `1.5px dashed ${BRAND}`,
         };
     }
 
-    const severity = severityOf(bar);
+    const severity = worst(violationsOf(bar));
+
+    if (severity === 'impossible') {
+        return {
+            ...base,
+            background: 'repeating-linear-gradient(45deg,rgba(200,30,30,.26) 0 5px,rgba(200,30,30,.08) 5px 10px)',
+            border: '1.5px solid #C81E1E',
+            borderLeft: '3px solid #C81E1E',
+        };
+    }
+
+    if (bar.forced || severity === 'breach') {
+        return {
+            ...base,
+            background: 'rgba(232,89,12,.07)',
+            border: '1.5px solid #E8590C',
+            borderLeft: '3px solid #E8590C',
+        };
+    }
 
     return {
         ...base,
-        background: severity === 'impossible'
-            ? 'repeating-linear-gradient(45deg,rgba(200,30,30,.26) 0 5px,rgba(200,30,30,.08) 5px 10px)'
-            : severity === 'breach'
-                ? 'rgba(232,89,12,.08)'
-                : '#F6F6FB',
-        border: severity ? `1.5px solid ${severityColor(severity)}` : '1px solid #E4E3EF',
-        // El filo de color de la persona: identifica el carril de un vistazo, sin leer.
-        borderLeft: `3px solid ${severity ? severityColor(severity) : persona?.color ?? '#7F77DD'}`,
+        background: bar.crossesMidnight ? '#EEEDFA' : '#F6F6FB',
+        border: '1px solid #E4E3EF',
+        // El filo con el color de la persona: identifica el carril sin leer.
+        borderLeft: `3px solid ${persona?.color ?? BRAND}`,
     };
 };
-
-const segStyle = (s) => {
-    const base = {
-        position: 'absolute',
-        left: `${s.left}%`,
-        width: `${s.width}%`,
-        top: 0,
-        bottom: 0,
-        boxSizing: 'border-box',
-    };
-
-    if (s.missing > 0) {
-        return { ...base, background: 'rgba(220,38,38,.24)', borderTop: '2px solid #DC2626' };
-    }
-    if (s.excess > 0) {
-        return { ...base, background: 'rgba(127,119,221,.26)', borderTop: '2px solid #7F77DD' };
-    }
-    return { ...base, background: 'rgba(21,128,61,.18)', borderTop: '2px solid #15803D' };
-};
-
-// Con sitio, la etiqueta se lee entera: "faltan 2", no "-2".
-const segLabel = (s) => {
-    if (s.missing > 0) {
-        return `faltan ${s.missing}`;
-    }
-    if (s.excess > 0) {
-        return `sobra${s.excess > 1 ? 'n' : ''} ${s.excess}`;
-    }
-    return '';
-};
-
-const segLabelColor = (s) => (s.missing > 0 ? '#B0141C' : '#534AB7');
 
 const nombre = (bar) => (bar.kind === 'concept'
     ? bar.name
     : peopleById.value[bar.personId]?.name ?? '?');
+
+const icono = (bar) => {
+    if (bar.crossesMidnight) {
+        return { simbolo: '☾', color: BRAND_DARK };
+    }
+    if (bar.forced) {
+        return { simbolo: '⚠', color: '#E8590C' };
+    }
+    const s = worst(violationsOf(bar));
+    return s ? { simbolo: s === 'impossible' ? '●' : '⚠', color: severityColor(s) } : null;
+};
+
+const title = (bar) => [
+    `${nombre(bar)} · ${bar.label}`,
+    ...violationsOf(bar).map((v) => v.message),
+].join('\n');
 
 const ausentes = computed(() => props.absences.filter(
     (a) => a.startsOn <= props.day.date && (a.endsOn === null || a.endsOn >= props.day.date),
@@ -189,14 +209,15 @@ const ausentes = computed(() => props.absences.filter(
         <div class="overflow-hidden rounded-xl border border-line bg-white">
             <div class="flex items-center gap-3 border-b border-line-soft px-5 py-3.5">
                 <span class="rounded bg-brand-50 px-2 py-1 text-[11px] font-bold text-brand-800">ZOOM · DÍA</span>
-                <div>
-                    <div class="text-sm font-bold text-ink">{{ day.weekday }} {{ day.label }}</div>
+                <div class="flex-1">
+                    <div class="text-sm font-bold text-ink">
+                        {{ day.weekday }} {{ day.label }} — aquí cabe todo: nombre y hora completos, siempre.
+                    </div>
                     <div class="text-[11.5px] text-ink-soft">
-                        Mismo eje temporal, más densidad: aquí cada hueco de cobertura tiene su
-                        anchura real y su etiqueta entera.
+                        Misma parrilla, mismo eje temporal; solo cambia la densidad. Y el hueco de
+                        cobertura tiene su anchura real y su etiqueta entera.
                     </div>
                 </div>
-                <div class="flex-1" />
                 <div
                     v-if="!day.isWorkingDay"
                     class="rounded bg-brand-50 px-2 py-1 text-[10px] font-bold text-brand-800"
@@ -205,16 +226,15 @@ const ausentes = computed(() => props.absences.filter(
                 </div>
             </div>
 
-            <!-- Las ausencias del día: bloquean a la persona entera, no a un puesto. -->
             <div v-if="ausentes.length" class="flex flex-wrap gap-2 border-b border-line-soft px-5 py-2.5">
                 <span
                     v-for="a in ausentes"
                     :key="a.id"
-                    class="flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-bold"
-                    style="background: rgba(60,52,137,.13); color: #3C3489"
+                    class="flex items-center gap-1.5 rounded px-2 py-1 text-[9.5px] font-bold text-brand-800"
+                    style="background: rgba(60,52,137,.13); border: 1px solid rgba(60,52,137,.28)"
                 >
                     <span
-                        class="flex h-4 w-4 items-center justify-center rounded-full text-[7.5px] text-white"
+                        class="tabular flex h-4 w-4 items-center justify-center rounded-full text-[7.5px] text-white"
                         :style="{ background: peopleById[a.personId]?.color }"
                     >{{ peopleById[a.personId]?.initials }}</span>
                     {{ peopleById[a.personId]?.name }} · {{ a.name }}
@@ -222,7 +242,7 @@ const ausentes = computed(() => props.absences.filter(
             </div>
 
             <div class="px-5 pb-5 pt-3.5">
-                <!-- La regla horaria. El eje es el mismo que en la semana. -->
+                <!-- La regla horaria: en el Día SÍ va, como en la referencia. -->
                 <div class="mb-1.5 grid" style="grid-template-columns: 110px 1fr">
                     <div />
                     <div class="tabular relative h-3 text-[10px] text-[#A9A7B6]">
@@ -243,81 +263,75 @@ const ausentes = computed(() => props.absences.filter(
                 >
                     <div class="flex flex-col gap-1 pt-0.5">
                         <span class="text-[13px] font-bold text-[#41404E]">{{ row.position.name }}</span>
-                        <span
-                            v-if="row.uncoverable"
-                            class="w-fit rounded bg-[#5A5A66] px-1.5 py-0.5 text-[8.5px] font-bold text-white"
-                            title="El problema no está en el cuadrante: está en el catálogo"
-                        >SIN CANDIDATO</span>
                     </div>
 
                     <div>
-                        <!-- La pista: las líneas verticales son las 3 horas de la regla. -->
+                        <div
+                            v-if="row.imposible"
+                            class="mb-1.5 inline-block rounded bg-impossible px-[7px] py-[3px] text-[9px] font-bold tracking-[.02em] text-white"
+                        >
+                            {{ row.imposible }}
+                        </div>
+
+                        <div
+                            v-else-if="row.sinCandidato"
+                            class="mb-1.5 inline-block rounded bg-[#5A5A66] px-[7px] py-[3px] text-[9px] font-bold text-white"
+                        >
+                            Sin candidato en catálogo
+                        </div>
+
                         <div
                             class="relative"
                             :style="{
                                 height: `${row.lanes * (30 + 3) - 3}px`,
                                 minHeight: '30px',
                                 backgroundImage: 'linear-gradient(90deg,#EDEDF2 1px,transparent 1px)',
-                                backgroundSize: `${100 / ((axis.to - axis.from) / 3)}% 100%`,
+                                backgroundSize: gridEvery(axis, 3),
                             }"
                         >
                             <div
                                 v-for="bar in row.bars"
                                 :key="`${bar.kind}-${bar.id}`"
                                 :style="barStyle(bar)"
-                                :title="`${nombre(bar)} · ${bar.label}`"
+                                :title="title(bar)"
                             >
                                 <span
                                     v-if="bar.kind === 'shift'"
-                                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+                                    class="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-white"
                                     :style="{ background: peopleById[bar.personId]?.color }"
                                 >{{ peopleById[bar.personId]?.initials }}</span>
                                 <span
                                     v-else
-                                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-brand-300 bg-white text-[10px] text-brand-600"
+                                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-brand-300 bg-white text-[11px] text-brand-600"
                                 >◷</span>
 
-                                <!-- Nombre y hora COMPLETOS. Aquí hay sitio, y por eso existe esta vista. -->
                                 <span
                                     class="shrink-0 whitespace-nowrap text-[12.5px] font-semibold"
                                     :class="bar.kind === 'concept' ? 'text-brand-600' : 'text-ink'"
                                 >{{ nombre(bar) }}</span>
+
                                 <span class="tabular shrink-0 whitespace-nowrap text-[11px] text-[#8A8896]">
                                     {{ bar.label }}
                                 </span>
 
                                 <span
-                                    v-if="bar.crossesMidnight"
-                                    class="tabular ml-auto shrink-0 text-[10px] text-brand-600"
-                                    title="Cruza medianoche"
-                                >☾</span>
-                                <span
-                                    v-else-if="bar.forced"
-                                    class="ml-auto shrink-0 text-[10px] text-breach"
-                                    title="Forzado por decisión humana, con constancia"
-                                >⚠</span>
+                                    v-if="icono(bar)"
+                                    class="ml-auto shrink-0 text-[10px]"
+                                    :style="{ color: icono(bar).color }"
+                                >{{ icono(bar).simbolo }}</span>
                             </div>
                         </div>
 
-                        <!--
-                            LA TIRA DE COBERTURA. El motivo de que esta vista exista.
-                            Cada tramo, con su anchura real y su etiqueta entera.
-                        -->
-                        <div
-                            class="relative mt-2 h-4 overflow-hidden rounded-sm bg-[#F5F4F8]"
-                            :style="{
-                                backgroundImage: 'linear-gradient(90deg,#E6E5EE 1px,transparent 1px)',
-                                backgroundSize: `${100 / ((axis.to - axis.from) / 3)}% 100%`,
-                            }"
-                        >
-                            <div v-for="(s, i) in row.segments" :key="i" :style="segStyle(s)" />
-                            <span
-                                v-for="(s, i) in row.segments"
-                                :key="`l${i}`"
-                                class="tabular absolute top-0 truncate text-center text-[9.5px] font-bold leading-4"
-                                :style="{ left: `${s.left}%`, width: `${s.width}%`, color: segLabelColor(s) }"
-                            >{{ segLabel(s) }}</span>
+                        <div v-if="row.muestraCobertura" class="mt-2">
+                            <CoverageStrip :segments="row.segments" :axis="axis" wide />
                         </div>
+
+                        <div
+                            v-for="(nota, i) in row.notas"
+                            :key="i"
+                            class="mt-1.5 text-[9.5px] font-semibold"
+                            :style="{ color: nota.color }"
+                        >{{ nota.text }}</div>
                     </div>
                 </div>
             </div>

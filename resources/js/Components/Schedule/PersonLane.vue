@@ -1,48 +1,54 @@
 <script setup>
 import { computed } from 'vue';
-import { barFill, severityColor, worst } from '../../composables/useSeverity.js';
+import { BRAND, BRAND_DARK, severityColor, severityIcon, shortText, worst } from '../../composables/useSeverity.js';
+import { gridEvery } from '../../composables/useAxis.js';
 
 /**
  * UN CARRIL: una persona, dentro de un puesto, dentro de un día.
  *
- * CADA PERSONA EN SU PROPIA LÍNEA. Se probó a apilar las barras y era ilegible: con tres
- * turnos encima ni se sabía de quién era cada uno ni dónde empezaba. Con carriles, el
- * cuadrante se lee de un vistazo.
- *
- * Nombre y hora COMPLETOS. Truncar es ilegible: "Hu…" puede ser Hugo o Humberto, y en un
- * cuadrante eso es un error de plantilla esperando a ocurrir.
+ * Medidas tomadas de la referencia renderizada: avatar 16 px, nombre 12 px/600, resumen en
+ * mono 10 px, pista de 8 px con una línea cada 6 h, notas de 9,5 px/600.
  *
  * EL TIEMPO ES EL EJE X. Las barras se posicionan por su hora real, así que:
  *   · la jornada partida se VE como dos barras con un agujero físico en medio
  *   · el turno nocturno se VE cruzando el borde del día
  *   · el solape se VE como dos barras pisándose
- * Todo eso se VE. No hay que leerlo.
+ * Se ve. No hay que leerlo.
+ *
+ * EL NOMBRE NUNCA SE TRUNCA (truncar es ilegible: "Hu…" puede ser Hugo o Humberto). LA
+ * HORA SÍ, si no cabe: se recorta ella y se lee entera en el tooltip. Lo tenía al revés.
  */
 const props = defineProps({
     person: { type: Object, required: true },
+    // Turnos Y conceptos horarios de esta persona ese día: los dos la ocupan físicamente,
+    // y por eso van en el mismo carril. Así se VE que la hora médica de las 10 cae dentro
+    // del turno de 9 a 17, en vez de haber que buscarla en otra fila.
     blocks: { type: Array, required: true },
     axis: { type: Object, required: true },
     // null mientras el informe no ha llegado. NO significa "sin incidencias".
     violationsById: { type: Object, default: null },
 });
 
-const severityOf = (block) => (props.violationsById
-    ? worst(props.violationsById[block.id] ?? [])
-    : null);
+const violationsOf = (block) => (
+    block.kind === 'shift' && props.violationsById
+        ? props.violationsById[block.id] ?? []
+        : []
+);
 
-const laneSeverity = computed(() => (props.violationsById
-    ? worst(props.blocks.flatMap((b) => props.violationsById[b.id] ?? []))
-    : null));
+const severityOf = (block) => worst(violationsOf(block));
 
-const summary = computed(() => props.blocks.map((b) => b.label).join('  ·  '));
+const laneSeverity = computed(() => worst(props.blocks.flatMap(violationsOf)));
 
-/** Las líneas verticales de la pista: una cada 6 horas. Dan la escala sin ocupar sitio. */
-const gridSize = computed(() => `${100 / ((props.axis.to - props.axis.from) / 6)}% 100%`);
+const tambienEnOtraEmpresa = computed(() => props.blocks
+    .flatMap(violationsOf)
+    .some((v) => v.code === 'shared_workday'));
+
+const summary = computed(() => props.blocks
+    .map((b) => (b.kind === 'concept' ? `◷ ${b.label}` : b.label))
+    .join('   ·   '));
 
 const styleOf = (block) => {
-    const severity = severityOf(block);
-
-    return {
+    const base = {
         position: 'absolute',
         left: `${block.left}%`,
         width: `${block.width}%`,
@@ -52,104 +58,148 @@ const styleOf = (block) => {
         minWidth: '3px',
         borderRadius: '3px',
         boxSizing: 'border-box',
-        background: barFill(severity, props.person.color),
-        border: severity === 'impossible' ? '1px solid #C81E1E' : 'none',
     };
+
+    // El concepto NO cubre puesto: discontinuo y hueco, para que no se confunda con un turno.
+    if (block.kind === 'concept') {
+        return { ...base, background: 'transparent', border: `1.5px dashed ${BRAND}` };
+    }
+
+    const severity = severityOf(block);
+
+    if (severity === 'impossible') {
+        return {
+            ...base,
+            background: 'repeating-linear-gradient(45deg,rgba(200,30,30,.55) 0 4px,rgba(200,30,30,.2) 4px 8px)',
+            border: '1px solid #C81E1E',
+        };
+    }
+
+    if (block.forced) {
+        return { ...base, background: '#E8590C' };
+    }
+
+    // El nocturno tiene color propio, y no es el de la persona: es la excepción que más
+    // cuesta ver en un cuadrante. Índigo, que no compite con la semántica de estado.
+    if (block.crossesMidnight) {
+        return { ...base, background: BRAND_DARK };
+    }
+
+    if (severity === 'breach') {
+        return { ...base, background: '#E8590C' };
+    }
+
+    return { ...base, background: props.person.color };
 };
 
 /**
- * UNA JORNADA PARTIDA ES UN HUECO, NO UN SOLAPE.
+ * Las notas de la celda: UNA LÍNEA cada una.
  *
- * Dos turnos el mismo día solo son una partida si entre ellos hay AIRE. Si se pisan, no
- * es una partida: es el imposible que el motor denuncia, y llamarlo "jornada partida"
- * sería vestir un error de bandera de normalidad.
- *
- * Estaba mal, y se vio al mirar la parrilla: el solape de Tomás salía rotulado como
- * jornada partida, tan tranquilo.
+ * El mensaje completo del motor va en el tooltip de la barra. Volcarlo aquí estiraba las
+ * celdas al triple y la semana dejaba de caber en la pantalla.
  */
-const esPartida = computed(() => {
-    const orden = props.blocks.slice().sort((a, b) => a.startHour - b.startHour);
-
-    for (let i = 1; i < orden.length; i++) {
-        if (orden[i].startHour > orden[i - 1].endHour) {
-            return true;
-        }
-    }
-
-    return false;
-});
-
-/** Lo que hay que SABER de esta persona hoy, en una línea y con su color. */
 const notes = computed(() => {
     const out = [];
+    const vistas = new Set();
 
-    if (props.blocks.some((b) => b.crossesMidnight)) {
-        out.push({ text: 'Cruza medianoche', color: '#534AB7' });
-    } else if (esPartida.value) {
-        out.push({ text: 'Jornada partida', color: '#534AB7' });
-    }
+    const añadir = (text, color, dot = false) => {
+        if (!vistas.has(text)) {
+            vistas.add(text);
+            out.push({ text, color, dot });
+        }
+    };
 
-    if (props.blocks.some((b) => b.forced)) {
-        out.push({ text: 'Forzado, con constancia', color: '#E8590C' });
-    }
-
-    if (!props.violationsById) {
-        return out;
-    }
-
-    // El mensaje del motor, tal cual: es el que sabe la verdad, y ya viene redactado
-    // según quién mira.
     for (const block of props.blocks) {
-        for (const v of props.violationsById[block.id] ?? []) {
-            out.push({ text: v.message, color: severityColor(v.severity) });
+        if (block.kind === 'concept') {
+            añadir(`${block.name} · no cubre puesto`, BRAND_DARK);
+            continue;
+        }
+
+        if (block.crossesMidnight) {
+            añadir(`☾ ${block.label} · cruza medianoche`, BRAND_DARK);
+        }
+
+        if (block.forced) {
+            añadir('⚠ Forzado, con constancia', '#E8590C');
+        }
+
+        for (const v of violationsOf(block)) {
+            añadir(shortText(v), severityColor(v.severity), v.severity === 'notice');
         }
     }
 
     return out;
 });
+
+/** El tooltip: aquí SÍ va todo, sin recortar. Se pide, no se impone. */
+const title = computed(() => {
+    const partes = [`${props.person.name} · ${summary.value}`];
+
+    for (const block of props.blocks) {
+        for (const v of violationsOf(block)) {
+            partes.push(v.message);
+        }
+    }
+
+    return partes.join('\n');
+});
 </script>
 
 <template>
-    <div :title="`${person.name} · ${summary}`">
+    <div :title="title">
         <div class="flex items-center gap-1.5">
-            <span
-                class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[7.5px] font-semibold text-white"
-                :style="{ background: person.color }"
-            >{{ person.initials }}</span>
+            <span class="relative flex shrink-0">
+                <span
+                    class="tabular flex h-4 w-4 items-center justify-center rounded-full text-[7.5px] font-semibold text-white"
+                    :style="{ background: person.color }"
+                >{{ person.initials }}</span>
 
-            <!-- Nombre entero: shrink-0, jamás truncado. -->
+                <!-- Punto ámbar: ese día también trabaja en otro sitio. Es un AVISO, y se ve
+                     sin leer nada. -->
+                <span
+                    v-if="tambienEnOtraEmpresa"
+                    class="absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full border-[1.5px] border-white bg-notice"
+                />
+            </span>
+
+            <!-- El nombre NO se trunca. Nunca. -->
             <span class="shrink-0 whitespace-nowrap text-[12px] font-semibold text-ink">{{ person.name }}</span>
 
-            <!-- Y la hora entera, en mono, para que las cifras queden en columna. -->
-            <span class="tabular shrink-0 whitespace-nowrap text-[10px] text-[#8A8896]">{{ summary }}</span>
+            <!-- La hora SÍ, si no cabe: se lee entera en el tooltip. -->
+            <span class="tabular min-w-0 flex-1 truncate whitespace-nowrap text-[10px] text-[#8A8896]">
+                {{ summary }}
+            </span>
 
-            <span class="flex-1" />
-
+            <!-- El icono dice QUÉ pasa. Un punto solo diría QUE pasa algo. -->
             <span
                 v-if="laneSeverity"
-                class="shrink-0 text-[11px] leading-none"
+                class="ml-0.5 shrink-0 text-[11px] leading-none"
                 :style="{ color: severityColor(laneSeverity) }"
-            >●</span>
+            >{{ severityIcon(laneSeverity) }}</span>
         </div>
 
         <div
-            class="relative mt-1 h-2 overflow-hidden rounded"
+            class="relative mt-[3px] h-2 overflow-hidden rounded"
             :style="{
                 background: '#F1F0F6',
                 backgroundImage: 'linear-gradient(90deg,#E4E3EC 1px,transparent 1px)',
-                backgroundSize: gridSize,
+                backgroundSize: gridEvery(axis, 6),
             }"
         >
-            <div v-for="block in blocks" :key="block.id" :style="styleOf(block)" />
+            <div v-for="block in blocks" :key="`${block.kind}-${block.id}`" :style="styleOf(block)" />
         </div>
 
         <div
             v-for="(note, i) in notes"
             :key="i"
-            class="mt-1 flex items-start gap-1.5 text-[9.5px] font-semibold leading-tight"
+            class="mt-1 flex items-center gap-[5px] text-[9.5px] font-semibold leading-tight"
             :style="{ color: note.color }"
         >
-            <span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" :style="{ background: note.color }" />
+            <span
+                v-if="note.dot"
+                class="h-1.5 w-1.5 shrink-0 rounded-full"
+                :style="{ background: note.color }"
+            />
             {{ note.text }}
         </div>
     </div>

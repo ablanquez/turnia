@@ -3,6 +3,7 @@
 namespace App\Services\Scheduling\Presentation;
 
 use App\Enums\Computation;
+use App\Enums\RuleCode;
 use App\Models\Absence;
 use App\Models\Assignment;
 use App\Models\Calendar;
@@ -177,7 +178,10 @@ class SchedulePayload
             // El recorte va en el WHERE, no en un filter() posterior: lo que no sale
             // de la base de datos no se puede filtrar mal más adelante.
             ->unless($scope->canManage, fn ($q) => $q->where('person_id', $scope->viewerPersonId ?? 0))
-            ->with(['conceptType', 'person'])
+            // employment.positions: para saber en qué fila pintar un concepto de alguien que
+            // ese día NO tiene turno. Ponerlo en el primer puesto de la lista sería afirmar
+            // que cubre la barra cuando quizá es de cocina.
+            ->with(['conceptType', 'person', 'employment.positions'])
             ->orderBy('work_date')
             ->get();
     }
@@ -278,7 +282,7 @@ class SchedulePayload
                 'id' => $p->id,
                 'name' => trim($p->first_name.' '.$p->last_name),
                 'initials' => PersonPalette::initials($p->first_name, $p->last_name),
-                'color' => PersonPalette::for($p->id),
+                'color' => PersonPalette::for($p->first_name.' '.$p->last_name),
             ])
             ->values()
             ->all();
@@ -321,6 +325,9 @@ class SchedulePayload
             return [
                 'id' => $e->id,
                 'personId' => $e->person_id,
+                // Los puestos que esa persona PUEDE cubrir. Un concepto de alguien que ese
+                // día no tiene turno se pinta en uno de estos, nunca en uno cualquiera.
+                'eligiblePositionIds' => $e->employment->positions->pluck('id')->all(),
                 'name' => $e->conceptType->name,
                 'computation' => $e->conceptType->computation->value,
                 'countsAsWork' => $e->conceptType->computation === Computation::Adds,
@@ -349,10 +356,21 @@ class SchedulePayload
 
     private function coverage(CoverageReport $report, Company $company, TimeAxis $axis): array
     {
+        // Los puestos que NADIE de la plantilla puede cubrir. Su hueco NO es rojo: un
+        // hueco rojo dice "ponle a alguien", y aquí no hay a quién poner. Pintarlo igual
+        // que un hueco normal deshace el aviso que el motor se molestó en dar.
+        $uncoverable = $report->conflicts
+            ->filter(fn ($v) => $v->code === RuleCode::UncoverablePosition)
+            ->map(fn ($v) => $v->context['position_id'] ?? null)
+            ->filter()
+            ->all();
+
         return [
-            'segments' => $report->segments->map(function (CoverageSegment $s) use ($company, $axis) {
+            'segments' => $report->segments->map(function (CoverageSegment $s) use ($company, $axis, $uncoverable) {
                 $from = TimeAxis::hourOf($s->startsAt, $s->workDate, $company);
                 $to = TimeAxis::hourOf($s->endsAt, $s->workDate, $company);
+
+                $incubrible = $s->isGap() && in_array($s->position->id, $uncoverable, true);
 
                 return [
                     'positionId' => $s->position->id,
@@ -365,6 +383,9 @@ class SchedulePayload
                     'covered' => $s->covered,
                     'missing' => $s->missing(),
                     'excess' => $s->excess(),
+                    // covered | missing | excess | uncoverable. Lo decide el motor, no la
+                    // vista: dos respuestas a la misma pregunta acaban divergiendo.
+                    'state' => $incubrible ? 'uncoverable' : $s->state(),
                     'label' => $this->clock($from).'–'.$this->clock($to),
                 ];
             })->values()->all(),
@@ -378,6 +399,12 @@ class SchedulePayload
 
     /**
      * El panel de plantilla. Solo para quien gestiona: lleva contadores de horas.
+     *
+     * ⚠️ ES DONDE EL ENCARGADO ELIGE A QUIÉN COLOCAR, y por eso lleva BANDERAS.
+     *
+     * Sin ellas elige a ciegas: no sabe que esa persona está de baja, ni que ya está
+     * comprometida en otro bar ese día, ni que arrastra una jornada partida. Un panel que
+     * solo dice el nombre y las horas es un panel que calla justo en el momento de decidir.
      */
     private function staff(Calendar $calendar, TimeWindow $window, Company $company): array
     {
@@ -390,16 +417,33 @@ class SchedulePayload
         // El contador de TODA la plantilla en dos consultas, no en dos por persona.
         $minutes = $this->counter->workedMinutesFor($employments->modelKeys(), $window);
 
-        return $employments->map(function (Employment $e) use ($minutes, $shared) {
+        // Los turnos de LA SEMANA, no los del zoom que se esté mirando: las banderas
+        // hablan de la semana, igual que el contador.
+        $porPersona = Assignment::query()
+            ->where('company_id', $company->id)
+            ->whereBetween('work_date', $window->toDateRange())
+            ->get()
+            ->groupBy('person_id');
+
+        $bajas = Absence::query()
+            ->where('company_id', $company->id)
+            ->where('starts_on', '<=', $window->to->toDateString())
+            ->where(fn ($q) => $q->whereNull('ends_on')->orWhere('ends_on', '>=', $window->from->toDateString()))
+            ->with('absenceType')
+            ->get()
+            ->keyBy('person_id');
+
+        return $employments->map(function (Employment $e) use ($minutes, $shared, $porPersona, $bajas, $company) {
             $limits = $this->limits->for($e);
             $worked = $minutes[$e->id] ?? 0;
+            $suyas = $porPersona->get($e->person_id, new Collection);
 
             return [
                 'employmentId' => $e->id,
                 'personId' => $e->person_id,
                 'name' => trim($e->person->first_name.' '.$e->person->last_name),
                 'initials' => PersonPalette::initials($e->person->first_name, $e->person->last_name),
-                'color' => PersonPalette::for($e->person_id),
+                'color' => PersonPalette::for($e->person->first_name.' '.$e->person->last_name),
                 'profile' => $e->profile?->name,
                 'positions' => $e->positions->pluck('name')->all(),
                 'workedMinutes' => $worked,
@@ -408,9 +452,73 @@ class SchedulePayload
                 'limitMinutes' => $limits->maxMinutesWeek,
                 'overLimit' => $limits->maxMinutesWeek !== null && $worked > $limits->maxMinutesWeek,
                 'hasProfile' => $limits->hasProfile,
-                'sharedElsewhere' => in_array($e->person_id, $shared, true),
+                'flags' => $this->flagsFor($e, $suyas, $bajas->get($e->person_id), in_array($e->person_id, $shared, true), $company),
             ];
         })->values()->all();
+    }
+
+    /**
+     * Las banderas de una persona en esta ventana.
+     *
+     * Todas son ESTRUCTURALES: se ven en los datos, sin re-validar nada. Las que dependen
+     * de las reglas (un descanso corto, un tope pasado) las añade la vista cuando llega el
+     * informe diferido — porque hasta entonces NO SE SABEN, y afirmarlas antes sería
+     * inventárselas.
+     *
+     * @return array<int, array{kind: string, text: string}>
+     */
+    private function flagsFor(Employment $e, Collection $suyas, ?Absence $baja, bool $shared, Company $company): array
+    {
+        $flags = [];
+
+        if ($baja !== null) {
+            $desde = CarbonImmutable::parse($baja->starts_on);
+            $hasta = $baja->ends_on ? CarbonImmutable::parse($baja->ends_on) : null;
+
+            $flags[] = [
+                'kind' => 'neutral',
+                'text' => sprintf(
+                    '%s · %s',
+                    $baja->absenceType->name,
+                    $hasta ? $desde->day.'–'.$hasta->day.' '.$this->monthName($hasta) : 'desde el '.$desde->day.' '.$this->monthName($desde),
+                ),
+            ];
+        }
+
+        if ($shared) {
+            // Ámbar: es un AVISO. Y sin decir dónde, que eso lo decide el redactor.
+            $flags[] = ['kind' => 'notice', 'text' => 'Esta semana también trabaja en otra empresa'];
+        }
+
+        if ($suyas->contains(fn (Assignment $a) => TimeAxis::hourOf(CarbonImmutable::parse($a->ends_at), CarbonImmutable::parse($a->work_date), $company) > 24)) {
+            $flags[] = ['kind' => 'neutral', 'text' => 'Turno nocturno esta semana'];
+        }
+
+        // Jornada partida: dos turnos el mismo día CON AIRE entre ellos. Si se pisan no es
+        // una partida: es un solape, y llamarlo partida sería ponerle bandera de normalidad.
+        $partida = $suyas
+            ->groupBy(fn (Assignment $a) => CarbonImmutable::parse($a->work_date)->toDateString())
+            ->contains(function (Collection $delDia) {
+                $orden = $delDia->sortBy('starts_at')->values();
+
+                for ($i = 1; $i < $orden->count(); $i++) {
+                    if ($orden[$i]->starts_at->gt($orden[$i - 1]->ends_at)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+        if ($partida) {
+            $flags[] = ['kind' => 'neutral', 'text' => 'Jornada partida esta semana'];
+        }
+
+        if (! $this->limits->for($e)->hasProfile) {
+            $flags[] = ['kind' => 'notice', 'text' => 'Contrato sin condiciones definidas'];
+        }
+
+        return $flags;
     }
 
     /**
