@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,19 @@ class Company extends Model
             'computation_year_start_month' => 'integer',
             'computation_year_start_day' => 'integer',
         ];
+    }
+
+    /**
+     * "Las 22:00 del 25 de octubre en el bar" -> el instante UTC que se guarda.
+     *
+     * Los turnos se guardan como instantes UTC. La zona de la empresa solo sirve
+     * para interpretar lo que teclea el humano y para pintar. Así, la noche del
+     * cambio de hora, un turno de 22:00 a 06:00 dura 9h de verdad y no 8h, sin
+     * ningún caso especial en el contador.
+     */
+    public function toUtc(string $localDate, string $localTime): CarbonImmutable
+    {
+        return CarbonImmutable::parse("$localDate $localTime", $this->timezone)->utc();
     }
 
     public function owner(): BelongsTo
