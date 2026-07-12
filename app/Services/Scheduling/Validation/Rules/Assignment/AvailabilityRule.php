@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\AbsenceScope;
 use App\Enums\Computation;
 use App\Enums\RuleCode;
 use App\Models\Absence;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\Builder;
  * ends_on NULL = baja abierta, indefinida: bloquea desde su inicio hacia adelante,
  * sin fecha de fin.
  */
-class AvailabilityRule implements Rule
+class AvailabilityRule implements AssignmentRule
 {
     public function check(AssignmentDraft $draft): array
     {

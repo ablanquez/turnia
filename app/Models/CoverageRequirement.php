@@ -43,6 +43,14 @@ class CoverageRequirement extends Model
         ];
     }
 
+    /** company_id se deriva del calendario: el cliente no la manda, así no puede mentir. */
+    protected static function booted(): void
+    {
+        static::saving(function (self $requirement) {
+            $requirement->company_id = Calendar::findOrFail($requirement->calendar_id)->company_id;
+        });
+    }
+
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);

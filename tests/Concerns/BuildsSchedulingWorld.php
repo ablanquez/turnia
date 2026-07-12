@@ -4,6 +4,7 @@ namespace Tests\Concerns;
 
 use App\Enums\AbsenceScope;
 use App\Enums\Computation;
+use App\Enums\Recurrence;
 use App\Models\Absence;
 use App\Models\AbsenceType;
 use App\Models\Assignment;
@@ -11,12 +12,16 @@ use App\Models\Calendar;
 use App\Models\Company;
 use App\Models\ConceptEntry;
 use App\Models\ConceptType;
+use App\Models\CoverageRequirement;
 use App\Models\Employment;
+use App\Models\Holiday;
 use App\Models\Person;
 use App\Models\Position;
 use App\Models\Profile;
 use App\Models\User;
+use App\Services\Scheduling\Validation\AbsenceDraft;
 use App\Services\Scheduling\Validation\AssignmentDraft;
+use App\Services\Scheduling\Validation\ConceptEntryDraft;
 use Carbon\CarbonImmutable;
 
 /**
@@ -144,6 +149,78 @@ trait BuildsSchedulingWorld
             'work_date' => $workDate,
             'starts_at' => $company->toUtc($workDate, $startLocal),
             'ends_at' => $company->toUtc($workDate, $endLocal),
+        ]);
+    }
+
+    /** El borrador de un concepto, SIN escribir en la base. */
+    protected function conceptDraft(
+        Employment $employment,
+        ConceptType $type,
+        string $workDate,
+        string $startLocal,
+        string $endLocal,
+        ?string $endDate = null,
+        ?int $ignoreConceptEntryId = null,
+    ): ConceptEntryDraft {
+        $company = $employment->company;
+
+        return new ConceptEntryDraft(
+            employment: $employment,
+            conceptType: $type,
+            workDate: CarbonImmutable::parse($workDate),
+            startsAt: $company->toUtc($workDate, $startLocal),
+            endsAt: $company->toUtc($endDate ?? $workDate, $endLocal),
+            ignoreConceptEntryId: $ignoreConceptEntryId,
+        );
+    }
+
+    /** El borrador de una ausencia, SIN escribir en la base. */
+    protected function absenceDraft(
+        Person $person,
+        AbsenceType $type,
+        string $startsOn,
+        ?string $endsOn = null,
+        ?Employment $employment = null,
+        ?int $ignoreAbsenceId = null,
+    ): AbsenceDraft {
+        return new AbsenceDraft(
+            person: $person,
+            absenceType: $type,
+            startsOn: CarbonImmutable::parse($startsOn),
+            endsOn: $endsOn ? CarbonImmutable::parse($endsOn) : null,
+            employment: $employment,
+            ignoreAbsenceId: $ignoreAbsenceId,
+        );
+    }
+
+    protected function makeHoliday(Company $company, string $date, string $name = 'Festivo'): Holiday
+    {
+        return $company->holidays()->create(['date' => $date, 'name' => $name]);
+    }
+
+    protected function makeRequirement(
+        Calendar $calendar,
+        Position $position,
+        Recurrence $recurrence,
+        string $startLocal,
+        string $endLocal,
+        int $count,
+        string $effectiveFrom = '2020-01-01',
+        ?string $effectiveTo = null,
+        ?int $dayOfWeek = null,
+        ?string $onDate = null,
+    ): CoverageRequirement {
+        return CoverageRequirement::create([
+            'calendar_id' => $calendar->id,
+            'position_id' => $position->id,
+            'effective_from' => $effectiveFrom,
+            'effective_to' => $effectiveTo,
+            'recurrence' => $recurrence,
+            'day_of_week' => $dayOfWeek,
+            'on_date' => $onDate,
+            'starts_at' => $startLocal,
+            'ends_at' => $endLocal,
+            'required_count' => $count,
         ]);
     }
 

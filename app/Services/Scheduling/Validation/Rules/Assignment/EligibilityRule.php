@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\RuleCode;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 
 /**
@@ -13,7 +13,7 @@ use App\Services\Scheduling\Validation\Violation;
  * Es INCUMPLIMIENTO, no imposible: poner al de almacén en la barra un sábado de
  * agosto es una mala idea, pero el encargado puede necesitar hacerlo. Avisa y deja.
  */
-class EligibilityRule implements Rule
+class EligibilityRule implements AssignmentRule
 {
     public function check(AssignmentDraft $draft): array
     {

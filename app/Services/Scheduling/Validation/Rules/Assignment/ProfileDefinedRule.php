@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\RuleCode;
 use App\Services\Scheduling\LimitResolver;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 
 /**
@@ -15,7 +15,7 @@ use App\Services\Scheduling\Validation\Violation;
  * hueco de configuración, no un incumplimiento de convenio: el silencio no es lo
  * mismo que "todo correcto".
  */
-class ProfileDefinedRule implements Rule
+class ProfileDefinedRule implements AssignmentRule
 {
     public function __construct(private LimitResolver $limits) {}
 

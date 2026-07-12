@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\RuleCode;
 use App\Models\Assignment;
 use App\Services\Scheduling\LimitResolver;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 
 /**
@@ -22,7 +22,7 @@ use App\Services\Scheduling\Validation\Violation;
  * Se mide contra el turno anterior Y el siguiente: colocar un turno puede romper
  * el descanso del que ya venía detrás.
  */
-class MinimumRestRule implements Rule
+class MinimumRestRule implements AssignmentRule
 {
     public function __construct(private LimitResolver $limits) {}
 

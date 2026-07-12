@@ -49,9 +49,9 @@ class HourCounter
     }
 
     /** El contador APARTE: las horas extra, con su propio tope. */
-    public function overtimeMinutes(Employment $employment, TimeWindow $window): int
+    public function overtimeMinutes(Employment $employment, TimeWindow $window, ?int $excludeConceptEntryId = null): int
     {
-        return $this->conceptMinutes($employment, $window, Computation::SeparateCounter);
+        return $this->conceptMinutes($employment, $window, Computation::SeparateCounter, $excludeConceptEntryId);
     }
 
     /** Lo que se RESTA de la jornada exigible, en vez de sumarse a la realizada. */
@@ -60,14 +60,22 @@ class HourCounter
         return $this->conceptMinutes($employment, $window, Computation::ReducesRequired);
     }
 
-    private function conceptMinutes(Employment $employment, TimeWindow $window, Computation $computation): int
-    {
-        return $this->sumMinutes(
-            ConceptEntry::query()
-                ->where('employment_id', $employment->id)
-                ->whereBetween('work_date', $window->toDateRange())
-                ->whereHas('conceptType', fn (Builder $q) => $q->where('computation', $computation))
-        );
+    private function conceptMinutes(
+        Employment $employment,
+        TimeWindow $window,
+        Computation $computation,
+        ?int $excludeConceptEntryId = null,
+    ): int {
+        $query = ConceptEntry::query()
+            ->where('employment_id', $employment->id)
+            ->whereBetween('work_date', $window->toDateRange())
+            ->whereHas('conceptType', fn (Builder $q) => $q->where('computation', $computation));
+
+        if ($excludeConceptEntryId !== null) {
+            $query->whereKeyNot($excludeConceptEntryId);
+        }
+
+        return $this->sumMinutes($query);
     }
 
     private function sumMinutes(Builder $query): int

@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\RuleCode;
 use App\Services\Scheduling\HourCounter;
 use App\Services\Scheduling\LimitResolver;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 use App\Services\Scheduling\WindowResolver;
 use App\Support\TimeWindow;
@@ -21,7 +21,7 @@ use App\Support\TimeWindow;
  * El tope es un MÁXIMO: llegar exactamente a 40h de 40h CUMPLE. Se incumple a
  * partir del minuto 2401.
  */
-class HourLimitRule implements Rule
+class HourLimitRule implements AssignmentRule
 {
     public function __construct(
         private LimitResolver $limits,

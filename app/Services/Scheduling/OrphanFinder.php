@@ -7,7 +7,9 @@ use App\Enums\Computation;
 use App\Models\Absence;
 use App\Models\Assignment;
 use App\Models\Company;
+use App\Services\Scheduling\Validation\AbsenceDraft;
 use App\Support\TimeWindow;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -64,22 +66,53 @@ class OrphanFinder
             });
     }
 
-    /** La misma consulta, pero para una persona concreta: útil al registrar la baja. */
+    /** Los turnos que deja al descubierto una ausencia YA registrada. */
     public function forAbsence(Absence $absence): Collection
     {
+        return $this->forRange(
+            personId: $absence->person_id,
+            startsOn: CarbonImmutable::parse($absence->starts_on),
+            endsOn: $absence->ends_on ? CarbonImmutable::parse($absence->ends_on) : null,
+            employmentId: $absence->absenceType->scope === AbsenceScope::Employment
+                ? $absence->employment_id
+                : null,
+        );
+    }
+
+    /**
+     * Los que dejaría una ausencia que TODAVÍA NO EXISTE.
+     *
+     * Es lo que permite avisar en el momento de registrarla, antes de escribir nada.
+     */
+    public function forDraft(AbsenceDraft $draft): Collection
+    {
+        return $this->forRange(
+            personId: $draft->person->id,
+            startsOn: $draft->startsOn,
+            endsOn: $draft->endsOn,
+            employmentId: $draft->scope() === AbsenceScope::Employment
+                ? $draft->employment?->id
+                : null,
+        );
+    }
+
+    /** employmentId null = alcanza a TODOS los contratos de la persona (una baja). */
+    private function forRange(int $personId, CarbonImmutable $startsOn, ?CarbonImmutable $endsOn, ?int $employmentId): Collection
+    {
         return Assignment::query()
-            ->where('person_id', $absence->person_id)
-            ->where('work_date', '>=', $absence->starts_on->toDateString())
+            ->where('person_id', $personId)
+            ->where('work_date', '>=', $startsOn->toDateString())
             ->when(
-                $absence->ends_on !== null,
-                fn (Builder $q) => $q->where('work_date', '<=', $absence->ends_on->toDateString()),
+                $endsOn !== null,
+                fn (Builder $q) => $q->where('work_date', '<=', $endsOn->toDateString()),
             )
             ->when(
-                $absence->absenceType->scope === AbsenceScope::Employment,
-                fn (Builder $q) => $q->where('employment_id', $absence->employment_id),
+                $employmentId !== null,
+                fn (Builder $q) => $q->where('employment_id', $employmentId),
             )
             ->with(['position', 'company', 'calendar'])
             ->orderBy('work_date')
+            ->orderBy('starts_at')
             ->get();
     }
 }

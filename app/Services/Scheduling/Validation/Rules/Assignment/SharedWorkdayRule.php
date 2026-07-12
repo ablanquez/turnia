@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\RuleCode;
 use App\Models\Assignment;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 
 /**
@@ -20,7 +20,7 @@ use App\Services\Scheduling\Validation\Violation;
  * No es imposible (el solape ya la protege de estar en dos sitios a la vez) y no
  * incumple ninguna condición. Pero el encargado del Bar B tiene que ENTERARSE.
  */
-class SharedWorkdayRule implements Rule
+class SharedWorkdayRule implements AssignmentRule
 {
     public function check(AssignmentDraft $draft): array
     {

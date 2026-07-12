@@ -36,10 +36,48 @@ enum RuleCode: string
     /** Descanso insuficiente entre turnos. Cruza empresas. */
     case MinimumRest = 'minimum_rest';
 
+    /** El perfil solo admite jornada continua y ese día ya hay otro turno. */
+    case WorkdayType = 'workday_type';
+
+    /** Se pasa del tope de horas extra (el contador aparte). */
+    case OvertimeLimit = 'overtime_limit';
+
+    /** Se pasa del cupo de vacaciones, medido en días laborables. */
+    case LeaveQuota = 'leave_quota';
+
+    /** Se solapa con otra ausencia. Avisa, pero deja registrar: una baja puede caer
+     *  encima de unas vacaciones, y prohibirlo obligaría a borrar las vacaciones. */
+    case AbsenceOverlap = 'absence_overlap';
+
+    // --- IMPOSIBLE (ausencias) ---
+    /** Fecha de fin anterior a la de inicio. */
+    case InvalidDateRange = 'invalid_date_range';
+
+    /** Ya existe una ausencia idéntica y solapada del mismo tipo. */
+    case DuplicateAbsence = 'duplicate_absence';
+
     // --- INFORMATIVO ---
     /** Hueco de configuración: el contrato no tiene condiciones definidas. */
     case MissingProfile = 'missing_profile';
 
     /** Ese día ya trabaja en otra empresa: cada encargado ve solo su mitad. */
     case SharedWorkday = 'shared_workday';
+
+    /** Esta baja pisa días de vacaciones ya cogidas: revisa si hay que devolverlos. */
+    case LeaveOverlappedByBlocking = 'leave_overlapped_by_blocking';
+
+    /** El tipo consume cupo pero es de alcance persona: contradicción de configuración. */
+    case QuotaScopeMismatch = 'quota_scope_mismatch';
+
+    /** Esta ausencia deja asignaciones futuras al descubierto. */
+    case OrphanedAssignments = 'orphaned_assignments';
+
+    /** La ausencia no tiene fecha de fin: no se puede calcular el cupo que consume. */
+    case OpenEndedLeave = 'open_ended_leave';
+
+    /** Dos requisitos de cobertura idénticos: la demanda se está doblando. */
+    case DuplicateRequirement = 'duplicate_requirement';
+
+    /** Un requisito de fecha ha anulado a los recurrentes de ese día: revisa las franjas. */
+    case RequirementOverridden = 'requirement_overridden';
 }

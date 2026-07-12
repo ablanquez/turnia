@@ -1,22 +1,21 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Concept;
 
 use App\Enums\RuleCode;
-use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\ConceptEntryDraft;
+use App\Services\Scheduling\Validation\ConceptRule;
 use App\Services\Scheduling\Validation\Violation;
 use Carbon\CarbonImmutable;
 
 /**
- * El turno tiene que caer dentro de la vigencia del contrato.
+ * El concepto tiene que caer dentro de la vigencia del contrato.
  *
- * Es IMPOSIBLE, no incumplimiento: no hay contrato bajo el que trabajar. No es que
- * se rompa el convenio, es que el dato no tiene sentido.
+ * No se puede registrar una hora médica de alguien que ya no trabaja aquí.
  */
-class ContractActiveRule implements Rule
+class ContractActiveRule implements ConceptRule
 {
-    public function check(AssignmentDraft $draft): array
+    public function check(ConceptEntryDraft $draft): array
     {
         $employment = $draft->employment;
         $workDate = $draft->workDate->startOfDay();
@@ -27,7 +26,7 @@ class ContractActiveRule implements Rule
             return [Violation::impossible(
                 RuleCode::ContractInactive,
                 sprintf('El contrato no empieza hasta el %s.', $startsOn->format('d/m/Y')),
-                ['starts_on' => $startsOn->toDateString(), 'work_date' => $workDate->toDateString()],
+                ['starts_on' => $startsOn->toDateString()],
             )];
         }
 
@@ -38,7 +37,7 @@ class ContractActiveRule implements Rule
                 return [Violation::impossible(
                     RuleCode::ContractInactive,
                     sprintf('El contrato terminó el %s.', $endsOn->format('d/m/Y')),
-                    ['ends_on' => $endsOn->toDateString(), 'work_date' => $workDate->toDateString()],
+                    ['ends_on' => $endsOn->toDateString()],
                 )];
             }
         }

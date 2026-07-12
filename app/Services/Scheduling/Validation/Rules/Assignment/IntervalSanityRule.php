@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services\Scheduling\Validation\Rules;
+namespace App\Services\Scheduling\Validation\Rules\Assignment;
 
 use App\Enums\RuleCode;
 use App\Services\Scheduling\Validation\AssignmentDraft;
-use App\Services\Scheduling\Validation\Rule;
+use App\Services\Scheduling\Validation\AssignmentRule;
 use App\Services\Scheduling\Validation\Violation;
 
 /**
@@ -15,7 +15,7 @@ use App\Services\Scheduling\Validation\Violation;
  * = sin límite" es un parámetro de negocio, pero un día tiene 24 horas y eso no
  * lo configura nadie.
  */
-class IntervalSanityRule implements Rule
+class IntervalSanityRule implements AssignmentRule
 {
     public const MAX_SHIFT_MINUTES = 24 * 60;
 
