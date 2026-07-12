@@ -41,6 +41,12 @@ class CoverageCalculator
         $company = $calendar->company;
         $requirements = $this->requirementsOf($calendar);
 
+        // Los turnos de TODA la ventana, de una vez. Antes se consultaban dentro del
+        // doble bucle (día × puesto), que es una consulta por celda: 35 para una semana
+        // de 5 puestos, y 150 para un mes. Un N+1 de manual, y encima escondido detrás
+        // de dos foreach.
+        $shifts = $this->shiftsOf($calendar, $window);
+
         $segments = new Collection;
         $conflicts = $this->uncoverablePositions($company, $requirements);
 
@@ -53,7 +59,7 @@ class CoverageCalculator
                 $conflicts = $conflicts->concat($this->duplicatesIn($forPosition, $date));
 
                 $segments = $segments->concat(
-                    $this->segmentsFor($calendar, $company, $forPosition, $date)
+                    $this->segmentsFor($shifts, $company, $forPosition, $date)
                 );
             }
         }
@@ -71,6 +77,20 @@ class CoverageCalculator
             ->where('calendar_id', $calendar->id)
             ->with('position')
             ->get();
+    }
+
+    /**
+     * Los turnos de la ventana, agrupados por celda (día|puesto).
+     *
+     * @return Collection<string, Collection<int, Assignment>>
+     */
+    private function shiftsOf(Calendar $calendar, TimeWindow $window): Collection
+    {
+        return Assignment::query()
+            ->where('calendar_id', $calendar->id)
+            ->whereBetween('work_date', $window->toDateRange())
+            ->get()
+            ->groupBy(fn (Assignment $a) => CarbonImmutable::parse($a->work_date)->toDateString().'|'.$a->position_id);
     }
 
     /**
@@ -224,7 +244,7 @@ class CoverageCalculator
      *
      * @return Collection<int, CoverageSegment>
      */
-    private function segmentsFor(Calendar $calendar, $company, Collection $forPosition, CarbonImmutable $date): Collection
+    private function segmentsFor(Collection $allShifts, $company, Collection $forPosition, CarbonImmutable $date): Collection
     {
         $position = $forPosition->first()->position;
 
@@ -241,11 +261,7 @@ class CoverageCalculator
             return ['from' => $startsAt, 'to' => $endsAt, 'count' => $r->required_count];
         });
 
-        $shifts = Assignment::query()
-            ->where('calendar_id', $calendar->id)
-            ->where('position_id', $position->id)
-            ->where('work_date', $date->toDateString())
-            ->get()
+        $shifts = ($allShifts[$date->toDateString().'|'.$position->id] ?? new Collection)
             ->map(fn (Assignment $a) => [
                 'from' => CarbonImmutable::parse($a->starts_at),
                 'to' => CarbonImmutable::parse($a->ends_at),

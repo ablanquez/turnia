@@ -39,6 +39,46 @@ class HourCounter
             + $this->conceptMinutes($employment, $window, Computation::Adds);
     }
 
+    /**
+     * Lo mismo, pero para MUCHOS contratos a la vez, en dos consultas.
+     *
+     * El panel de plantilla necesita el contador de todo el equipo. Pedirlo contrato a
+     * contrato son dos consultas por persona: 16 para un bar de 8, y 120 para el
+     * almacén de 60. Es un N+1, aunque cada consulta suelta sea rapidísima.
+     *
+     * Sigue siendo UNA CONSULTA, no un acumulado: lo único que cambia es que agrupa.
+     *
+     * @param  array<int, int>  $employmentIds
+     * @return array<int, int> employment_id => minutos (0 si no tiene nada)
+     */
+    public function workedMinutesFor(array $employmentIds, TimeWindow $window): array
+    {
+        if ($employmentIds === []) {
+            return [];
+        }
+
+        $assigned = Assignment::query()
+            ->whereIn('employment_id', $employmentIds)
+            ->whereBetween('work_date', $window->toDateRange())
+            ->groupBy('employment_id')
+            ->pluck(DB::raw('SUM(TIMESTAMPDIFF(MINUTE, starts_at, ends_at))'), 'employment_id');
+
+        $concepts = ConceptEntry::query()
+            ->whereIn('employment_id', $employmentIds)
+            ->whereBetween('work_date', $window->toDateRange())
+            ->whereHas('conceptType', fn (Builder $q) => $q->where('computation', Computation::Adds))
+            ->groupBy('employment_id')
+            ->pluck(DB::raw('SUM(TIMESTAMPDIFF(MINUTE, starts_at, ends_at))'), 'employment_id');
+
+        $minutes = [];
+
+        foreach ($employmentIds as $id) {
+            $minutes[$id] = (int) ($assigned[$id] ?? 0) + (int) ($concepts[$id] ?? 0);
+        }
+
+        return $minutes;
+    }
+
     /** Solo las asignaciones. */
     public function assignedMinutes(Employment $employment, TimeWindow $window, ?int $excludeAssignmentId = null): int
     {
