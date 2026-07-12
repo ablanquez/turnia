@@ -2,24 +2,22 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
+    /*
+     * ⚠️ AQUÍ NO PUEDE IR WithoutModelEvents, Y VENÍA PUESTO DE SERIE.
+     *
+     * Ese trait apaga los eventos de Eloquent... incluidos los hooks saving() que
+     * DERIVAN company_id y person_id del contrato en las asignaciones, los conceptos y
+     * las ausencias. Con el trait puesto, el seeder reventaría al insertar (company_id
+     * no admite nulo) o, peor, escribiría copias vacías: exactamente la copia que
+     * miente contra la que se diseñó el hook.
      */
+
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $this->call(DemoSeeder::class);
     }
 }

@@ -3,7 +3,53 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * LA SEMÁNTICA DEL COLOR ESTÁ RESERVADA, y es la única regla de estilo que no se
+ * negocia:
+ *
+ *   ROJO   = imposible / incumplimiento
+ *   ÁMBAR  = aviso
+ *   VERDE  = correcto
+ *
+ * La marca es ÍNDIGO precisamente para no competir con eso. Ningún elemento
+ * decorativo puede usar rojo, ámbar ni verde: el día que un botón sea verde, el
+ * verde deja de significar "correcto" y el encargado deja de creérselo.
+ */
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+
+    /* Mono para las HORAS: números tabulares, para que no bailen entre filas. */
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+    /* Marca */
+    --color-brand-50: #eeedfe;
+    --color-brand-300: #7f77dd;
+    --color-brand-600: #534ab7;
+    --color-brand-800: #3c3489;
+
+    /* Estado: reservado */
+    --color-impossible: #c81e1e;
+    --color-breach: #e8590c;
+    --color-notice: #c2870a;
+    --color-ok: #15803d;
+    --color-missing: #dc2626;
+
+    /* Superficies */
+    --color-canvas: #edecf2;
+    --color-line: #e5e4ef;
+    --color-line-soft: #f0eff5;
+    --color-ink: #2c2643;
+    --color-ink-soft: #6b6a78;
+    --color-ink-faint: #9e9cac;
+}
+
+body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+}
+
+/* Sin esto un "11" ocupa menos que un "00" y la columna de horas se tuerce. */
+.tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
 }
