@@ -4,6 +4,16 @@
 @source '../../storage/framework/views/*.php';
 
 /*
+ * ⚠️ LOS COLORES SE USAN POR SU NOMBRE: text-ink, border-line, bg-brand-50.
+ *
+ * NO con la sintaxis text-[--color-ink]. Tailwind 4 la acepta sin rechistar y emite
+ * `color: --color-ink`, que es CSS inválido y que el navegador tira a la basura. El build
+ * dice "✓ built" y la página sale SIN MAQUETAR. Pasó: toda la parrilla se pintó sin un
+ * solo color del tema y el único aviso fue mirarla.
+ *
+ * @theme genera las utilidades solo: si la variable es --color-ink, la clase es text-ink.
+ * Para una variable suelta, la sintaxis de v4 es text-(--color-ink), con paréntesis.
+ *
  * LA SEMÁNTICA DEL COLOR ESTÁ RESERVADA, y es la única regla de estilo que no se
  * negocia:
  *

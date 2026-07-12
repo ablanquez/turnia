@@ -64,10 +64,37 @@ class ScheduleController extends Controller
         ]);
     }
 
-    /** ?week=2026-07-06 → la semana de esa fecha. Sin parámetro, la de hoy. */
-    private function requestedDate(Request $request): CarbonImmutable
+    /**
+     * EL ZOOM DÍA. La vista donde la cobertura POR SEGMENTOS por fin se lee.
+     *
+     * No es "la semana con menos días": es la misma ventana con los dos extremos iguales.
+     * El motor no sabe de qué tamaño es lo que le piden, y por eso esta vista no le añade
+     * ni una línea — solo le da menos ventana y más sitio para pintarla.
+     */
+    public function day(Request $request, Company $company, Calendar $calendar): Response
     {
-        $requested = $request->query('week');
+        Gate::authorize('view', $calendar);
+
+        abort_unless($calendar->company_id === $company->id, 404);
+
+        $scope = ScheduleScope::for($request->user(), $company);
+        $window = $this->windows->day($this->requestedDate($request, 'day'));
+
+        return Inertia::render('Schedule/Day', [
+            ...$this->payload->build($calendar, $window, $scope, 'day'),
+
+            // Mismo criterio que en la semana, y por el mismo motivo: mientras no llega,
+            // la ausencia de rojo NO significa "todo correcto".
+            'violations' => Inertia::defer(
+                fn () => $this->payload->violations($company, $window, $scope)
+            ),
+        ]);
+    }
+
+    /** ?week=2026-07-06 → la semana de esa fecha. Sin parámetro, la de hoy. */
+    private function requestedDate(Request $request, string $param = 'week'): CarbonImmutable
+    {
+        $requested = $request->query($param);
 
         if (! is_string($requested)) {
             return CarbonImmutable::today();

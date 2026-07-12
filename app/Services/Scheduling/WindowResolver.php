@@ -21,6 +21,17 @@ class WindowResolver
         );
     }
 
+    /**
+     * Un solo día.
+     *
+     * No es un caso especial: es la misma ventana con los dos extremos iguales. El motor
+     * no sabe si le están pidiendo un día, una semana o un año — solo recibe una ventana.
+     */
+    public function day(CarbonImmutable $localDate): TimeWindow
+    {
+        return new TimeWindow($localDate->startOfDay(), $localDate->startOfDay());
+    }
+
     public function month(CarbonImmutable $localDate): TimeWindow
     {
         return new TimeWindow(

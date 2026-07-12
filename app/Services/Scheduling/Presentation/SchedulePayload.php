@@ -18,6 +18,7 @@ use App\Services\Scheduling\HourCounter;
 use App\Services\Scheduling\LimitResolver;
 use App\Services\Scheduling\ReportedViolation;
 use App\Services\Scheduling\ViolationReport;
+use App\Services\Scheduling\WindowResolver;
 use App\Services\Scheduling\WorkdayCalendar;
 use App\Support\TimeWindow;
 use Carbon\CarbonImmutable;
@@ -48,9 +49,15 @@ class SchedulePayload
         private WorkdayCalendar $workdays,
         private CoverageCalculator $coverageCalculator,
         private ViolationReport $report,
+        private WindowResolver $windows,
     ) {}
 
-    public function build(Calendar $calendar, TimeWindow $window, ScheduleScope $scope): array
+    /**
+     * @param  string  $granularity  'week' | 'day'. Solo cambia por dónde navegan las
+     *                               flechas: el motor recibe una ventana y no sabe de
+     *                               qué tamaño es.
+     */
+    public function build(Calendar $calendar, TimeWindow $window, ScheduleScope $scope, string $granularity = 'week'): array
     {
         $company = $calendar->company;
 
@@ -71,7 +78,8 @@ class SchedulePayload
                 'id' => $calendar->id,
                 'name' => $calendar->name,
             ],
-            'window' => $this->window($company, $window),
+            'window' => $this->window($company, $window, $granularity),
+            'granularity' => $granularity,
             'axis' => $axis->toArray(),
             'positions' => $this->positions($calendar),
             'people' => $this->people($assignments, $concepts, $absences),
@@ -79,8 +87,20 @@ class SchedulePayload
             'conceptEntries' => $this->conceptRows($concepts, $company, $axis),
             'absences' => $this->absenceRows($absences),
             'coverage' => $this->coverage($coverage, $company, $axis),
+            /*
+             * ⚠️ EL CONTADOR DE LA PLANTILLA VA SIEMPRE SOBRE LA SEMANA, mire uno el zoom
+             * que mire, y no es un descuido de haber reutilizado la ventana.
+             *
+             * El tope del perfil es SEMANAL. Si en la vista Día contáramos el día contra
+             * el tope de la semana, Sara saldría como "7 de 40 h" —holgadísima— cuando en
+             * realidad lleva 42 de 40 y está incumpliendo. Sería un aviso falso al revés:
+             * un silencio, y en el sitio donde el encargado decide a quién puede cargarle
+             * otro turno.
+             *
+             * La unidad del numerador tiene que ser la misma que la del denominador.
+             */
             'staff' => $scope->seesStaffPanel()
-                ? $this->staff($calendar, $window, $company)
+                ? $this->staff($calendar, $this->windows->week($window->from), $company)
                 : [],
             'can' => [
                 'manage' => $scope->canManage,
@@ -194,7 +214,7 @@ class SchedulePayload
         return TimeAxis::covering($hours);
     }
 
-    private function window(Company $company, TimeWindow $window): array
+    private function window(Company $company, TimeWindow $window, string $granularity): array
     {
         $holidays = Holiday::query()
             ->where('company_id', $company->id)
@@ -216,13 +236,19 @@ class SchedulePayload
             ];
         }
 
+        $step = $granularity === 'day' ? 1 : 7;
+
         return [
             'from' => $window->from->toDateString(),
             'to' => $window->to->toDateString(),
             'isoWeek' => $window->from->isoWeek(),
-            'label' => $this->rangeLabel($window),
-            'previous' => $window->from->subWeek()->toDateString(),
-            'next' => $window->from->addWeek()->toDateString(),
+            'label' => $granularity === 'day'
+                ? $this->weekdayName($window->from).' '.$window->from->day.' '.$this->monthName($window->from).' '.$window->from->year
+                : $this->rangeLabel($window),
+            'previous' => $window->from->subDays($step)->toDateString(),
+            'next' => $window->from->addDays($step)->toDateString(),
+            // Para poder volver a la semana que contiene este día, y al revés.
+            'weekOf' => $window->from->startOfWeek(CarbonImmutable::MONDAY)->toDateString(),
             'days' => $days,
         ];
     }

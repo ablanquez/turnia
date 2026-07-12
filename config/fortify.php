@@ -73,7 +73,13 @@ return [
     |
     */
 
-    'home' => '/home',
+    /*
+     * ⚠️ Fortify viene apuntando a /home, que en esta app NO EXISTE: se entraba con la
+     * contraseña correcta y se aterrizaba en un 404. No lo vio ninguna prueba porque las
+     * mías no seguían la redirección — comprobaban /dashboard por su cuenta. Solo apareció
+     * al abrir la app con un navegador de verdad.
+     */
+    'home' => '/dashboard',
 
     /*
     |--------------------------------------------------------------------------

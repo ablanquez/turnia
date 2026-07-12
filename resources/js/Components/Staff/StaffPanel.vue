@@ -29,11 +29,23 @@ const anchoBarra = (persona) => {
 
 <template>
     <aside
-        class="flex w-[248px] shrink-0 flex-col gap-3 self-stretch border-l border-[--color-line] bg-[#FBFBFD] px-3.5 pb-4 pt-3.5"
+        class="flex w-[248px] shrink-0 flex-col gap-3 self-stretch border-l border-line bg-[#FBFBFD] px-3.5 pb-4 pt-3.5"
     >
         <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-[--color-ink]">Plantilla</span>
-            <span class="tabular text-[10px] text-[--color-ink-faint]">{{ staff.length }} contratos</span>
+            <span class="text-xs font-bold text-ink">Plantilla</span>
+            <span class="tabular text-[10px] text-ink-faint">{{ staff.length }} contratos</span>
+        </div>
+
+        <!--
+            LA VENTANA DEL CONTADOR SE DICE EN ALTO, y no es decorativo.
+
+            El tope del perfil es SEMANAL. Si el panel enseñara las horas del día contra el
+            tope de la semana, "7 de 40" leería como "va holgada" cuando en realidad lleva
+            42 y está incumpliendo. Aquí siempre es la semana, mires el zoom que mires, y
+            se dice para que nadie tenga que suponerlo.
+        -->
+        <div class="-mt-1 text-[9.5px] font-semibold uppercase tracking-wide text-ink-faint">
+            Horas de esta semana
         </div>
 
         <div
@@ -50,13 +62,13 @@ const anchoBarra = (persona) => {
                     <!-- Trabaja hoy en otra empresa. El punto ámbar es un AVISO, no un error. -->
                     <span
                         v-if="persona.sharedElsewhere"
-                        class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-white bg-[--color-notice]"
+                        class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-white bg-notice"
                     />
                 </span>
 
                 <div class="min-w-0 flex-1">
-                    <div class="truncate text-xs font-semibold text-[--color-ink]">{{ persona.name }}</div>
-                    <div class="truncate text-[9.5px] text-[--color-ink-faint]">
+                    <div class="truncate text-xs font-semibold text-ink">{{ persona.name }}</div>
+                    <div class="truncate text-[9.5px] text-ink-faint">
                         {{ persona.profile ?? 'Sin perfil definido' }}
                     </div>
                 </div>
@@ -66,7 +78,7 @@ const anchoBarra = (persona) => {
                 <span
                     v-for="puesto in persona.positions"
                     :key="puesto"
-                    class="rounded bg-[--color-brand-50] px-1.5 py-0.5 text-[9px] font-semibold text-[--color-brand-600]"
+                    class="rounded bg-brand-50 px-1.5 py-0.5 text-[9px] font-semibold text-brand-600"
                 >{{ puesto }}</span>
             </div>
 

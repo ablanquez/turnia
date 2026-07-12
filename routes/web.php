@@ -17,4 +17,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/companies/{company}/calendars/{calendar}/schedule', [ScheduleController::class, 'week'])
         ->name('schedule.week');
+
+    Route::get('/companies/{company}/calendars/{calendar}/schedule/day', [ScheduleController::class, 'day'])
+        ->name('schedule.day');
 });
