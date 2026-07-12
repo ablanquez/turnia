@@ -142,9 +142,14 @@ const abre = await page.evaluate(async () => {
     const abierto = {
         ancho: Math.round(caja.width),
         alto: Math.round(caja.height),
+        abajo: Math.round(caja.bottom),
+        ventana: window.innerHeight,
+        // EL PANEL LLEGA HASTA ABAJO DEL TODO, tenga dos personas o tenga cincuenta. El
+        // número de personas no decide nada sobre el alto: el panel es un CONTENEDOR y la
+        // lista es su CONTENIDO.
+        llegaAbajo: Math.abs(caja.bottom - window.innerHeight) <= 2,
         overflowY: getComputedStyle(panel).overflowY,
-        // La lista de diez personas no cabe en el alto de cinco puestos: tiene que scrollear
-        // POR DENTRO, sin arrastrar a la página.
+        // Y si la lista no cabe, scrollea POR DENTRO, sin arrastrar a la página.
         scrolleaPorDentro: panel.scrollHeight > panel.clientHeight + 1,
         paginaDesborda: document.documentElement.scrollHeight > window.innerHeight,
     };
@@ -158,16 +163,79 @@ const abre = await page.evaluate(async () => {
     };
 });
 
+/*
+ * ── LAS DOS BARRAS: QUE SE VEA, NO QUE SE LEA ───────────────────────────────────────
+ *
+ * En el zoom Día el solape de Tomás se VE (dos barras pisándose). En la Semana caían en la
+ * misma pista de 8 px, se solapaban píxel a píxel y se leían como UNA barra larga: el
+ * imposible había que creérselo leyendo el texto.
+ *
+ * Esta comprobación NO lee el rótulo. Cuenta las BARRAS y mira su GEOMETRÍA:
+ *   · Tomás (imposible): dos barras que se pisan en el eje X y están en alturas distintas
+ *   · Lucía (partida):   dos barras que NO se pisan y dejan un hueco físico entre ellas
+ */
+const barras = await page.evaluate(() => {
+    const deLaPersona = (nombre) => {
+        const carril = [...document.querySelectorAll('div[title]')]
+            .find((d) => d.title.startsWith(nombre));
+
+        if (!carril) {
+            return null;
+        }
+
+        const pista = [...carril.children].find((e) => e.className.includes('bg-sunken'));
+        const barras = [...pista.children].map((b) => {
+            const r = b.getBoundingClientRect();
+
+            return { x1: r.left, x2: r.right, y: Math.round(r.top - pista.getBoundingClientRect().top) };
+        });
+
+        return { cuantas: barras.length, barras, altoPista: Math.round(pista.getBoundingClientRect().height) };
+    };
+
+    const pisan = (b) => b.length === 2 && b[0].x2 > b[1].x1 + 1;
+    const conHueco = (b) => b.length === 2 && b[1].x1 > b[0].x2 + 1;
+
+    const tomas = deLaPersona('Tomás Vega');
+    const lucia = deLaPersona('Lucía Díaz');
+
+    return {
+        tomas: tomas && {
+            dosBarras: tomas.cuantas === 2,
+            sePisan: pisan(tomas.barras),
+            enAlturasDistintas: tomas.cuantas === 2 && tomas.barras[0].y !== tomas.barras[1].y,
+            altoPista: tomas.altoPista,
+        },
+        lucia: lucia && {
+            dosBarras: lucia.cuantas === 2,
+            conHuecoFisico: conHueco(lucia.barras),
+            enLaMismaAltura: lucia.cuantas === 2 && lucia.barras[0].y === lucia.barras[1].y,
+        },
+    };
+});
+
 const verdes = medida.rellenos.filter((c) => esVerde(rgb(c))).length;
 
 const pruebas = [
+    ['¿El SOLAPE se ve como DOS BARRAS pisándose (Semana)?',
+        !!barras.tomas?.dosBarras && barras.tomas.sePisan && barras.tomas.enAlturasDistintas,
+        barras.tomas
+            ? `${barras.tomas.dosBarras ? 2 : '?'} barras · se pisan: ${barras.tomas.sePisan} · apiladas: ${barras.tomas.enAlturasDistintas}`
+            : 'no encontrado'],
+
+    ['¿La JORNADA PARTIDA se ve como dos barras con hueco (Semana)?',
+        !!barras.lucia?.dosBarras && barras.lucia.conHuecoFisico && barras.lucia.enLaMismaAltura,
+        barras.lucia
+            ? `hueco físico: ${barras.lucia.conHuecoFisico} · misma línea: ${barras.lucia.enLaMismaAltura}`
+            : 'no encontrado'],
+
     ['¿Cabe la SEMANA ENTERA con el panel recogido?', layout.cabeLaSemana,
         layout.cabeLaSemana ? 'cabe, sin scroll' : `faltan ${layout.faltan}px`],
     ['¿El panel arranca RECOGIDO?', layout.anchoPanelRecogido < 60, `${layout.anchoPanelRecogido}px`],
     ['¿Se despliega y se vuelve a recoger?', abre.ancho > 200 && abre.vuelveARecogerse,
         `abierto ${abre.ancho}px · vuelve a recogerse: ${abre.vuelveARecogerse}`],
-    ['¿La altura la manda la PARRILLA, no el panel?', Math.abs(abre.alto - layout.altoParrilla) <= 3,
-        `parrilla ${layout.altoParrilla}px · panel abierto ${abre.alto}px`],
+    ['¿El panel LLEGA HASTA ABAJO de la ventana?', abre.llegaAbajo,
+        `borde inferior del panel: ${abre.abajo}px · ventana: ${abre.ventana}px`],
     ['¿El panel scrollea POR DENTRO, sin arrastrar la página?', abre.scrolleaPorDentro && !abre.paginaDesborda,
         `overflow-y: ${abre.overflowY} · scroll interno: ${abre.scrolleaPorDentro} · página desborda: ${abre.paginaDesborda}`],
 
@@ -179,6 +247,44 @@ const pruebas = [
     ['¿Se queda la columna de puestos al desplazarse?', railVisibleTrasDesplazar, medida.railPegajoso],
     ['¿Cabe en 1366px sin desbordar la página?', !medida.desborda, medida.desborda ? 'DESBORDA' : 'cabe'],
 ];
+
+/*
+ * LA VENTANA MANDA. Se achica el navegador y todo tiene que seguir en su sitio: el panel se
+ * encoge con ella (y su scroll interno se activa antes), y la parrilla hace el suyo. Ninguno
+ * de los dos puede desbordar la página.
+ */
+await page.setViewportSize({ width: 1366, height: 560 });
+await page.waitForTimeout(500);
+
+const achicada = await page.evaluate(async () => {
+    const boton = document.querySelector('aside button');
+
+    if (Math.round(document.querySelector('aside').getBoundingClientRect().width) < 60) {
+        boton.click();
+        await new Promise((r) => setTimeout(r, 300));
+    }
+
+    const panel = document.querySelector('aside');
+    const caja = panel.getBoundingClientRect();
+    const parrilla = [...document.querySelectorAll('div')]
+        .find((e) => e.className.includes?.('max-h-full') && e.className.includes('overflow-auto'));
+
+    return {
+        panelLlegaAbajo: Math.abs(caja.bottom - window.innerHeight) <= 2,
+        panelScrollea: panel.scrollHeight > panel.clientHeight + 1,
+        parrillaScrollea: parrilla.scrollHeight > parrilla.clientHeight + 1,
+        paginaDesborda: document.documentElement.scrollHeight > window.innerHeight + 1,
+    };
+});
+
+pruebas.push(
+    ['Con la ventana ACHICADA (560px de alto): ¿el panel llega abajo y scrollea?',
+        achicada.panelLlegaAbajo && achicada.panelScrollea,
+        `llega abajo: ${achicada.panelLlegaAbajo} · scroll interno: ${achicada.panelScrollea}`],
+    ['Con la ventana ACHICADA: ¿la parrilla hace SU scroll y no desborda la página?',
+        achicada.parrillaScrollea && !achicada.paginaDesborda,
+        `parrilla scrollea: ${achicada.parrillaScrollea} · página desborda: ${achicada.paginaDesborda}`],
+);
 
 let falla = false;
 

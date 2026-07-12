@@ -229,34 +229,21 @@ const esPar = (i) => i % 2 === 0;
  * entera en el zoom Día. Se pierde un rótulo, no un dato.
  */
 const celda = ref(null);
-const tarjeta = ref(null);
 const anchoColumna = ref(300);
-
-const emit = defineEmits(['alto']);
 
 let observador = null;
 
 onMounted(() => {
-    observador = new ResizeObserver(() => {
-        if (celda.value) {
-            anchoColumna.value = celda.value.getBoundingClientRect().width;
-        }
+    if (!celda.value) {
+        return;
+    }
 
-        // LA PARRILLA MANDA EN LA ALTURA: la anuncia, y el panel se adapta a ella.
-        if (tarjeta.value) {
-            emit('alto', tarjeta.value.getBoundingClientRect().height);
-        }
+    observador = new ResizeObserver(([e]) => {
+        anchoColumna.value = e.contentRect.width;
     });
 
-    if (celda.value) {
-        observador.observe(celda.value);
-        anchoColumna.value = celda.value.getBoundingClientRect().width;
-    }
-
-    if (tarjeta.value) {
-        observador.observe(tarjeta.value);
-        emit('alto', tarjeta.value.getBoundingClientRect().height);
-    }
+    observador.observe(celda.value);
+    anchoColumna.value = celda.value.getBoundingClientRect().width;
 });
 
 onBeforeUnmount(() => observador?.disconnect());
@@ -289,7 +276,6 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
             de puestos desaparecía al desplazarse. Se veía al mirar, no al medir.
         -->
         <div
-            ref="tarjeta"
             class="max-h-full w-full self-start overflow-auto rounded-xl border-2 border-edge bg-card shadow-[0_2px_10px_-4px_rgb(40_36_80/18%)]"
         >
             <div

@@ -60,13 +60,59 @@ const summary = computed(() => props.blocks
     .map((b) => (b.kind === 'concept' ? `◷ ${b.label}` : b.label))
     .join('   ·   '));
 
+const ALTO = 8;
+const HUECO = 2;
+
+/**
+ * DOS TURNOS EL MISMO DÍA SON DOS BARRAS. SIEMPRE.
+ *
+ * ⚠️ EL FALLO QUE ESTO ARREGLA ERA UNA INCOHERENCIA ENTRE VISTAS.
+ *
+ * En el zoom Día, el solape de Tomás (10:00–18:00 y 14:00–20:00) se VE: dos barras
+ * pisándose. En la Semana, las dos barras caían en la MISMA pista de 8 px, se solapaban
+ * píxel a píxel y se leían como una sola barra larga. El imposible había que CREÉRSELO
+ * leyendo el texto — y este diseño es bueno precisamente porque las cosas SE VEN.
+ *
+ * La misma situación, contada de dos maneras. Ahora se cuenta igual en las dos.
+ *
+ * El reparto es geométrico y NO juzga nada:
+ *   · si dos bloques SE PISAN  → sub-carriles distintos → se ven encimados → IMPOSIBLE
+ *   · si entre ellos hay AIRE  → el mismo sub-carril    → hueco físico     → PARTIDA
+ *
+ * Quien decide cuál es cuál es el motor. Aquí solo se pinta lo que hay, y lo que hay se ve.
+ */
+const repartidos = computed(() => {
+    const orden = props.blocks.slice().sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+    const finDeSubcarril = [];
+
+    for (const bloque of orden) {
+        let i = finDeSubcarril.findIndex((fin) => bloque.startHour >= fin);
+
+        if (i === -1) {
+            i = finDeSubcarril.length;
+            finDeSubcarril.push(0);
+        }
+
+        finDeSubcarril[i] = bloque.endHour;
+        bloque.subcarril = i;
+    }
+
+    return { bloques: orden, subcarriles: Math.max(1, finDeSubcarril.length) };
+});
+
+const altoPista = computed(() => {
+    const n = repartidos.value.subcarriles;
+
+    return n * ALTO + (n - 1) * HUECO;
+});
+
 const styleOf = (block) => {
     const base = {
         position: 'absolute',
         left: `${block.left}%`,
         width: `${block.width}%`,
-        top: 0,
-        bottom: 0,
+        top: `${(block.subcarril ?? 0) * (ALTO + HUECO)}px`,
+        height: `${ALTO}px`,
         // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
         minWidth: '3px',
         borderRadius: '3px',
@@ -222,13 +268,18 @@ const title = computed(() => {
             haciendo cuatro trabajos. Aquí solo hace uno — decir por dónde va el día.
         -->
         <div
-            class="bg-sunken relative mt-[3px] h-2 overflow-hidden rounded"
+            class="bg-sunken relative mt-[3px] overflow-hidden rounded"
             :style="{
+                height: `${altoPista}px`,
                 backgroundImage: 'linear-gradient(90deg, rgb(255 255 255 / 55%) 1px, transparent 1px)',
                 backgroundSize: gridEvery(axis, 6),
             }"
         >
-            <div v-for="block in blocks" :key="`${block.kind}-${block.id}`" :style="styleOf(block)" />
+            <div
+                v-for="block in repartidos.bloques"
+                :key="`${block.kind}-${block.id}`"
+                :style="styleOf(block)"
+            />
         </div>
 
         <div

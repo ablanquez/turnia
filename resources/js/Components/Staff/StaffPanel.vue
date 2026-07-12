@@ -22,20 +22,7 @@ const props = defineProps({
     // Diferidas: hasta que llegan, las banderas de REGLA (descanso corto, tope pasado) no
     // se pueden afirmar. Afirmarlas antes sería inventárselas.
     violations: { type: Object, default: null },
-    /**
-     * EL ALTO DE LA PARRILLA. El panel se adapta a él, no al revés.
-     *
-     * Estaba invertido: el panel (diez personas) estiraba el contenedor y la parrilla —cinco
-     * puestos— flotaba sobre un vacío blanco enorme. La parrilla es EL CONTENIDO y el panel
-     * es la BARRA LATERAL: el contenido define el alto.
-     *
-     * Y si la plantilla no cabe en ese alto, el panel scrollea POR DENTRO. Nunca arrastra a
-     * la página entera.
-     */
-    alto: { type: Number, default: 0 },
 });
-
-const altoDelPanel = computed(() => (props.alto ? `${Math.round(props.alto)}px` : '100%'));
 
 const busqueda = ref('');
 
@@ -115,6 +102,17 @@ const visibles = computed(() => {
 
 <template>
     <!--
+        ⚠️ EL PANEL OCUPA TODO EL ALTO DE LA VENTANA. SIEMPRE. Y EL NÚMERO DE PERSONAS NO
+        DECIDE NADA SOBRE ESO.
+
+        Lo tuve midiéndose por su contenido —crecía con la lista— y estaba mal por los dos
+        lados: con diez personas desbordaba por abajo, y con dos se habría quedado corto,
+        flotando. El panel es un CONTENEDOR de altura fija; la lista es su CONTENIDO.
+
+        LA VENTANA MANDA: si se achica el navegador, el panel se encoge con él y el scroll
+        interno se activa antes; si se agranda, cabe más lista sin scroll. Y si sobra sitio,
+        sobra sitio: el panel llega abajo igual.
+
         EL PANEL ES OTRA ZONA, NO MÁS PARRILLA.
 
         Antes los dos eran blancos, sin borde ni sombra: el ojo no sabía dónde acababa una
@@ -129,8 +127,7 @@ const visibles = computed(() => {
     -->
     <aside
         v-if="!panelAbierto"
-        class="bg-panel flex w-10 shrink-0 flex-col items-center gap-3 self-start border-l-2 border-edge py-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
-        :style="{ height: altoDelPanel }"
+        class="bg-panel flex w-10 shrink-0 flex-col items-center gap-3 self-stretch border-l-2 border-edge py-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
     >
         <button
             class="bg-card flex h-7 w-7 items-center justify-center rounded-lg border border-line text-ink-soft hover:text-brand-600"
@@ -150,8 +147,7 @@ const visibles = computed(() => {
 
     <aside
         v-else
-        class="bg-panel flex min-h-0 w-[264px] shrink-0 flex-col gap-3 self-start overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
-        :style="{ height: altoDelPanel }"
+        class="bg-panel flex min-h-0 w-[264px] shrink-0 flex-col gap-3 self-stretch overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
     >
         <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-ink">Plantilla disponible</span>
