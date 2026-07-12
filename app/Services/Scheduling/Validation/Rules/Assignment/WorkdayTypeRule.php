@@ -47,12 +47,15 @@ class WorkdayTypeRule implements AssignmentRule
             return [];
         }
 
+        $company = $draft->employment->company;
+
         return [Violation::breach(
             RuleCode::WorkdayType,
             sprintf(
                 'El perfil solo admite jornada continua, y ese día ya tiene otro turno (%s a %s).',
-                $others->first()->starts_at->format('H:i'),
-                $others->first()->ends_at->format('H:i'),
+                // En el reloj de la empresa, no en UTC.
+                $company->localTime($others->first()->starts_at),
+                $company->localTime($others->first()->ends_at),
             ),
             [
                 'workday_type' => WorkdayType::Continuous->value,

@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -57,9 +59,35 @@ class Company extends Model
         return CarbonImmutable::parse("$localDate $localTime", $this->timezone)->utc();
     }
 
+    /**
+     * La inversa de toUtc(): el instante guardado, contado en el reloj de la empresa.
+     *
+     * ⚠️ TODO MENSAJE QUE NOMBRE UNA HORA TIENE QUE PASAR POR AQUÍ.
+     *
+     * Los turnos se guardan en UTC. Si una regla escribe $turno->starts_at->format('H:i')
+     * está imprimiendo la hora UTC, y en Madrid en verano eso son DOS HORAS MENOS. El
+     * aviso sería correcto y la hora que da, falsa: "ya tiene un turno de 12:00 a 18:00"
+     * cuando en realidad es de 14:00 a 20:00. El encargado miraría las 12:00 de su
+     * parrilla, no encontraría nada, y dejaría de creerse los avisos.
+     *
+     * Un aviso que miente en los detalles es peor que ningún aviso.
+     */
+    public function localTime(DateTimeInterface $instant): string
+    {
+        return CarbonImmutable::parse($instant)
+            ->setTimezone($this->timezone)
+            ->format('H:i');
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /** Los ENCARGADOS. El dueño NO está aquí: vive en user_id, y con una vez basta. */
+    public function managers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withTimestamps();
     }
 
     public function employments(): HasMany

@@ -43,8 +43,13 @@ class SharedWorkdayRule implements AssignmentRule
             sprintf(
                 'Ese día también trabaja en %s (%s).',
                 $companies->join(', ', ' y '),
-                $elsewhere->map(fn (Assignment $a) => $a->starts_at->format('H:i').'-'.$a->ends_at->format('H:i'))
-                    ->join(', '),
+                // La hora, en el reloj de LA OTRA empresa: es donde ocurre el turno. Si
+                // el otro bar estuviera en Canarias, decir la hora de Madrid sería
+                // mentir con precisión.
+                $elsewhere->map(
+                    fn (Assignment $a) => $a->company->localTime($a->starts_at)
+                        .'-'.$a->company->localTime($a->ends_at)
+                )->join(', '),
             ),
             [
                 'company_ids' => $elsewhere->pluck('company_id')->unique()->values()->all(),

@@ -34,12 +34,13 @@ class OverlapRule implements ConceptRule
             exceptConceptEntryId: $draft->ignoreConceptEntryId,
         );
 
+        // La hora se cuenta en el reloj de la empresa donde ocurre, nunca en UTC.
         $shifts = $occupied->assignments->map(fn (Assignment $other) => Violation::impossible(
             RuleCode::Overlap,
             sprintf(
                 'Pisa un turno de %s a %s en %s.',
-                $other->starts_at->format('H:i'),
-                $other->ends_at->format('H:i'),
+                $other->company->localTime($other->starts_at),
+                $other->company->localTime($other->ends_at),
                 $other->company->name,
             ),
             ['assignment_id' => $other->id, 'company_id' => $other->company_id],
@@ -50,8 +51,8 @@ class OverlapRule implements ConceptRule
             sprintf(
                 'Solapa con "%s", de %s a %s.',
                 $entry->conceptType->name,
-                $entry->starts_at->format('H:i'),
-                $entry->ends_at->format('H:i'),
+                $entry->company->localTime($entry->starts_at),
+                $entry->company->localTime($entry->ends_at),
             ),
             ['concept_entry_id' => $entry->id],
         ))->all();
