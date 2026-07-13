@@ -308,12 +308,35 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
 
                 suyos.sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
 
-                // La HORA manda y va sola en su renglón; debajo, lo que ese bloque ES.
-                // (Los dos renglones del rótulo son bloques pegados: textContent no mete
-                // espacio entre ellos, y el esperado tampoco.)
-                const esperados = suyos.map((b) => (b.kind === 'concept'
-                    ? `${b.label}◷ ${b.name} · no cubre puesto`
-                    : b.label));
+                /*
+                 * La HORA manda y va sola en su renglón; debajo, lo que ese bloque ES.
+                 * (Los dos renglones del rótulo son bloques pegados: textContent no mete espacio
+                 * entre ellos, y el esperado tampoco.)
+                 *
+                 * ⚠️ DOS COSAS NUEVAS, Y LAS DOS LAS DESTAPÓ LA MATRIZ VISUAL:
+                 *
+                 *  · El ☾ del nocturno. La nocturnidad era un COLOR que le robaba el relleno a la
+                 *    persona —y encima ese índigo se confundía con los de la propia paleta—. Ahora
+                 *    es una marca de forma, y la marca lleva su palabra (ley 6).
+                 *
+                 *  · El pie del concepto dice si CUENTA HORAS. Decía solo "no cubre puesto" y se
+                 *    callaba lo otro: una hora extra SÍ suma al contador y una hora médica NO, y
+                 *    los cuatro cómputos pintaban idéntico. Justo el dato que hace falta cuando el
+                 *    encargado decide a quién puede cargarle otro turno.
+                 *
+                 * Ver docs/MATRIZ-VISUAL.md §4.1 y §4.3.
+                 */
+                const esperados = suyos.map((b) => {
+                    const luna = b.crossesMidnight ? '☾' : '';
+
+                    if (b.kind !== 'concept') {
+                        return `${b.label}${luna}`;
+                    }
+
+                    const cuenta = b.computa ? 'cuenta horas' : 'no cuenta horas';
+
+                    return `${b.label}${luna}◷ ${b.name} · ${cuenta} · no cubre puesto`;
+                });
 
                 const barrasOk = carril?.barras.length === suyos.length;
                 const rotulosOk = JSON.stringify((carril?.rotulos ?? []).map((r) => r.texto)) === JSON.stringify(esperados);

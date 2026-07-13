@@ -312,9 +312,18 @@ class CoverageCalculator
 
             // Demandas independientes: en un tramo se SUMAN. "3 de 12 a 16" más
             // "2 de 14 a 18" hacen 5 personas entre las 14 y las 16.
-            $required = $demands
-                ->filter(fn (array $d) => $d['from']->lte($from) && $d['to']->gte($to))
-                ->sum('count');
+            $vigentes = $demands->filter(fn (array $d) => $d['from']->lte($from) && $d['to']->gte($to));
+
+            $required = $vigentes->sum('count');
+
+            /*
+             * ⚠️ ¿HAY ALGUIEN QUE HAYA DICHO ALGO SOBRE ESTE TRAMO? Dos ceros muy distintos.
+             *
+             * Un requisito de CERO personas es una demanda: dice "ese día no abro". Y no tener
+             * ningún requisito encima es otra cosa: nadie ha dicho nada. En el primero, poner a
+             * alguien es un exceso caro; en el segundo, no es nada. Los dos daban required = 0.
+             */
+            $demanded = $vigentes->isNotEmpty();
 
             $covered = $shifts
                 ->filter(fn (array $s) => $s['counts'] && $s['from']->lte($from) && $s['to']->gte($to))
@@ -340,6 +349,7 @@ class CoverageCalculator
                 endsAt: $to,
                 required: (int) $required,
                 covered: $covered,
+                demanded: $demanded,
             ));
         }
 
@@ -361,10 +371,14 @@ class CoverageCalculator
         foreach ($segments as $segment) {
             $last = $merged->last();
 
+            // `demanded` entra en la comparación: un tramo cerrado (demanda de 0) y uno fuera de
+            // franja pueden tener el mismo required y el mismo covered, y NO son el mismo tramo.
+            // Fundirlos borraría el aviso del más caro de los dos.
             $continuous = $last !== null
                 && $last->endsAt->equalTo($segment->startsAt)
                 && $last->required === $segment->required
-                && $last->covered === $segment->covered;
+                && $last->covered === $segment->covered
+                && $last->demanded === $segment->demanded;
 
             if ($continuous) {
                 $merged->pop();
@@ -375,6 +389,7 @@ class CoverageCalculator
                     endsAt: $segment->endsAt,
                     required: $segment->required,
                     covered: $segment->covered,
+                    demanded: $segment->demanded,
                 ));
 
                 continue;

@@ -75,6 +75,26 @@ mismo, y no por falta de tiempo.
 
 ---
 
+## Lo que la matriz visual deja abierto
+
+Ver `BACKTEST-COMBINATORIO.md` §8. En resumen, lo que **no** está probado y solo se sabrá en
+producción:
+
+- **Más de tres personas por celda.** Los seeders llegan a tres. Con seis, el aire entre bloques
+  podría dejar de decir la verdad sobre quién va con quién.
+- **El daltonismo.** La ley 6 (ningún color va solo) está probada: toda gravedad lleva su
+  palabra. Pero **la trama y el filo no se han probado en escala de grises**, y son marcas de
+  forma precisamente para eso.
+- **Los colores 11–15 de la paleta de personas** apenas han salido: el reparto va por `crc32`
+  del nombre. El contraste se mide en cada pasada, pero no sobre los quince.
+
+Y una regla que hay que mantener viva: si mañana se añade **una regla informativa a los
+conceptos**, aparecen 8 casos nuevos y `tests/Visual/matriz.mjs` **los exigirá** — la lista
+`ESPERADAS` está derivada del modelo, no de un gusto. Si el test grita «CASO NO ALCANZADO», o el
+seeder no lo siembra o **el servidor se está callando un dato**.
+
+---
+
 ## Despliegue
 
 ### `/public/build` está en `.gitignore` y Hostinger no tiene Node

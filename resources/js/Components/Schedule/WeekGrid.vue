@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import PersonLane from './PersonLane.vue';
+import { pintarBanda } from '../../composables/useMatrizVisual.js';
 
 /**
  * LA REJILLA: 7 días × puestos, y EL TIEMPO EN EL EJE X.
@@ -175,22 +176,19 @@ const IMPOSIBLE = {
  * LA BANDA DE LA BAJA, dentro del puesto y atravesando los días.
  *
  * Una baja no es de un puesto (en el modelo cuelga de la persona) pero se LEE mucho mejor
- * dentro de la fila del puesto que esa persona deja al descubierto: se ve el agujero, y se
- * ve de un tirón, cruzando los tres días. La saqué a una fila propia y me equivoqué: tenía
- * razón en el modelo y estaba equivocado en la lectura.
+ * dentro de la fila del puesto que esa persona deja al descubierto: se ve el agujero, y se ve
+ * de un tirón, cruzando los tres días.
  *
- * La fila elegida es la del puesto donde esa persona tiene turnos esa semana.
+ * ⚠️ Y VA A TODAS LAS FILAS QUE ESA PERSONA PUEDE CUBRIR, QUE ES DONDE DE VERDAD DEJA EL HUECO.
+ *
+ * Antes la ponía en el puesto de menor id donde tuviera TURNOS, y si no tenía ninguno —que es
+ * JUSTO el caso de una baja larga— caía en positions[0]. La baja de Nuria, que es de cocina,
+ * salía pintada en la fila de BARRA: afirmando un agujero en un puesto que ella no cubre. Es
+ * exactamente el mismo bug que ya estaba arreglado, y documentado, para los conceptos
+ * huérfanos — cuarenta líneas más abajo, en este mismo fichero.
  */
-const bandRowOf = (personId) => {
-    const suyos = props.assignments
-        .filter((a) => a.personId === personId)
-        .map((a) => a.positionId);
-
-    return suyos.length ? Math.min(...suyos) : props.positions[0]?.id;
-};
-
 const bandsOf = (positionId, date) => props.absences
-    .filter((a) => bandRowOf(a.personId) === positionId)
+    .filter((a) => (a.eligiblePositionIds ?? []).includes(positionId))
     .filter((a) => a.startsOn <= date && (a.endsOn === null || a.endsOn >= date))
     .map((a) => {
         const dias = props.window.days.map((d) => d.date);
@@ -201,22 +199,24 @@ const bandsOf = (positionId, date) => props.absences
             esPrimero: cubiertos[0] === date,
             esUltimo: cubiertos[cubiertos.length - 1] === date,
         };
-    });
-
-const bandStyle = (b) => ({
-    background: 'rgba(60,52,137,.13)',
-    border: '1px solid rgba(60,52,137,.28)',
-    borderLeftWidth: b.esPrimero ? '1px' : '0',
-    borderRightWidth: b.esUltimo ? '1px' : '0',
-    borderRadius: b.esPrimero && b.esUltimo ? '5px'
-        : b.esPrimero ? '5px 0 0 5px'
-            : b.esUltimo ? '0 5px 5px 0'
-                : '0',
-});
+    })
+    .map((b) => ({ banda: b, ...pintarBanda(b, props.violations) }));
 
 /** Los puestos que nadie de la plantilla puede cubrir: el badge, una vez, donde se pide. */
 const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
     .some((s) => s.uncoverable);
+
+/**
+ * CERRADO NO ES LO MISMO QUE NO LABORABLE, Y POR ESO NO SE PINTA POR EL CALENDARIO.
+ *
+ * Un bar abre en festivo con toda normalidad —y en hostelería el festivo es justo el pico de
+ * carga—, así que teñir la columna porque el calendario laboral diga "no laborable" sería
+ * sugerir "aquí no se trabaja" un día en el que se trabaja.
+ *
+ * El motor solo marca como cerrado el día que NO es laborable Y ADEMÁS no pide a nadie en
+ * ningún puesto. Ese es el dato accionable; la etiqueta del calendario, no.
+ */
+const cerrado = (date) => (props.coverage?.closed ?? []).includes(date);
 
 /**
  * LOS PUESTOS SON BLOQUES, NO FILAS SUELTAS.
@@ -331,16 +331,41 @@ const esPar = (i) => i % 2 === 0;
                     ]"
                     style="padding: 10px 11px 12px"
                 >
-                    <!-- La banda de la baja: atraviesa los días, rotula solo en el primero. -->
-                    <div
-                        v-for="b in bandsOf(position.id, day.date)"
-                        :key="b.id"
-                        class="mb-[5px] flex h-4 items-center overflow-hidden whitespace-nowrap px-[7px] text-[9.5px] font-bold text-brand-800"
-                        :style="bandStyle(b)"
-                    >
-                        {{ b.esPrimero ? `${peopleById[b.personId]?.name} · ${b.name}` : '' }}
-                    </div>
+                    <!--
+                        LA BANDA DE LA BAJA: atraviesa los días, rotula solo en el primero.
 
+                        La trama dice que BLOQUEA la disponibilidad (unas vacaciones y una
+                        formación se pintaban idénticas); el desvanecido de la derecha dice que
+                        NO TIENE ALTA todavía — antes se pintaba igual que una baja que
+                        simplemente continúa la semana que viene.
+                    -->
+                    <template v-for="b in bandsOf(position.id, day.date)" :key="b.banda.id">
+                        <div
+                            data-t="banda"
+                            :data-persona="peopleById[b.banda.personId]?.name"
+                            :data-abierta="b.abierta"
+                            class="mb-[5px] flex h-4 items-center overflow-hidden whitespace-nowrap px-[7px] text-[9.5px] font-bold text-brand-800"
+                            :style="b.estilo"
+                        >
+                            {{ b.banda.esPrimero ? `${peopleById[b.banda.personId]?.name} · ${b.banda.name}${b.sufijo}` : '' }}
+                        </div>
+
+                        <!-- Sus violaciones, que hasta hoy no se pintaban en ninguna parte. -->
+                        <div
+                            v-for="(nota, i) in (b.banda.esPrimero ? b.notas : [])"
+                            :key="i"
+                            data-t="nota"
+                            class="mb-[5px] break-words text-[9.5px] font-semibold leading-tight"
+                            :style="{ color: nota.color }"
+                        >{{ nota.text }}</div>
+                    </template>
+
+                    <!--
+                        ⚠️ LOS CARTELES SE APILAN. Eran `v-if` / `v-else-if`, y una celda que era
+                        las DOS cosas —imposible Y sin candidato— enseñaba solo la primera. Son
+                        dos hechos independientes: uno está en el cuadrante, el otro en el
+                        catálogo. Callar uno porque hay otro es esconder un dato.
+                    -->
                     <div
                         v-if="impossibleIn(position.id, day.date)"
                         data-t="imposible"
@@ -350,11 +375,19 @@ const esPar = (i) => i % 2 === 0;
                     </div>
 
                     <div
-                        v-else-if="uncoverableIn(position.id, day.date)"
+                        v-if="uncoverableIn(position.id, day.date)"
                         data-t="sin-candidato"
                         class="mb-1.5 inline-block w-fit rounded bg-[#5A5A66] px-[7px] py-[3px] text-[9px] font-bold text-white"
                     >
                         Sin candidato en catálogo
+                    </div>
+
+                    <div
+                        v-if="cerrado(day.date)"
+                        data-t="cerrado"
+                        class="mb-1.5 inline-block w-fit rounded border border-line bg-sunken px-[7px] py-[3px] text-[9px] font-bold text-ink-soft"
+                    >
+                        Cerrado
                     </div>
 
                     <!--
@@ -370,7 +403,7 @@ const esPar = (i) => i % 2 === 0;
                             :person="lane.person"
                             :blocks="lane.blocks"
                             :axis="axis"
-                            :violations-by-id="violations?.assignments ?? null"
+                            :violations="violations"
                             :celda-grita="!!impossibleIn(position.id, day.date)"
                         />
 
@@ -380,7 +413,7 @@ const esPar = (i) => i % 2 === 0;
                             :person="lane.person"
                             :blocks="lane.blocks"
                             :axis="axis"
-                            :violations-by-id="violations?.assignments ?? null"
+                            :violations="violations"
                         />
                     </div>
 

@@ -1,23 +1,19 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { gridEvery } from '../../composables/useAxis.js';
+import { pintarTramo } from '../../composables/useMatrizVisual.js';
 
 /**
  * LA TIRA DE COBERTURA. Se pinta EL DÍA ENTERO, no solo lo que está mal.
  *
- * ⚠️ Y SE PINTA CON COLORES QUE SE VEN.
+ * ⚠️ ESTE COMPONENTE NO DECIDE NI UN SOLO COLOR: los pide (useMatrizVisual) y los pinta.
  *
- * El verde iba a rgba(21,128,61,.18) sobre un gris claro: el color que salía de esa mezcla
- * era #DDE6DE — o sea, UN GRIS. Los 27 tramos verdes estaban en el DOM y en la pantalla no
- * había ni uno. Medí el array y no el píxel.
+ * El verde NO es decorativo: es lo que da ESTRUCTURA al día. Sin él, cada celda es un
+ * rectángulo gris indistinguible del de al lado; con él, se ve de un vistazo qué está resuelto
+ * y qué no. Es la única fila de la celda que se lee sin leer.
  *
- * Y el verde NO es decorativo: es lo que da ESTRUCTURA al día. Sin él, cada celda es un
- * rectángulo gris indistinguible del de al lado; con él, se ve de un vistazo qué está
- * resuelto y qué no. Es la única fila de la celda que se lee sin leer.
- *
- * El hueco se pinta DONDE OCURRE: "de 12 a 16 faltan 3; de 16 a 20 faltan 2". Decir que
- * falta gente todo el sábado sería un aviso falso, y un aviso falso entrena a ignorar los
- * avisos.
+ * Y el hueco se pinta DONDE OCURRE: "de 12 a 16 faltan 3; de 16 a 20 faltan 2". Decir que falta
+ * gente todo el sábado sería un aviso falso, y un aviso falso entrena a ignorar los avisos.
  */
 const props = defineProps({
     segments: { type: Array, required: true },
@@ -26,65 +22,13 @@ const props = defineProps({
     wide: { type: Boolean, default: false },
 });
 
-/**
- * EL DÉFICIT ES ROJO. EL RAYADO SE PONE ENCIMA. LOS DOS, A LA VEZ.
- *
- * ⚠️ SEGUNDO INTENTO, Y EL PRIMERO SEGUÍA ANULANDO UN DATO CON EL OTRO.
- *
- * "Faltan 2" y "no hay a quién poner" son DOS informaciones, y el rayado gris se comía a la
- * primera dos veces seguidas: antes con un "sin…" truncado, y después —ya con su número—
- * pintando gris sobre gris, con lo que en la pantalla NO SE VEÍA que faltara nadie. El
- * número estaba en el DOM y el hueco no estaba en el ojo.
- *
- * Ahora el tramo del sumiller es UN HUECO ROJO, como cualquier otro hueco, y las rayas van
- * SUPERPUESTAS encima: el rojo dice cuánta gente falta, la textura dice que el problema no
- * se arregla colocando a nadie. Ninguna de las dos tapa a la otra.
- */
-// Suaves a propósito: tienen que VERSE sin comerse el número que llevan encima. Con el
-// rayado al 30 % el "-1" competía con las rayas; con un velo detrás del número, el velo se
-// comía las rayas. Ni una cosa ni la otra: rayas discretas y número bien contrastado.
-const RAYAS = 'repeating-linear-gradient(45deg, rgba(60,56,84,.20) 0 4px, transparent 4px 9px)';
-
-const ESTILO = {
-    covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: '#0F5C2C' },
-    missing: { bg: 'var(--color-missing-fill)', border: 'var(--color-missing)', color: '#9E1616' },
-    excess: { bg: 'var(--color-excess-fill)', border: 'var(--color-brand-300)', color: 'var(--color-brand-600)' },
-};
+const pintados = computed(() => props.segments.map((s) => ({ s, ...pintarTramo(s) })));
 
 /**
- * Un hueco que nadie del catálogo puede tapar SIGUE SIENDO UN HUECO ROJO. Lo que cambia es
- * que además lleva rayas. No cambia ni el color, ni el borde, ni el número.
- */
-const estiloDe = (s) => {
-    const base = ESTILO[s.state];
-
-    if (! s.uncoverable || s.state !== 'missing') {
-        return base;
-    }
-
-    return { ...base, bg: `${RAYAS}, ${base.bg}`, rayado: true };
-};
-
-const style = (s) => ({
-    position: 'absolute',
-    left: `${s.left}%`,
-    width: `${s.width}%`,
-    top: 0,
-    bottom: 0,
-    boxSizing: 'border-box',
-    background: estiloDe(s).bg,
-    borderTop: `2px solid ${estiloDe(s).border}`,
-});
-
-/**
- * ⚠️ NUNCA SE RECORTA UN DATO AL PINTARLO.
+ * ⚠️ NUNCA SE RECORTA UN DATO AL PINTARLO, ASÍ QUE SE MIDE EL SITIO QUE HAY.
  *
- * Aquí ponía `truncate`, y en un tramo estrecho salía "sin…": ilegible Y sin el número. Un
- * rótulo a medias no es medio dato, es un error con aspecto de dato.
- *
- * Así que se MIDE el sitio que hay y se BAJA DE ESCALÓN: primero la frase entera, luego la
- * cifra sola, y si no cabe ni la cifra, nada — el color sigue diciendo qué pasa y el tooltip
- * lo dice entero. Lo que no se hace jamás es cortar el texto por la mitad.
+ * Aquí ponía `truncate` y en un tramo estrecho salía "sin…": ilegible Y sin el número. Ahora se
+ * BAJA DE ESCALÓN — la frase entera, la cifra sola, o nada — y jamás se corta por la mitad.
  */
 const tira = ref(null);
 const ancho = ref(0);
@@ -107,64 +51,36 @@ onMounted(() => {
 onBeforeUnmount(() => observador?.disconnect());
 
 /*
- * 10 px en IBM Plex Mono: ~6,1 px por carácter, más 2 px de aire.
+ * 10 px en IBM Plex Mono: ~6,1 px por carácter.
  *
- * ⚠️ EL AIRE ERA DE 6 px Y SE COMÍA EL DATO. Un tramo de 3 h en la semana mide 17 px y "-1"
- * ocupa 12: con 6 px de margen no "cabía", así que el déficit del sumiller no se pintaba en
- * ninguna parte. Cambiar un recorte por una desaparición no es arreglarlo.
- *
- * Si de verdad no cabe (un tramo de una hora), el color y el tooltip siguen diciéndolo, y en
- * el zoom Día se lee entero. Eso es degradar, no recortar: lo que no se hace nunca es
- * enseñar media cifra.
- */
-/*
- * ⚠️ EL NÚMERO NO CABE EN EL TRAMO: SE CENTRA SOBRE ÉL, CON SU PROPIO AIRE.
- *
- * El "-1" del sumiller vive en un tramo de 3 h, que en la semana son 17 px. Encajonado ahí
- * dentro quedaba diminuto y besando los bordes, mientras el "-3 / -2" de la barra —tramos de
- * 4 h— se leía cómodo. El mismo dato, dos legibilidades.
- *
- * Ahora el rótulo NO está confinado al ancho del tramo: se centra en su punto medio y se
- * extiende lo que necesite (a los lados solo hay tira vacía). Así todos los déficits se leen
- * igual de bien, mida lo que mida su tramo.
+ * ⚠️ EL NÚMERO NO CABE EN EL TRAMO: SE CENTRA SOBRE ÉL, CON SU PROPIO AIRE. El "-1" del
+ * sumiller vive en un tramo de 3 h, que en la semana son 17 px. Encajonado ahí quedaba diminuto
+ * y besando los bordes. Ahora el rótulo NO está confinado al ancho del tramo: se centra en su
+ * punto medio y se extiende lo que necesite (a los lados solo hay tira vacía).
  */
 const cabe = (texto, s) => texto.length * 6.1 <= (s.width / 100) * ancho.value + 14;
 
-const escalones = (s) => {
-    if (s.state === 'missing') {
-        return [`faltan ${s.missing}`, `-${s.missing}`];
-    }
+const label = (p) => {
+    const opciones = props.wide ? p.escalones : p.escalones.slice(1);
 
-    if (s.state === 'excess') {
-        return [`sobra${s.excess > 1 ? 'n' : ''} ${s.excess}`, `+${s.excess}`];
-    }
-
-    // El tramo correcto no lleva número: el verde ya lo dice, y un "0" sería ruido.
-    return [];
+    return opciones.find((texto) => cabe(texto, p.s)) ?? '';
 };
 
-const label = (s) => {
-    const opciones = props.wide ? escalones(s) : escalones(s).slice(1);
-
-    return opciones.find((texto) => cabe(texto, s)) ?? '';
-};
-
-const tip = (s) => {
-    const partes = [`${s.label} · pide ${s.required}, hay ${s.covered}`];
-
-    if (s.uncoverable) {
-        partes.push('nadie de la plantilla está cualificado para este puesto');
-    }
-
-    return partes.join(' · ');
-};
+const style = (p) => ({
+    ...p.estilo,
+    position: 'absolute',
+    left: `${p.s.left}%`,
+    width: `${p.s.width}%`,
+    top: 0,
+    bottom: 0,
+});
 </script>
 
 <template>
     <!--
-        Los data-t son ganchos para el instrumento visual (tests/Visual/backtest.mjs): le dicen
-        DÓNDE mirar. Lo que mide —color, geometría, texto pintado— se lo sigue preguntando al
-        navegador, nunca a estos atributos.
+        Los data-t son ganchos para los instrumentos visuales: le dicen DÓNDE mirar. Lo que
+        miden —color, geometría, texto pintado, contraste— se lo siguen preguntando al
+        NAVEGADOR, nunca a estos atributos.
     -->
     <div
         ref="tira"
@@ -176,27 +92,31 @@ const tip = (s) => {
             backgroundSize: gridEvery(axis, wide ? 3 : 6),
         }"
     >
-        <div v-for="(s, i) in segments" :key="i" data-t="tramo" :style="style(s)" :title="tip(s)" />
+        <div
+            v-for="(p, i) in pintados"
+            :key="i"
+            data-t="tramo"
+            :data-estado="p.s.state"
+            :style="style(p)"
+            :title="p.tip"
+        />
 
         <!--
             Centrado sobre el PUNTO MEDIO del tramo y con ancho propio, no encajonado en él.
 
             ⚠️ SIN VELO POR DETRÁS. Le puse uno para que el número no compitiera con las rayas
-            del "sin candidato", y en un tramo de 3 h —17 px— el velo TAPABA las rayas: arreglé
-            la mitad del mensaje rompiendo la otra. Ahora las rayas son discretas y el número
-            va más oscuro. Las dos cosas se ven.
+            del "sin candidato", y en un tramo de 17 px el velo TAPABA las rayas: arreglé la
+            mitad del mensaje rompiendo la otra. Ahora las rayas son discretas y el número va
+            más oscuro. Las dos cosas se ven.
         -->
         <span
-            v-for="(s, i) in segments"
+            v-for="(p, i) in pintados"
             :key="`l${i}`"
-            v-show="label(s)"
+            v-show="label(p)"
             data-t="tramo-rotulo"
-            class="tabular pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded-sm px-[3px] text-center font-bold"
-            :class="wide ? 'text-[10px] leading-[18px]' : 'text-[10px] leading-[15px]'"
-            :style="{
-                left: `${s.left + s.width / 2}%`,
-                color: estiloDe(s).rayado ? '#8A1010' : estiloDe(s).color,
-            }"
-        >{{ label(s) }}</span>
+            class="tabular pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded-sm px-[3px] text-center text-[10px] font-bold"
+            :class="wide ? 'leading-[18px]' : 'leading-[15px]'"
+            :style="{ left: `${p.s.left + p.s.width / 2}%`, color: p.tinta }"
+        >{{ label(p) }}</span>
     </div>
 </template>

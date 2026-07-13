@@ -1,10 +1,17 @@
 <script setup>
 import { computed } from 'vue';
-import { BRAND, BRAND_DARK, severityColor, severityIcon, shortText, worst } from '../../composables/useSeverity.js';
+import { BRAND_DARK, severityColor, severityIcon, worst } from '../../composables/useSeverity.js';
+import { pintarBloque, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
  * UN CARRIL: una persona, dentro de un puesto, dentro de un día.
+ *
+ * ⚠️ ESTE COMPONENTE NO DECIDE NI UN SOLO COLOR. Los pide (useMatrizVisual) y los pinta.
+ *
+ * Durante siete tandas cada componente decidía su rojo sobre la marcha, y por eso cada tanda
+ * aparecía un caso nuevo mal pintado. La representación vive ahora en UN sitio, y este fichero
+ * solo hace lo que sabe hacer: colocar cosas en el eje X y apilarlas cuando se pisan.
  *
  * EL TIEMPO ES EL EJE X. Las barras se posicionan por su hora real, así que:
  *   · la jornada partida se VE como dos barras con un agujero físico en medio
@@ -13,64 +20,38 @@ import { gridEvery } from '../../composables/useAxis.js';
  * Se ve. No hay que leerlo.
  *
  * ⚠️ Y NADA SE TRUNCA. NUNCA. NI EL NOMBRE NI LA HORA.
- *
- * El nombre no se puede truncar ("Hu…" puede ser Hugo o Humberto), así que ENVUELVE: por
- * largo que sea cabe, aunque la celda crezca. Y la hora tampoco se recorta, porque ya no hay
- * una hora larga que recortar: hay UNA POR BARRA.
  */
 const props = defineProps({
     person: { type: Object, required: true },
-    // Turnos Y conceptos horarios de esta persona ese día: los dos la ocupan físicamente,
-    // y por eso van en el mismo carril. Así se VE que la hora médica de las 10 cae dentro
-    // del turno de 9 a 17, en vez de haber que buscarla en otra fila.
+    // Turnos Y conceptos horarios de esta persona ese día: los dos la ocupan físicamente, y
+    // por eso van en el mismo carril. Así se VE que la hora médica de las 10 cae dentro del
+    // turno de 9 a 17, en vez de haber que buscarla en otra fila.
     blocks: { type: Array, required: true },
     axis: { type: Object, required: true },
-    // null mientras el informe no ha llegado. NO significa "sin incidencias".
-    violationsById: { type: Object, default: null },
-    /**
-     * La CELDA ya grita el imposible en un cartel rojo, arriba.
-     *
-     * ⚠️ Y entonces el carril NO lo repite. El solape de Tomás se decía TRES veces —el cartel
-     * de arriba, y una nota por cada una de sus dos barras— cuando las dos barras rayadas
-     * pisándose YA LO ENSEÑAN. Tres carteles para un solo hecho no es insistir: es ruido, y
-     * el ruido entrena a no leer.
-     */
+    // El informe entero (assignments + conceptEntries), o null mientras no ha llegado.
+    // null NO significa "sin incidencias".
+    violations: { type: Object, default: null },
+    // La CELDA ya grita el imposible en un cartel rojo, arriba. Entonces el carril no lo repite.
     celdaGrita: { type: Boolean, default: false },
 });
 
-const violationsOf = (block) => (
-    block.kind === 'shift' && props.violationsById
-        ? props.violationsById[block.id] ?? []
-        : []
-);
-
-const severityOf = (block) => worst(violationsOf(block));
-
-const laneSeverity = computed(() => worst(props.blocks.flatMap(violationsOf)));
-
-const tambienEnOtraEmpresa = computed(() => props.blocks
-    .flatMap(violationsOf)
-    .some((v) => v.code === 'shared_workday'));
-
-const sinIcono = (texto) => texto.replace(/^[●⚠↗·]\s*/, '').toLowerCase();
-
-const ALTO = 8;
+/**
+ * ⚠️ 10 px, Y LOS DOS DE MÁS SON PARA QUE EL RELLENO SIGA DICIENDO DE QUIÉN ES.
+ *
+ * Con 8 px, un borde de gravedad de 2 px arriba y 2 abajo dejaba CUATRO píxeles de relleno: la
+ * barra de Sara —forzada y con descanso corto— era un borrón marrón del que ya no se sacaba su
+ * color. El canal del borde se estaba comiendo al de la identidad, que es exactamente lo que la
+ * ley 0 prohíbe: dos preguntas peleándose por el mismo sitio.
+ *
+ * Los tests estaban en verde —el borde era el color correcto y el relleno también— y la barra
+ * era ilegible igual. Se vio al MIRARLA.
+ */
+const ALTO = 10;
 const HUECO = 2;
 
 /**
- * DOS TURNOS EL MISMO DÍA SON DOS BARRAS. SIEMPRE. Y AHORA TAMBIÉN DOS RÓTULOS.
+ * EL REPARTO EN SUB-CARRILES ES GEOMÉTRICO Y NO JUZGA NADA:
  *
- * ⚠️ EL FALLO QUE ESTO ARREGLA ERA UNA INCOHERENCIA ENTRE VISTAS.
- *
- * En el zoom Día, el solape de Tomás (10:00–18:00 y 14:00–20:00) se VE: dos barras
- * pisándose. En la Semana caían en la MISMA pista de 8 px, se solapaban píxel a píxel y se
- * leían como una sola barra larga. El imposible había que CREÉRSELO leyendo el texto.
- *
- * Y arreglado eso quedaba media incoherencia: dos barras y UN SOLO rótulo
- * ("10:00-18:00 · 14:…"), así que el ojo veía dos barras y no sabía cuál era cuál. Ahora
- * cada barra tiene su línea, con su hora entera y con una muestra de su propio relleno.
- *
- * El reparto es geométrico y NO juzga nada:
  *   · si dos bloques SE PISAN  → sub-carriles distintos → se ven encimados → IMPOSIBLE
  *   · si entre ellos hay AIRE  → el mismo sub-carril    → hueco físico     → PARTIDA
  *
@@ -101,162 +82,61 @@ const altoPista = computed(() => {
     return n * ALTO + (n - 1) * HUECO;
 });
 
-/** El relleno de una barra. La muestra del rótulo usa EXACTAMENTE este, y por eso se emparejan. */
-const rellenoDe = (block) => {
-    if (block.kind === 'concept') {
-        // El concepto NO cubre puesto: discontinuo y hueco, para que no se confunda con un turno.
-        return { background: 'transparent', border: `1.5px dashed ${BRAND}` };
-    }
+/** Lo que la matriz dice de cada bloque. Una sola llamada, y de ahí sale TODO lo que se pinta. */
+const pintados = computed(() => repartidos.value.bloques.map((block) => ({
+    key: `${block.kind}-${block.id}`,
+    block,
+    ...pintarBloque(block, {
+        person: props.person,
+        violations: props.violations,
+        celdaGrita: props.celdaGrita,
+    }),
+})));
 
-    const severity = severityOf(block);
+/** La gravedad del carril entero: la peor de todo lo que hay dentro. Turnos Y conceptos. */
+const laneSeverity = computed(() => worst(
+    props.blocks.flatMap((b) => violacionesDe(b, props.violations)),
+));
 
-    if (severity === 'impossible') {
-        return {
-            background: 'repeating-linear-gradient(45deg,rgba(200,30,30,.55) 0 4px,rgba(200,30,30,.2) 4px 8px)',
-            border: '1px solid #C81E1E',
-        };
-    }
+const tambienEnOtraEmpresa = computed(() => props.blocks
+    .flatMap((b) => violacionesDe(b, props.violations))
+    .some((v) => v.code === 'shared_workday'));
 
-    if (block.forced || severity === 'breach') {
-        return { background: '#E8590C' };
-    }
+const notas = computed(() => {
+    const vistas = new Set();
 
-    // El nocturno tiene color propio, y no es el de la persona: es la excepción que más
-    // cuesta ver en un cuadrante. Índigo, que no compite con la semántica de estado.
-    if (block.crossesMidnight) {
-        return { background: BRAND_DARK };
-    }
+    return pintados.value
+        .flatMap((p) => p.notas)
+        .filter((n) => !vistas.has(n.text) && vistas.add(n.text));
+});
 
-    return { background: props.person.color };
-};
-
-const styleOf = (block) => ({
-    ...rellenoDe(block),
+const barraStyle = (p) => ({
+    ...p.relleno,
     position: 'absolute',
-    left: `${block.left}%`,
-    width: `${block.width}%`,
-    top: `${(block.subcarril ?? 0) * (ALTO + HUECO)}px`,
+    left: `${p.block.left}%`,
+    width: `${p.block.width}%`,
+    top: `${(p.block.subcarril ?? 0) * (ALTO + HUECO)}px`,
     height: `${ALTO}px`,
     // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
     minWidth: '3px',
     borderRadius: '3px',
-    boxSizing: 'border-box',
 });
 
-const muestraStyle = (block) => ({
-    ...rellenoDe(block),
+/** La muestra del rótulo usa EXACTAMENTE el mismo relleno que su barra. Por eso se emparejan. */
+const muestraStyle = (p) => ({
+    ...p.relleno,
     width: '10px',
-    height: '6px',
+    height: '7px',
     borderRadius: '2px',
-    boxSizing: 'border-box',
     flexShrink: 0,
-});
-
-/**
- * Una línea por bloque, Y EL CONCEPTO LO DICE TODO EN SU LÍNEA.
- *
- * ⚠️ UN SÍMBOLO QUE HAY QUE DEDUCIR NO COMUNICA NADA.
- *
- * La muestra del concepto —un rectángulo con borde discontinuo— iba sola, con un reloj y una
- * hora, y había que deducir qué era leyendo una nota tres líneas más abajo. Ahora su rótulo
- * dice las tres cosas juntas y en su color: QUÉ es, CUÁNDO es, y que NO CUBRE PUESTO.
- *
- * Y así desaparece la nota huérfana: "no cubre puesto" suelta, en una celda con dos personas,
- * no decía QUÉ no cubría puesto. Arreglé el aviso sin sujeto de Diego y creé otro idéntico.
- * Un aviso que no identifica a qué se refiere no sirve, esté donde esté.
- */
-const rotulos = computed(() => repartidos.value.bloques.map((b) => ({
-    key: `${b.kind}-${b.id}`,
-    block: b,
-    // LA HORA MANDA, y va sola en su línea. En una parrilla de turnos "¿a qué hora entra?"
-    // se pregunta tanto como "¿quién es?".
-    hora: b.label,
-    /*
-     * Lo que ES, debajo. Y para un concepto eso incluye la letra pequeña que importa: que
-     * ocupa a la persona pero NO cubre el puesto.
-     *
-     * ⚠️ Los espacios de "no cubre puesto" son DUROS ( ), a propósito. Sin ellos la
-     * frase rompía por donde le daba la gana —"· no" arriba y "cubre puesto" abajo—, y un
-     * "no" suelto al final de un renglón se lee fatal. Así solo puede partirse por el "·",
-     * que es justo donde tiene sentido.
-     */
-    pie: b.kind === 'concept' ? `${b.name} · no cubre puesto` : null,
-})));
-
-/**
- * Las notas del carril: UNA LÍNEA cada una, Y TODAS CON SU SUJETO.
- *
- * ⚠️ TODA NOTA EMPIEZA POR LA HORA DEL TURNO DEL QUE HABLA. SIN EXCEPCIÓN.
- *
- * Es la misma lección tres veces: "cruza medianoche" a secas no decía de qué turno; "no cubre
- * puesto" a secas no decía de qué bloque; y "descanso corto" en un carril con dos turnos no
- * diría en cuál de los dos. Un aviso sin sujeto obliga a deducir, y deducir en una parrilla
- * es equivocarse.
- *
- * Sí: la hora se repite respecto al rótulo. Es un precio barato — el rótulo es gris y la nota
- * va en color, así que se leen como dos cosas distintas — y compra que NINGÚN aviso pueda
- * hablar de un turno que no es.
- *
- * El mensaje completo del motor va en el tooltip. Volcarlo aquí estiraba las celdas al triple.
- */
-const notes = computed(() => {
-    const out = [];
-    const vistas = new Set();
-
-    const añadir = (block, icono, texto, color, dot = false) => {
-        const text = `${icono} ${block.label} · ${texto}`;
-
-        if (!vistas.has(text)) {
-            vistas.add(text);
-            out.push({ text, color, dot });
-        }
-    };
-
-    for (const block of props.blocks) {
-        // El concepto ya lo dice todo en su rótulo: qué es, cuándo, y que no cubre puesto.
-        if (block.kind === 'concept') {
-            continue;
-        }
-
-        if (block.crossesMidnight) {
-            añadir(block, '☾', 'cruza medianoche', BRAND_DARK);
-        }
-
-        const rotas = violationsOf(block);
-
-        // "⚠ 08:00–16:00 · Forzado · descanso corto entre turnos", en UNA nota. Separar el
-        // "forzado" de su motivo daba dos líneas para un solo hecho.
-        if (block.forced && rotas.length) {
-            for (const v of rotas) {
-                añadir(block, '⚠', `Forzado · ${sinIcono(shortText(v))}`, severityColor(v.severity));
-            }
-
-            continue;
-        }
-
-        if (block.forced) {
-            añadir(block, '⚠', 'Forzado, con constancia', '#E8590C');
-        }
-
-        for (const v of rotas) {
-            // Lo que la celda ya grita arriba, aquí no se repite.
-            if (v.severity === 'impossible' && props.celdaGrita) {
-                continue;
-            }
-
-            añadir(block, severityIcon(v.severity), sinIcono(shortText(v)), severityColor(v.severity), v.severity === 'notice');
-        }
-    }
-
-    return out;
 });
 
 /** El tooltip: aquí SÍ va todo, sin recortar. Se pide, no se impone. */
 const title = computed(() => {
-    const partes = [`${props.person.name} · ${rotulos.value.map((r) => r.text).join('   ·   ')}`];
+    const partes = [`${props.person.name} · ${pintados.value.map((p) => p.rotulo.hora).join('   ·   ')}`];
 
     for (const block of props.blocks) {
-        for (const v of violationsOf(block)) {
+        for (const v of violacionesDe(block, props.violations)) {
             partes.push(v.message);
         }
     }
@@ -274,8 +154,7 @@ const title = computed(() => {
                     :style="{ background: person.color }"
                 >{{ person.initials }}</span>
 
-                <!-- Punto ámbar: ese día también trabaja en otro sitio. Es un AVISO, y se ve
-                     sin leer nada. -->
+                <!-- Punto ámbar: ese día también trabaja en otro sitio. Se ve sin leer nada. -->
                 <span
                     v-if="tambienEnOtraEmpresa"
                     class="absolute -right-0.5 -top-0.5 h-[7px] w-[7px] rounded-full border-[1.5px] border-white bg-notice"
@@ -288,7 +167,6 @@ const title = computed(() => {
                 class="min-w-0 flex-1 break-words text-[12px] font-semibold leading-tight text-ink"
             >{{ person.name }}</span>
 
-            <!-- El icono dice QUÉ pasa. Un punto solo diría QUE pasa algo. -->
             <span
                 v-if="laneSeverity"
                 class="ml-0.5 shrink-0 text-[11px] leading-none"
@@ -297,61 +175,48 @@ const title = computed(() => {
         </div>
 
         <!--
-            ⚠️ TODO LO DE UNA PERSONA CUELGA DE UNA LÍNEA DE SU COLOR. Y ESO NO ES DECORACIÓN.
+            TODO LO DE UNA PERSONA CUELGA DE UNA LÍNEA DE SU COLOR. Y ESO NO ES DECORACIÓN.
 
-            Al dar una línea a cada barra, el carril PERDIÓ EL AGRUPAMIENTO. Los rótulos
-            quedaron flotando: en la celda de Barra del sábado, el "12:00–20:00" de Nuria caía
-            debajo de su hora médica y encima del nombre de Ana, y había que deducir de quién
-            era POR PROXIMIDAD. En una parrilla que existe para saber QUIÉN está CUÁNDO, un
-            horario sin dueño no es información: es un acertijo.
-
-            Ahora los rótulos, la pista y las notas van INDENTADOS bajo el nombre y colgando de
-            un filo vertical del color de la persona — el mismo color de su avatar. Tapa los
-            nombres y todavía puedes reconstruir quién hace qué: el color agrupa.
+            Al dar una línea a cada barra, el carril PERDIÓ EL AGRUPAMIENTO: los rótulos quedaron
+            flotando y había que deducir de quién eran POR PROXIMIDAD. En una parrilla que existe
+            para saber QUIÉN está CUÁNDO, un horario sin dueño no es información: es un acertijo.
         -->
-        <div
-            class="ml-[7px] mt-[3px] border-l-2 pl-[9px]"
-            :style="{ borderColor: person.color }"
-        >
-            <!--
-                ⚠️ LA HORA SE LEE. NO SE SUSURRA.
-
-                Estaba en gris claro (#8A8896: contraste 3,4 sobre la celda) debajo de un
-                nombre en negrita oscura, y la celda se emborronaba: una masa de nombres con
-                un murmullo gris debajo. Pero en una parrilla de turnos LA HORA VALE LO MISMO
-                QUE EL NOMBRE — el encargado que escanea la semana se pregunta "¿a qué hora
-                entra?" tanto como "¿quién es?".
-
-                Y lo del concepto era peor: "Hora médica · 09:00–11:00 · no cubre puesto",
-                todo del mismo gris, tres datos apelmazados en una línea que además rompía por
-                donde le daba la gana ("no" arriba, "cubre puesto" abajo).
-
-                Ahora la HORA va sola, en tinta oscura, con peso — igual para todos, turno o
-                concepto. Y lo que ese bloque ES se dice debajo, en su renglón, sin partirse.
-            -->
+        <div class="ml-[7px] mt-[3px] border-l-2 pl-[9px]" :style="{ borderColor: person.color }">
             <div
-                v-for="rotulo in rotulos"
-                :key="rotulo.key"
+                v-for="p in pintados"
+                :key="p.key"
                 data-t="rotulo"
                 class="mt-[4px] flex items-start gap-[5px] first:mt-0"
             >
-                <span class="mt-[4px]" :style="muestraStyle(rotulo.block)" />
+                <span class="relative mt-[4px] block" :style="muestraStyle(p)">
+                    <span
+                        v-if="p.forzado"
+                        class="absolute left-0 top-0 h-0 w-0 border-l-[4px] border-t-[4px] border-l-white border-t-transparent"
+                    />
+                </span>
 
                 <span class="min-w-0 flex-1">
-                    <span class="tabular block text-[10.5px] font-semibold leading-tight text-ink">{{ rotulo.hora }}</span>
+                    <!--
+                        LA HORA SE LEE. NO SE SUSURRA. Estaba en gris claro (contraste 3,4) debajo
+                        de un nombre en negrita, y en una parrilla de turnos "¿a qué hora entra?"
+                        se pregunta tanto como "¿quién es?".
+                    -->
+                    <span class="tabular block text-[10.5px] font-semibold leading-tight text-ink">
+                        {{ p.rotulo.hora }}<span v-if="p.nocturno" class="ml-[3px] text-[9px]">☾</span>
+                    </span>
 
                     <span
-                        v-if="rotulo.pie"
+                        v-if="p.rotulo.pie"
                         class="mt-[1px] block break-words text-[9.5px] font-semibold leading-tight"
                         :style="{ color: BRAND_DARK }"
-                    >◷ {{ rotulo.pie }}</span>
+                    >◷ {{ p.rotulo.pie }}</span>
                 </span>
             </div>
 
             <!--
-                La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y
-                se confundía con el fondo, con el borde y con la tira de cobertura: el mismo
-                gris haciendo cuatro trabajos. Aquí solo hace uno — decir por dónde va el día.
+                La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y se
+                confundía con el fondo, con el borde y con la tira: el mismo gris haciendo cuatro
+                trabajos. Aquí solo hace uno — decir por dónde va el día.
             -->
             <div
                 data-t="pista"
@@ -362,27 +227,36 @@ const title = computed(() => {
                     backgroundSize: gridEvery(axis, 6),
                 }"
             >
-                <div
-                    v-for="block in repartidos.bloques"
-                    :key="`${block.kind}-${block.id}`"
-                    data-t="barra"
-                    :style="styleOf(block)"
-                />
+                <div v-for="p in pintados" :key="p.key" data-t="barra" :style="barraStyle(p)">
+                    <!-- LA MUESCA: se forzó. Una decisión tomada, no un aviso desatendido. -->
+                    <span
+                        v-if="p.forzado"
+                        data-t="muesca"
+                        class="absolute left-0 top-0 h-0 w-0 border-l-[5px] border-t-[5px] border-l-white border-t-transparent"
+                    />
+
+                    <!-- EL FILO: cruza medianoche. "Sigue mañana." -->
+                    <span
+                        v-if="p.nocturno"
+                        data-t="filo-noche"
+                        class="absolute right-0 top-0 h-full w-[3px] rounded-r-[2px] bg-ink"
+                    />
+                </div>
             </div>
 
             <div
-                v-for="(note, i) in notes"
+                v-for="(nota, i) in notas"
                 :key="i"
                 data-t="nota"
                 class="mt-[5px] flex items-start gap-[5px] text-[9.5px] font-semibold leading-tight"
-                :style="{ color: note.color }"
+                :style="{ color: nota.color }"
             >
                 <span
-                    v-if="note.dot"
+                    v-if="nota.dot"
                     class="mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full"
-                    :style="{ background: note.color }"
+                    :style="{ background: nota.color }"
                 />
-                <span class="min-w-0 break-words">{{ note.text }}</span>
+                <span class="min-w-0 break-words">{{ nota.text }}</span>
             </div>
         </div>
     </div>

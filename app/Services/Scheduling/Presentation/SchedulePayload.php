@@ -24,6 +24,7 @@ use App\Services\Scheduling\WorkdayCalendar;
 use App\Support\TimeWindow;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Lo que la parrilla necesita saber, y NADA de lo que no le corresponde.
@@ -120,7 +121,7 @@ class SchedulePayload
             'people' => $this->people($assignments, $concepts, $absences),
             'assignments' => $this->assignmentRows($assignments, $company, $axis),
             'conceptEntries' => $this->conceptRows($concepts, $company, $axis),
-            'absences' => $this->absenceRows($absences),
+            'absences' => $this->absenceRows($absences, $company),
             /*
              * ⚠️ EL CONTADOR DE LA PLANTILLA VA SIEMPRE SOBRE LA SEMANA, mire uno el zoom
              * que mire, y no es un descuido de haber reutilizado la ventana.
@@ -196,7 +197,46 @@ class SchedulePayload
 
         $report = $this->coverageCalculator->forCalendar($calendar, $window, $imposibles);
 
-        return $this->coverageRows($report, $calendar->company, $this->axisOf($calendar, $window, $scope));
+        return $this->coverageRows($report, $calendar->company, $this->axisOf($calendar, $window, $scope))
+            + ['closed' => $this->closedDays($report, $calendar->company, $window)];
+    }
+
+    /**
+     * Los días en que el negocio de verdad CIERRA. Que no es lo mismo que "no laborable".
+     *
+     * ⚠️ UN BAR ABRE EN FESTIVO CON TODA NORMALIDAD.
+     *
+     * Teñir la columna por lo que diga el calendario laboral sería sugerir "aquí no se trabaja"
+     * un día en el que se trabaja — y en hostelería el festivo es justo el pico de carga. La
+     * etiqueta del calendario no es el dato accionable.
+     *
+     * El dato accionable es la conjunción: el día NO es laborable Y ADEMÁS no se pide a nadie
+     * en ningún puesto. Entonces sí: ese día el negocio está cerrado, y una celda vacía ahí no
+     * es un cuadrante sin hacer.
+     *
+     * Y por eso vive con la cobertura y no con la ventana: depende de la DEMANDA.
+     *
+     * @return array<int, string>
+     */
+    private function closedDays(CoverageReport $report, Company $company, TimeWindow $window): array
+    {
+        $conDemanda = $report->segments
+            ->filter(fn (CoverageSegment $s) => $s->required > 0)
+            ->map(fn (CoverageSegment $s) => $s->workDate->toDateString())
+            ->unique()
+            ->all();
+
+        $closed = [];
+
+        for ($date = $window->from; $date->lte($window->to); $date = $date->addDay()) {
+            $key = $date->toDateString();
+
+            if (! $this->workdays->isWorkingDay($company, $date) && ! in_array($key, $conDemanda, true)) {
+                $closed[] = $key;
+            }
+        }
+
+        return $closed;
     }
 
     /**
@@ -427,28 +467,100 @@ class SchedulePayload
                 'eligiblePositionIds' => $e->employment->positions->pluck('id')->all(),
                 'name' => $e->conceptType->name,
                 'computation' => $e->conceptType->computation->value,
-                'countsAsWork' => $e->conceptType->computation === Computation::Adds,
+                /*
+                 * ⚠️ NINGÚN CONCEPTO CUBRE EL PUESTO, PERO NO TODOS CUENTAN IGUAL.
+                 *
+                 * Los cuatro cómputos pintaban el mismo recuadro discontinuo: "hora extra" y
+                 * "hora médica" —opuestos para el contador— eran el mismo píxel. Y este campo
+                 * ya viajaba, sin que nadie lo mirase.
+                 *
+                 * La pregunta que el encargado se hace de verdad es "¿le puedo dar otro
+                 * turno?", y para eso lo que importa es si ese rato SUMA TIEMPO a algún
+                 * contador: Adds al principal, SeparateCounter al suyo propio (las horas
+                 * extra, que tienen su propio tope). ReducesRequired y Blocks no suman tiempo:
+                 * ocupan a la persona y no computan.
+                 */
+                'computa' => in_array(
+                    $e->conceptType->computation,
+                    [Computation::Adds, Computation::SeparateCounter],
+                    true,
+                ),
                 'workDate' => $workDate->toDateString(),
                 'startHour' => $from,
                 'endHour' => $to,
                 'left' => $axis->percent($from),
                 'width' => $axis->percent($to) - $axis->percent($from),
                 'label' => $this->clock($from).'–'.$this->clock($to),
+                /*
+                 * ⚠️ ESTE CAMPO NO ESTABA, Y LOS TURNOS SÍ LO TENÍAN.
+                 *
+                 * Una hora extra de 22:00 a 06:00 CRUZA MEDIANOCHE igual que un turno, y la
+                 * parrilla no lo decía: ni el filo de "sigue mañana", ni la nota, ni el ☾. El
+                 * bloque más difícil de leer de un cuadrante —el que se sale del día— era
+                 * justo el que se pintaba mudo cuando era un concepto.
+                 *
+                 * Lo destapó el hueco del producto cartesiano: el caso "concepto nocturno" no
+                 * se alcanzaba NUNCA por mucho que lo sembrara, y la razón era que el dato no
+                 * salía del servidor. Un caso que no se puede alcanzar es un caso que no se
+                 * puede probar.
+                 */
+                'crossesMidnight' => $to > 24,
             ];
         })->all();
     }
 
-    private function absenceRows(Collection $absences): array
+    private function absenceRows(Collection $absences, Company $company): array
     {
+        $eligible = $this->eligiblePositions($absences->pluck('person_id')->unique()->all(), $company);
+
         return $absences->map(fn (Absence $a) => [
             'id' => $a->id,
             'personId' => $a->person_id,
             'name' => $a->absenceType->name,
             'startsOn' => CarbonImmutable::parse($a->starts_on)->toDateString(),
-            // null = abierta hacia el futuro. Una baja sin alta todavía.
+            // null = abierta hacia el futuro. Una baja sin alta todavía, y la parrilla lo dice:
+            // se pintaba IGUAL que una baja que simplemente sigue la semana que viene, y son
+            // dos hechos distintos.
             'endsOn' => $a->ends_on ? CarbonImmutable::parse($a->ends_on)->toDateString() : null,
+            // Bloquea la disponibilidad, o solo la registra. La banda lo ignoraba: unas
+            // vacaciones y una formación se pintaban idénticas.
             'blocks' => $a->absenceType->computation === Computation::Blocks,
+            'eligiblePositionIds' => $eligible[$a->person_id] ?? [],
         ])->all();
+    }
+
+    /**
+     * Los puestos que cada persona PUEDE cubrir en esta empresa.
+     *
+     * ⚠️ LA BANDA DE UNA BAJA NO PUEDE CAER EN "EL PRIMER PUESTO DE LA LISTA".
+     *
+     * La vista la colocaba en el puesto de menor id donde esa persona tuviera turnos, y si no
+     * tenía ninguno —que es JUSTO el caso de una baja larga— caía en positions[0]. La baja de
+     * Nuria, que es de cocina, salía pintada en la fila de BARRA: afirmando un agujero en un
+     * puesto que ella no cubre. Es exactamente el mismo bug que ya estaba arreglado —y
+     * documentado— para los conceptos huérfanos, cuarenta líneas más abajo.
+     *
+     * Va a TODAS las filas que esa persona puede cubrir, que es donde de verdad deja el hueco.
+     *
+     * @param  array<int, int>  $personIds
+     * @return array<int, array<int, int>>
+     */
+    private function eligiblePositions(array $personIds, Company $company): array
+    {
+        if ($personIds === []) {
+            return [];
+        }
+
+        return DB::table('employment_position')
+            ->join('employments', 'employments.id', '=', 'employment_position.employment_id')
+            ->where('employments.company_id', $company->id)
+            ->whereNull('employments.deleted_at')
+            ->whereIn('employments.person_id', $personIds)
+            ->select('employments.person_id', 'employment_position.position_id')
+            ->get()
+            ->groupBy('person_id')
+            ->map(fn (Collection $rows) => $rows->pluck('position_id')->unique()->values()->all())
+            ->all();
     }
 
     private function coverageRows(CoverageReport $report, Company $company, TimeAxis $axis): array
@@ -490,8 +602,11 @@ class SchedulePayload
                  */
                 'missing' => $s->missing(),
                 'excess' => $s->excess(),
-                // covered | missing | excess. Lo decide el motor, no la vista: dos
+                // covered | missing | excess | unrequested. Lo decide el motor, no la vista: dos
                 // respuestas a la misma pregunta acaban divergiendo.
+                //
+                // `unrequested` es el cuarto, y es de esta tanda: donde NO SE PIDE A NADIE no
+                // sobra nadie. Ver CoverageSegment::isUnrequested().
                 'state' => $s->state(),
                 // Y esto es un hecho del CATÁLOGO, no del tramo: no sustituye al estado,
                 // lo acompaña. Un tramo puede estar cubierto en un puesto incubrible.
