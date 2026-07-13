@@ -169,14 +169,22 @@ gravedad.
 > borde también se estaba comiendo la ley 2 — la misma que subir de 8 a 10 px solo alivió.
 >
 > Ahora el anillo es un `outline`: no ocupa ni un píxel del relleno. **Dos preguntas, dos
-> espacios.** Y el **grosor** sube con la gravedad (aviso 1,5 · incumplimiento 2 · imposible 3):
+> espacios.** Y el **grosor** sube con la gravedad (aviso 2 · incumplimiento 3 · **imposible 4**):
 > eso NO viola la ley 0 —que prohíbe *un canal con dos preguntas*—, sino que aplica la ley 6 —*una
 > pregunta contestada por dos canales*.
+>
+> Y el aviso se queda fino **a propósito**: informa, no pide nada (ley 14). **Los dos gordos son
+> los dos que piden una decisión.** El grosor dice lo mismo que el cartel.
 
-> ⚠️ **EL IMPOSIBLE SE LEE EN LA BARRA, Y ESO COSTÓ 3 px.** Con el anillo a 2 px, la celda de Tomás
-> —dos turnos que se pisan— era **azul con una textura rara**: el relleno mandaba, y el relleno es
-> azul. A 3 px y por fuera, la barra imposible es una **cápsula roja con el color de Tomás dentro**:
-> se lee la alarma **y** se lee de quién es. Antes había que elegir.
+> ⚠️ **EL GROSOR NO ES GRATIS, Y AJUSTARLO OBLIGA A RECALCULAR LA PALETA.** Cada píxel que engorda
+> un anillo se lo quita al relleno. El imposible empezó en 2 px y la celda de Tomás era *azul con
+> una textura rara*; a 3 px se volvió una cápsula roja. Y entonces el que se quedó corto fue el
+> **incumplimiento**: a 2 px sobre una barra de 12, el naranja se leía como un **borde**, no como
+> una alarma. Subirlo a 3 mandó el margen a **−2,4** con la paleta de entonces.
+>
+> La salida no fue otro color: fue **otra vez el alto de la barra**. `8 → 10 → 12 → 16`. Y la
+> lección, la misma las cuatro veces: **dos preguntas peleándose por el mismo sitio se arreglan
+> dándoles más sitio.**
 
 ### Ley 4 — LA TRAMA DICE «ESTO NO CUBRE EL PUESTO»
 
@@ -284,6 +292,28 @@ puede ser imposible **y** además no tener a nadie cualificado en el catálogo. 
 
 Y el cartel dice **qué** pasa. **Quién** y **cuándo** los siguen diciendo la barra (su color, su
 anillo) y su rótulo (su hora): **el cartel no repite lo que otro canal ya lleva.**
+
+> **La demo enseña los dos lados de la regla, a propósito.** Sara (Cocina, lunes) y Leo (Caja,
+> lunes) rompen la **misma regla** el **mismo día** con las **mismas horas**. El turno de Sara lo
+> forzó alguien y quedó constancia; el de Leo no lo ha mirado nadie. Las dos barras llevan su
+> anillo naranja — **solo la de Leo grita.** La diferencia se lee sin explicación.
+
+### Ley 14 bis — LA MISMA REGLA, APLICADA A LA PROPIA AYUDA
+
+La leyenda ocupaba **dos líneas y veinte muestras, siempre**. Era correcta y completa, y por eso
+mismo nadie la iba a leer: un encargado que abre la parrilla **no necesita el manual entero
+delante todo el rato**.
+
+Y una leyenda que se ignora es tan inútil como un aviso que se ignora. Así que se parte igual que
+los carteles:
+
+- **Lo que dice QUÉ HACER** —los tres carteles y su acción— **siempre visible**. Se lo gana: un
+  cartel rojo sin saber que significa *«quítalo o cámbialo»* es un adorno.
+- **El resto del sistema** —cuenta, gravedad, marcas, cobertura— **a un clic**. No se quita: se
+  **esconde**. De 2 líneas a 1; de 115 px a 48.
+
+El **eje** (`el día va de 06:00 → 06:00`) **no se pliega**, y por el mismo motivo por el que
+existe: sin él nadie entiende por qué un nocturno de 22:00 a 06:00 cabe entero dentro de su día.
 
 ---
 
@@ -508,15 +538,15 @@ deja fuera toda la zona de barro **por construcción**, que es la única forma d
 
 ### 5.1 Bloques
 
-El **anillo** va siempre **por fuera** de la barra, y su grosor sube con la gravedad:
-aviso 1,5 px · incumplimiento 2 px · imposible 3 px.
+El **anillo** va siempre **por fuera** de la barra (de 16 px), y su grosor sube con la gravedad:
+aviso **2 px** · incumplimiento **3 px** · imposible **4 px**.
 
 | Caso | Barra | Cartel de la celda | Nota | ¿Cuenta cobertura? |
 |---|---|---|---|---|
 | Turno limpio | sólida `P` | — | — | **sí** |
-| Turno con aviso | sólida `P` + **anillo ámbar** | — *(informa, no pide nada)* | `↗ hora · …` ámbar | sí |
-| Turno que incumple | sólida `P` + **anillo naranja** | 🟠 `INCUMPLIMIENTO · motivo` | *(ley 9: lo dice el cartel)* | sí |
-| Turno imposible | tramada + **anillo rojo 3 px** | 🔴 `IMPOSIBLE · motivo` | *(ley 9)* | **no** |
+| Turno con aviso | sólida `P` + **anillo ámbar 2 px** | — *(informa, no pide nada)* | `↗ hora · …` ámbar | sí |
+| Turno que incumple | sólida `P` + **anillo naranja 3 px** | 🟠 `INCUMPLIMIENTO · motivo` | *(ley 9: lo dice el cartel)* | sí |
+| Turno imposible | tramada + **anillo rojo 4 px** | 🔴 `IMPOSIBLE · motivo` | *(ley 9)* | **no** |
 | Turno forzado limpio | sólida `P` + **muesca** | — | `⚠ hora · Forzado, con constancia` | sí |
 | Turno forzado + incumple | sólida `P` + anillo naranja + **muesca** | **— (ley 14: ya se decidió)** | `⚠ hora · Forzado · …` | sí |
 | Turno nocturno | sólida `P` + **filo de continuidad** | — | `☾ hora · cruza medianoche` | sí |

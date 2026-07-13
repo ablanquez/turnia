@@ -253,7 +253,80 @@ el ciruela de Marco): la prueba de que ampliar la cobertura al cuadrante de la m
 
 ---
 
-## 8. Veredicto honesto
+## 8. El anillo del incumplimiento, y por qué el modelo mentía a mi favor
+
+> «El imposible SÍ se ve (le pusiste 3 px). El incumplimiento se queda corto.»
+
+Cierto. Y subirlo **no era gratis**: cada píxel de anillo se lo quita al relleno. Con la barra de
+12 px, el naranja a 3 px mandaba el margen a **−2,4**. Se recalculó la paleta con anillos gordos y
+barra de 12: **ΔE mínimo entre personas 11,8** — por debajo del umbral de indistinguible. **Doce
+colores no caben.**
+
+La salida no era otro color: era **otra vez el alto de la barra**. `8 → 10 → 12 → 16`.
+
+### Pero al medir sobre la imagen, dos barras fallaron. Con el modelo en verde.
+
+El generador decía «margen mínimo +8,2» y la imagen decía **−7,3** y **−1,0**. **Tres errores de
+modelo, y los tres me mentían a favor:**
+
+**1. El anillo solo estaba arriba y abajo.** El modelo lo pesaba como `2w / (ALTO + 2w)`. **Falso:
+un `outline` rodea la barra por LOS CUATRO LADOS.** En una barra de 50×16 con un anillo de 4, el
+anillo es el **43 %** de la caja, no el 33 %. Y en un turno de dos horas, **más de la mitad**.
+
+**2. La trama no entraba.** La barra imposible es tramada: su relleno **real** lleva la trama
+encima. Compararla contra el color **puro** castigaba a la trama por hacer justo lo que tiene que
+hacer.
+
+**3. Se comparaba contra su propia gravedad.** Una barra imposible **se tiene que parecer a un
+rojo**. El generador la penalizaba por ello — estaba exigiendo que la alarma no sonara.
+
+### Y la pregunta era relativa cuando tenía que ser absoluta
+
+El criterio era *«la barra debe parecerse más a su persona que a una gravedad ajena»*. **Y eso
+acusaba a un inocente:** una barra teal con anillo rojo queda a **ΔE 29,6** del naranja —lejísimos,
+no se confunde con nada— pero también lejos del teal, así que el margen salía negativo.
+
+El criterio bueno es **absoluto**:
+
+> **NINGUNA BARRA PUEDE QUEDAR A MENOS DE ΔE 20 DE UNA GRAVEDAD QUE NO ES LA SUYA.**
+
+Y caza los tres casos **reales** sin acusar al que no:
+
+| caso | ΔE a una gravedad ajena | |
+|---|---|---|
+| Marco `#5C4460` + borde ámbar → marrón | **11,0** | ❌ suena a imposible |
+| Iker `#14748A` + borde ámbar → verde | **10,2** | ❌ suena a cobertura correcta |
+| magenta `#86207E` + anillo naranja → rojo | **17,2** | ❌ suena a imposible |
+| teal `#1486A2` + anillo rojo | **29,6** | ✅ no se confunde con nada |
+
+**Lo que importa no es de qué se aleja una barra: es de qué se ACERCA.**
+
+### El resultado, medido sobre la imagen
+
+```
+26 parejas (color, gravedad) medidas · la más cerca de una gravedad ajena: 20.7   ✅
+semana   ΔE00 mínimo entre personas: 14.4   ✅
+dia      ΔE00 mínimo entre personas: 14.7   ✅
+```
+
+**El generador predijo 20,1 y la imagen dice 20,7.** Modelo y realidad coinciden por primera vez —
+que es la prueba de que el error de las cuatro caras era el de verdad.
+
+---
+
+## 9. La leyenda
+
+De **2 líneas a 1**; de **115 px a 48**. Y no se ha quitado nada: **lo que dice QUÉ HACER** —los
+tres carteles y su acción— se queda siempre visible, y **el resto del sistema** se va detrás de un
+botón que dice *«Cómo se lee la parrilla»*. Es la ley 14 aplicada a la propia ayuda: **una leyenda
+que se ignora es tan inútil como un aviso que se ignora.**
+
+El **eje** no se pliega: sin él nadie entiende por qué un nocturno de 22:00 a 06:00 cabe entero
+dentro de su día.
+
+---
+
+## 10. Veredicto honesto
 
 **Las tres vistas cumplen la ley 0 y la ley 2.** Ninguna barra finge una gravedad que no tiene, y
 ninguna persona se confunde con otra.
@@ -261,16 +334,17 @@ ninguna persona se confunde con otra.
 ### Lo que NO está probado, y hay que decirlo
 
 - **10 de las 36 parejas (color, gravedad)** no han salido en pantalla. El instrumento **las
-  enumera** en cada pasada. Si mañana a alguien de `#1486A2` le sale un incumplimiento, se medirá.
-- **El margen peor es +2,8** (`#1486A2` con un anillo de imposible). Es positivo, pero es fino: el
-  generador exige ≥ 8 **analíticamente**, y sobre la imagen —con la trama del imposible encima—
-  baja a 2,8. **Si esa cifra llega a bajar de 0, la paleta hay que recalcularla otra vez.**
-- **El cartel naranja no sale en la semana demo, y no es un fallo:** el **único** incumplimiento que
-  hay ahí (Sara) está **forzado**, y por tu decisión ése no lleva cartel. Se prueba en el cuadrante
-  de la matriz, donde hay incumplimientos con y sin forzar y el test exige que uno grite y el otro
-  calle. **Si quieres verlo en la demo, hay que sembrar un incumplimiento sin forzar** — dilo y lo
-  hago.
+  enumera** en cada pasada. Si mañana a alguien de `#1486AE` le sale un incumplimiento, se medirá.
+- **El colchón es de 0,7.** La barra que más se acerca a una gravedad ajena queda a **ΔE 20,7**, con
+  el umbral en 20. Y los doce colores **dependen de la geometría**: barra de 16 px, anillos de
+  2/3/4, el ancho típico de un turno, hasta la trama del imposible. **Si cambia cualquiera de esos
+  números, la paleta hay que VOLVER A GENERARLA**, no parchear un color a mano. Está en
+  `PENDIENTES.md`.
 - **Plantillas de más de doce personas:** los colores se repiten. `pixeles.mjs` lo denuncia el día
-  que ocurra. Está en `PENDIENTES.md`.
+  que ocurra.
+- **«Se ve poco» no es una medida.** Que el anillo del incumplimiento se quedara corto **no lo cazó
+  ningún instrumento**: lo cazó el usuario, mirando. Lo único que lo sujeta ahora es que `matriz.mjs`
+  exige **el grosor que la matriz declara** — si alguien lo baja, salta. Pero el número de la matriz
+  lo puso un ojo, no un test.
 - **El daltonismo:** la ley 6 está probada (toda gravedad lleva su palabra), pero **la paleta no se
   ha medido en escala de grises**.

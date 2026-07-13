@@ -36,27 +36,29 @@ const props = defineProps({
 });
 
 /**
- * ⚠️ 12 px, Y CADA UNO DE LOS DOCE ES DE LA PERSONA. Antes eran 10, y seis.
+ * ⚠️ 16 px, Y CADA UNO DE LOS DIECISÉIS ES DE LA PERSONA. Antes eran 8, luego 10, luego 12.
  *
- * Subir de 8 a 10 fue un parche. Con la gravedad pintada como BORDE, 2 px arriba y 2 abajo se
- * comían el 40 % de la barra y el relleno salía MEZCLADO: el teal de Iker con un aviso ámbar daba
- * un VERDE a ΔE 10 del verde de "cobertura correcta". El canal del borde se estaba comiendo al de
- * la identidad, que es justo lo que la ley 0 prohíbe.
+ * Y las tres veces la respuesta ha sido la MISMA, que es lo que la convierte en una lección y no
+ * en un ajuste: DOS PREGUNTAS PELEÁNDOSE POR EL MISMO SITIO SE ARREGLAN DÁNDOLES MÁS SITIO.
  *
- * Con el anillo de gravedad FUERA (outline), los 12 px son 12 px de persona. Y el 12 no es
- * estético: es el número que le devuelve la separación a la paleta. El anillo pesa 2w/(ALTO+2w)
- * de lo que el ojo integra, así que el alto de la barra manda sobre cuánto puede contaminar:
+ * Con la gravedad pintada como BORDE, 2 px arriba y 2 abajo se comían el 40 % de la barra y el
+ * relleno salía MEZCLADO: el teal de Iker con un aviso ámbar daba un VERDE a ΔE 10 del verde de
+ * "cobertura correcta". Se sacó el anillo FUERA (outline) y el relleno volvió a ser entero.
  *
- *     barra de 10 px  →  la paleta más separada que cumple el margen da ΔE 13,9 (el umbral es 12)
- *     barra de 12 px  →  ...da ΔE 15,5   ✅
+ * Pero el anillo sigue pesando 2w/(ALTO + 2w) de lo que el ojo integra, así que ALTO es el
+ * parámetro que REPARTE EL SITIO entre los dos canales. Y hubo que engordar el anillo del
+ * incumplimiento —a 2 px se leía como un borde, no como una alarma—, lo que obligó a repartir
+ * otra vez:
  *
- * Dos píxeles más de barra le quitan peso al anillo, y ese peso vuelve entero a la identidad.
+ *     barra de 12 px, anillos 2/3/3  →  ΔE mínimo entre personas 11,5   ❌ el ojo no distingue
+ *     barra de 14 px, anillos 2/3/3  →  ΔE mínimo 14,4  ✅ pero el imposible pierde su gradación
+ *     barra de 16 px, anillos 2/3/4  →  ΔE mínimo 15,8  ✅ y el imposible sigue siendo el más gordo
  *
- * Y el hueco entre sub-carriles sube a 7 porque el anillo del imposible mide 3: sin ese aire, los
+ * El HUECO entre sub-carriles es 9 porque el anillo del imposible mide 4: sin ese aire, los
  * anillos de dos barras que se pisan se tocarían y parecerían uno solo.
  */
-const ALTO = 12;
-const HUECO = 7;
+const ALTO = 16;
+const HUECO = 9;
 
 /**
  * EL REPARTO EN SUB-CARRILES ES GEOMÉTRICO Y NO JUZGA NADA:
@@ -95,7 +97,7 @@ const repartidos = computed(() => {
  * Y el `padding` no sirve aquí: un hijo posicionado en absoluto se coloca contra la caja de
  * relleno, así que el padding NO lo desplaza. Hay que sumarlo al `top` a mano.
  */
-const AIRE = 3;
+const AIRE = 4;
 
 const altoPista = computed(() => {
     const n = repartidos.value.subcarriles;

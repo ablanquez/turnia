@@ -791,8 +791,10 @@ for (const [color, p] of [...porColor.entries()].sort()) {
 di();
 di('  2. LA BARRA ENTERA, CON SU ANILLO DE GRAVEDAD PEGADO (que es lo que el ojo integra de verdad)');
 di();
-di(`     ${pad('COLOR', 10)} ${pad('GRAVEDAD', 11)} ${pad('BARRA VISTA', 12)} ${pad('OTRA GRAVEDAD MÁS CERCANA', 27)} ${pad('ΔE', 6)} ${pad('A SU COLOR', 11)} MARGEN*`);
-di('     ' + '─'.repeat(105));
+di(`     Ninguna barra puede quedar a menos de ΔE ${SUENA} de una gravedad que NO ES LA SUYA.`);
+di();
+di(`     ${pad('COLOR', 10)} ${pad('GRAVEDAD', 11)} ${pad('BARRA VISTA', 12)} ${pad('GRAVEDAD AJENA MÁS CERCANA', 28)} ΔE00`);
+di('     ' + '─'.repeat(80));
 
 const porPareja = new Map();
 
@@ -801,28 +803,25 @@ for (const p of todasLasBarras.filter((x) => x.integrada && x.anillo > 0 && conR
     if (!porPareja.has(k)) porPareja.set(k, p);
 }
 
-let peorMargen = Infinity;
+let peorAjena = Infinity;
 
 for (const [k, p] of [...porPareja.entries()].sort()) {
     const [color, mia] = k.split('|');
-    const suyo = declaradoDe(p);
 
     const otra = sueneA(p.integrada, mia);
-    const aSuColor = deltaE00(p.integrada, suyo);
-    const margen = otra.d - aSuColor;
 
-    peorMargen = Math.min(peorMargen, margen);
+    peorAjena = Math.min(peorAjena, otra.d);
 
     di(
-        `     ${pad(color, 10)} ${pad(mia, 11)} ${pad(hex(p.integrada), 12)} ${pad(otra.nombre, 27)} `
-        + `${pad(otra.d.toFixed(1), 6)} ${pad(aSuColor.toFixed(1), 11)} ${margen >= 0 ? '✅ +' : '❌ '}${margen.toFixed(1)}`,
+        `     ${pad(color, 10)} ${pad(mia, 11)} ${pad(hex(p.integrada), 12)} ${pad(otra.nombre, 28)} `
+        + `${otra.d < SUENA ? '❌' : '✅'} ${otra.d.toFixed(1)}`,
     );
 
-    if (margen < 0) {
+    if (otra.d < SUENA) {
         fallos.push(
-            `LEY 0 · una barra ${color} con anillo de «${mia}» (la de «${p.persona}») se ve ${hex(p.integrada)}, y eso se `
-            + `parece MÁS a «${otra.nombre}» (ΔE ${otra.d.toFixed(1)}) que a su propio color (ΔE ${aSuColor.toFixed(1)}). `
-            + 'La barra está diciendo una gravedad que no es la suya.',
+            `LEY 0 · una barra ${color} con anillo de «${mia}» (la de «${p.persona}») se ve ${hex(p.integrada)}, `
+            + `y eso queda a ΔE ${otra.d.toFixed(1)} de «${otra.nombre}» — una gravedad que NO ES LA SUYA. `
+            + 'La barra puede confundirse con lo que no es.',
         );
     }
 }
@@ -838,7 +837,7 @@ for (const c of colores) {
 }
 
 di();
-di(`     ${porPareja.size} parejas (color, gravedad) medidas de ${colores.length * 3} posibles · margen peor: ${peorMargen === Infinity ? '—' : peorMargen.toFixed(1)}`);
+di(`     ${porPareja.size} parejas (color, gravedad) medidas de ${colores.length * 3} posibles · la más cerca de una gravedad ajena: ${peorAjena === Infinity ? '—' : peorAjena.toFixed(1)}`);
 di(`     ${huecas} barras HUECAS descontadas: un concepto que ni cubre ni cuenta no tiene relleno, y su identidad`);
 di('        va en el borde discontinuo —color de la persona— que el anillo, al ir por fuera, no toca.');
 
@@ -854,8 +853,11 @@ for (const familia of ['impossible', 'breach', 'notice']) {
 }
 
 di();
-di('  * margen = ΔE(barra vista, gravedad AJENA más cercana) − ΔE(barra vista, su propio color).');
-di('    Negativo = la barra se parece más a una gravedad que NO tiene que al color de quien es.');
+di('  Y el umbral es ABSOLUTO, no relativo. La primera versión pedía que la barra se pareciera "más');
+di('  a su persona que a una gravedad ajena", y eso ACUSABA A UN INOCENTE: una barra teal con anillo');
+di('  rojo queda a ΔE 29,6 del naranja —lejísimos, no se confunde con nada— pero también lejos del');
+di('  teal, así que el margen salía negativo. Lo que importa no es de qué se aleja: es de qué se');
+di('  ACERCA.');
 
 /* ── ¿Se cumple la ley 2 IGUAL en las dos vistas? ── */
 

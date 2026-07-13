@@ -194,13 +194,26 @@ function bordeDe(block, person) {
 /**
  * EL GROSOR DEL ANILLO SUBE CON LA GRAVEDAD. La misma pregunta, contestada dos veces.
  *
- * El imposible se lleva 3 px, y ese número tiene un motivo concreto: la barra de Tomás —dos
- * turnos que se pisan— era AZUL con una textura rara, y el rojo se quedaba en un filete de 2 px
- * dentro de una barra de 10. El relleno mandaba y el relleno es azul. Con el anillo FUERA y a
- * 3 px, la barra imposible es una cápsula roja con el color de Tomás dentro: se lee la alarma Y
- * se lee de quién es. Antes había que elegir.
+ * ⚠️ Y LOS TRES NÚMEROS SALEN DE UNA MEDIDA, NO DE UN GUSTO.
+ *
+ * El imposible empezó en 2 px y la barra de Tomás —dos turnos que se pisan— se veía AZUL con una
+ * textura rara: el rojo era un filete y el relleno mandaba. A 3 px y por fuera se volvió una
+ * cápsula roja con el color de Tomás dentro.
+ *
+ * Y entonces el que se quedó corto fue el INCUMPLIMIENTO: a 2 px sobre una barra de 12, el
+ * naranja de Sara se leía como un borde, no como una alarma. Subirlo a 3 no era gratis —cada
+ * píxel de anillo se lo quita al relleno, y con la paleta de entonces el margen se iba a −2,4—,
+ * así que se recalculó todo junto: alto de barra, grosores y paleta, en un solo cálculo.
+ *
+ *   aviso 2 · incumplimiento 3 · imposible 4, sobre una barra de 16 px.
+ *
+ * El aviso se queda fino A PROPÓSITO: informa, no pide nada (ley 14). Los dos que PIDEN UNA
+ * DECISIÓN son los gordos. El grosor dice lo mismo que el cartel.
+ *
+ * ⚠️ Si tocas estos números, hay que REGENERAR LA PALETA (tests/Visual/paleta.mjs): los doce
+ * colores están calculados CON esta geometría dentro, y sin ella la garantía no vale.
  */
-const ANILLO = { notice: '1.5px', breach: '2px', impossible: '3px' };
+const ANILLO = { notice: '2px', breach: '3px', impossible: '4px' };
 
 /**
  * ⚠️ EL ANILLO ES UN RELLENO, NO UN TEXTO. Y ANTES SE PINTABA CON LA TINTA.

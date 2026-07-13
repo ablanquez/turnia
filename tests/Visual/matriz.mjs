@@ -54,9 +54,9 @@ const M = JSON.parse(readFileSync(new URL('./matriz.json', import.meta.url), 'ut
  * contrario de un canal con dos preguntas (ley 0).
  */
 const ANILLO = {
-    impossible: { color: 'rgb(200, 30, 30)', px: 3 },     // #C81E1E
-    breach: { color: 'rgb(232, 89, 12)', px: 2 },         // #E8590C
-    notice: { color: 'rgb(194, 135, 10)', px: 1.5 },      // #C2870A
+    impossible: { color: 'rgb(200, 30, 30)', px: 4 },     // #C81E1E
+    breach: { color: 'rgb(232, 89, 12)', px: 3 },         // #E8590C
+    notice: { color: 'rgb(194, 135, 10)', px: 2 },        // #C2870A
 };
 
 const RANGO = { impossible: 3, breach: 2, notice: 1 };
@@ -93,7 +93,7 @@ function reglaDe(caso) {
         rellenoEsDeLaPersona: densidad !== 'hueco',
         tramado: densidad === 'tramado',
         // LEY 3: la gravedad va en un ANILLO POR FUERA, y NO en el borde. Como borde se comía el
-        // 40 % de una barra de 12 px y salía una MEZCLA: ámbar sobre teal daba verde de cobertura.
+        // 40 % de una barra de 16 px y salía una MEZCLA: ámbar sobre teal daba verde de cobertura.
         anillo: sev ? ANILLO[sev] : null,
         // El borde solo dice QUÉ ES, y lo pinta con el color de la persona.
         bordeColor: 'P',

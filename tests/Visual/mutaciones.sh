@@ -157,13 +157,20 @@ echo "  ── y estas tres, solo las ve pixeles.mjs ──"
 #     Una sola sustitución: el anillo deja de ser `outline` (fuera) y vuelve a ser `border`
 #     (dentro), que es lo que pisaba el relleno. Como `border` va después de la base en el spread,
 #     la sobrescribe — igual que estaba antes.
-perl -0pi -e "s/        outline: \`\\\$\{px\}px solid \\\$\{severityFill\(severidad\)\}\`,\n        outlineOffset: '0px',/        border: \`2px solid \\\$\{severityFill(severidad)\}\`,/s" $MATRIZ
+sed -i "s|        outline: \`\${px}px solid \${severityFill(severidad)}\`,|        border: \`2px solid \${severityFill(severidad)}\`,|" $MATRIZ
 verificar $MATRIZ "12. la gravedad vuelve DENTRO de la barra (borde en vez de anillo)" && probar "12. la gravedad vuelve DENTRO de la barra (borde en vez de anillo)" pixeles
+
+# 12b. EL ANILLO DEL INCUMPLIMIENTO SE QUEDA FINO OTRA VEZ (2 px, como estaba).
+#      A 2 px sobre una barra de 16 el naranja se lee como un borde, no como una alarma. Esto NO
+#      lo caza un instrumento —"se ve poco" no es una medida—: lo cazó el usuario con los ojos, y
+#      lo único que lo sujeta es que matriz.mjs exige EL GROSOR que la matriz declara.
+sed -i "s/const ANILLO = { notice: '2px', breach: '3px', impossible: '4px' };/const ANILLO = { notice: '1.5px', breach: '2px', impossible: '3px' };/" $MATRIZ
+verificar $MATRIZ "12b. el anillo del incumplimiento se queda fino (2 px)" && probar "12b. el anillo del incumplimiento se queda fino (2 px)"
 
 # 13. La paleta de croma bajo: ciruelas y grises que no tienen color propio y adoptan el del
 #     anillo. Con el borde arreglado siguen fallando — los dos arreglos hacen falta.
-sed -i "s/^        '#5C68CC'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
-sed -i "/^        '#14C8D2'/d; /^        '#E69EC0'/d; /^        '#981472'/d; /^        '#98B6F0'/d; /^        '#1486A2'/d; /^        '#B662C0'/d; /^        '#504478'/d; /^        '#148CF0'/d; /^        '#14507E'/d; /^        '#1AB6F0'/d; /^        '#C29EF0'/d" $PALETA
+sed -i "s/^        '#6EAAE4'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
+sed -i "/^        '#742C8A'/d; /^        '#E68CC6'/d; /^        '#145C8A'/d; /^        '#56C2BA'/d; /^        '#8674C6'/d; /^        '#B6AAE4'/d; /^        '#1486AE'/d; /^        '#50508A'/d; /^        '#BC5CBA'/d; /^        '#447AE4'/d; /^        '#2CC2E4'/d" $PALETA
 verificar $PALETA "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" && probar "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" pixeles
 
 # 14. El color se SORTEA en vez de repartirse: dos personas de la misma empresa, el mismo color.

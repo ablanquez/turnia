@@ -20,39 +20,87 @@ const dE=(c1,c2)=>{const[L1,a1,b1]=lab(c1),[L2,a2,b2]=lab(c2);const rad=Math.PI/
   const Rt=-Math.sin(2*dT*rad)*Rc;
   return Math.sqrt((dL/Sl)**2+(dC/Sc)**2+(dH/Sh)**2+Rt*(dC/Sc)*(dH/Sh));};
 
-// Los colores del ESTADO: ninguna persona puede parecerse a ellos.
-const ESTADO = [[200,30,30],[232,89,12],[194,135,10],[21,128,61],[220,38,38],[176,20,20],[168,65,10],[125,86,6]];
+/**
+ * Los colores del ESTADO, AGRUPADOS POR FAMILIA. Y agruparlos importa.
+ *
+ * ⚠️ UNA BARRA IMPOSIBLE SE TIENE QUE PARECER A UN ROJO. ES UN IMPOSIBLE.
+ *
+ * El generador comparaba la barra vista contra TODOS los colores de estado, incluidos los de su
+ * propia gravedad. Así que castigaba a la barra imposible por parecerse al rojo —o sea, por hacer
+ * justo lo que tiene que hacer— y con la trama encima el candidato ni siquiera entraba: quedaban
+ * 238 colores y el ΔE mínimo entre personas caía a 6,2. Estaba exigiendo que la alarma no sonara.
+ *
+ * Lo que hay que impedir es que una barra suene a una gravedad AJENA. Ésa es la pregunta que hizo
+ * el usuario con los ojos: "la barra de Marco, que tiene un AVISO, ¿parece un INCUMPLIMIENTO?".
+ */
+const FAMILIA = {
+  impossible: [[200,30,30],[176,20,20],[220,38,38]],
+  breach: [[232,89,12],[168,65,10]],
+  notice: [[194,135,10],[125,86,6]],
+  ok: [[21,128,61]],
+};
 
-// El ANILLO de gravedad, y su grosor real en la Semana (ver PersonLane.vue). Una barra de ALTO
-// px con un anillo de w px por arriba y otro por abajo: el anillo pesa 2w/(ALTO+2w) de lo que el
-// ojo integra. Y ese denominador es EL PARÁMETRO QUE MÁS MANDA en toda esta paleta:
-//
-//   barra de 10 px, margen ≥ 8  →  ΔE mínimo entre personas: 13,9   (el umbral está en 12)
-//   barra de 12 px, margen ≥ 8  →  ΔE mínimo entre personas: 15,8   ✅
-//
-// Dos píxeles más de barra le quitan peso al anillo, y ese peso vuelve entero a la identidad. Es
-// la misma pelea de siempre —dos preguntas por el mismo sitio— resuelta dándoles más sitio.
-const ALTO = 12;
-const ANILLOS = [[[194,135,10],1.5],[[232,89,12],2],[[200,30,30],3]];
+const ESTADO = Object.values(FAMILIA).flat();
+const ajenos = (mia) => Object.entries(FAMILIA).filter(([k]) => k !== mia).flatMap(([, v]) => v);
+
+/*
+ * LA GEOMETRÍA REAL DE LA BARRA (ver PersonLane.vue). Y aquí van tres errores de modelo, porque
+ * cada uno costó una pasada y el que venga detrás no tiene por qué repetirlos.
+ *
+ * ERROR 1 — EL ANILLO SOLO ESTABA ARRIBA Y ABAJO. El modelo decía que pesa 2w/(ALTO+2w) de lo que
+ * el ojo integra. Falso: un `outline` rodea la barra por LOS CUATRO LADOS. En una barra de 50×16
+ * con un anillo de 4, el anillo es el 43 % de la caja, no el 33 %. Y en una barra CORTA —un turno
+ * de dos horas— es más de la mitad. La medida sobre la imagen no cuadraba con el modelo por 9
+ * puntos de ΔE, y el modelo estaba mintiendo a favor.
+ *
+ * ERROR 2 — LA TRAMA NO ENTRABA. La barra imposible es TRAMADA: su relleno real lleva la trama
+ * encima. Comparar la barra vista contra el color PURO castigaba a la trama por hacer justo lo que
+ * tiene que hacer. La referencia honesta es el relleno CON su trama.
+ *
+ * ERROR 3 — SE COMPARABA CONTRA SU PROPIA GRAVEDAD. Ver FAMILIA, arriba.
+ *
+ * El alto de la barra es el parámetro que REPARTE EL SITIO entre los dos canales que se pelean, y
+ * ya va por su cuarta subida: 8 → 10 → 12 → 16. Siempre la misma lección.
+ */
+const ALTO = 16;
+const ANILLOS = [['notice', [194,135,10], 2], ['breach', [232,89,12], 3], ['impossible', [200,30,30], 4]];
+
+// El ancho de un turno de 8 h en una columna de la Semana, medido en la página.
+const ANCHO = 50;
+
+// El anillo rodea la barra ENTERA. Su peso es el área que ocupa, no dos franjas.
+const peso = (w) => 1 - (ANCHO * ALTO) / ((ANCHO + 2*w) * (ALTO + 2*w));
+
+// La trama del imposible: rgba(44,38,67,.30) con 3 px de raya cada 7.
+const TRAMA = [44,38,67];
+const PESO_TRAMA = 0.30 * 3/7;
 
 const mezcla = (c, ring, f) => c.map((v,i) => v*(1-f) + ring[i]*f);
 
 /**
  * ⚠️ LA PRUEBA QUE ANTES NO SE HACÍA, Y ES LA ÚNICA QUE IMPORTA.
  *
- * El criterio de antes era "ningún color de persona a menos de ΔE 28 de un color de estado", y
- * lo cumplían los doce. Y la barra de Marco se veía MARRÓN igual, porque el ΔE compara DOS
- * PARCHES AISLADOS y en una parrilla nada está aislado: una barra de 10 px lleva PEGADO su
- * anillo de gravedad, y el ojo integra los dos.
+ * El criterio original era "ningún color de persona a menos de ΔE 28 de un color de estado", y lo
+ * cumplían los doce. Y la barra de Marco se veía MARRÓN igual, porque ese ΔE compara DOS PARCHES
+ * AISLADOS y en una parrilla nada está aislado: una barra lleva PEGADO su anillo de gravedad, y el
+ * ojo integra los dos.
  *
- * Así que se mide lo que se ve: la barra CON su anillo. Y se exige que siga pareciéndose más a
- * SU PERSONA que a cualquier estado. Si no, esa barra dice "incumplimiento" sin incumplir nada.
+ * Así que se mide LO QUE SE VE —la barra con su anillo— y se exige un UMBRAL ABSOLUTO:
+ *
+ *     NINGUNA BARRA PUEDE QUEDAR A MENOS DE ΔE 20 DE UNA GRAVEDAD QUE NO ES LA SUYA.
+ *
+ * ⚠️ Y absoluto, NO relativo. La primera versión pedía que la barra se pareciera "más a su persona
+ * que a una gravedad ajena", y eso acusaba a un inocente: una barra teal con anillo rojo queda a
+ * ΔE 29,6 del naranja —lejísimos, no se confunde con nada— pero también lejos del teal, así que el
+ * margen salía negativo. El umbral absoluto caza los tres casos reales (el marrón de Marco a
+ * ΔE 11, el verde de Iker a 10,2, el magenta que se vuelve rojo a 17,2) y no acusa al que no.
  */
-const margen = (c) => Math.min(...ANILLOS.map(([ring, w]) => {
-  const visto = mezcla(c, ring, (2*w)/(ALTO + 2*w));
-  const aEstado = Math.min(...ESTADO.map((e) => dE(visto, e)));
+const UMBRAL = 20;
 
-  return aEstado - dE(visto, c);
+const sonarA = (c) => Math.min(...ANILLOS.map(([g, ring, w]) => {
+  const base = g === 'impossible' ? mezcla(c, TRAMA, PESO_TRAMA) : c;
+
+  return Math.min(...ajenos(g).map((e) => dE(mezcla(base, ring, peso(w)), e)));
 }));
 
 // Candidatos: toda la zona FRÍA (azul → cian → índigo → violeta → ciruela), con luminosidad y
@@ -83,7 +131,7 @@ for (let b = 60; b <= 245; b += 6) {
   // vez de dónde cae el tono. Con un policía que sabe medir, la caja puede ser grande.
   if (h < 186 || h > 350) continue;
   if (Math.min(...ESTADO.map((e) => dE([r,g,b], e))) < 28) continue;
-  if (margen([r,g,b]) < 8) continue;
+  if (sonarA([r,g,b]) < UMBRAL) continue;
   cand.push([r,g,b]);
 }
 
@@ -163,12 +211,12 @@ const hex = ([r,g,b]) => '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).jo
 const lum = ([r,g,b]) => 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);
 const contra = (c, w) => { const a=lum(c), b= w? 1 : 0.0148; const [x,y]=[Math.max(a,b),Math.min(a,b)]; return (x+0.05)/(y+0.05); };
 
-const margenPeor = Math.min(...elegidos.map(margen));
+const peorSonido = Math.min(...elegidos.map(sonarA));
 
-console.log('candidatos:', cand.length, '· ΔE mínimo de la paleta:', peor.toFixed(1),
-  '· margen mínimo con el anillo:', margenPeor.toFixed(1));
+console.log('candidatos:', cand.length, '· ΔE mínimo entre personas:', peor.toFixed(1),
+  '· lo más cerca que queda una barra de una gravedad AJENA:', peorSonido.toFixed(1));
 console.log();
 for (const c of elegidos) {
   const blanco = contra(c, true), negro = contra(c, false);
-  console.log(`'${hex(c)}',  // L*${lab(c)[0].toFixed(0).padStart(2)}  C${Math.hypot(lab(c)[1],lab(c)[2]).toFixed(0).padStart(2)}  margen ${margen(c).toFixed(0).padStart(2)}  → inicial en ${blanco >= negro ? 'BLANCO' : 'TINTA'}`);
+  console.log(`'${hex(c)}',  // L*${lab(c)[0].toFixed(0).padStart(2)}  C${Math.hypot(lab(c)[1],lab(c)[2]).toFixed(0).padStart(2)}  ajena ${sonarA(c).toFixed(0).padStart(2)}  → inicial en ${blanco >= negro ? 'BLANCO' : 'TINTA'}`);
 }

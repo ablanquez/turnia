@@ -73,30 +73,45 @@ final class PersonPalette
      * anillo— y exige que siga pareciéndose más a SU PERSONA que a cualquier estado (margen ≥ 8).
      * Eso obliga a C ≥ 30, y de paso deja fuera toda la zona de barro.
      *
-     *   · ΔE00 mínimo entre personas: 15,5    (segunda paleta: 16,5 · primera: 4,0)
-     *   · Croma mínimo:               30      (antes: 20)
-     *   · Margen contra los estados:  8,1     (antes: NEGATIVO — la barra mentía)
+     * Y el criterio final, después de tres intentos, es un UMBRAL ABSOLUTO:
      *
-     * Se pierden 1,0 de ΔE entre personas y se gana que ninguna barra finja una gravedad que no
-     * tiene. Es el cambio correcto: dos personas que cuesta distinguir se resuelven leyendo el
-     * nombre; una barra que dice "incumplimiento" sin incumplir no se resuelve con nada.
+     *     NINGUNA BARRA PUEDE QUEDAR A MENOS DE ΔE 20 DE UNA GRAVEDAD QUE NO ES LA SUYA.
+     *
+     * Absoluto y no relativo, porque el relativo acusaba a un inocente: una barra teal con anillo
+     * rojo queda a ΔE 29,6 del naranja —lejísimos— pero también lejos del teal, y el "margen"
+     * salía negativo. El umbral absoluto caza los tres casos REALES (el marrón de Marco a ΔE 11,
+     * el verde de Iker a 10,2, un magenta que con anillo naranja se vuelve rojo a 17,2) y no
+     * acusa al que no.
+     *
+     *   · ΔE00 mínimo entre personas:            14,1
+     *   · Croma mínimo:                          30    (antes: 20)
+     *   · Lo más cerca de una gravedad AJENA:    20,1  (antes: 10,1 — la barra mentía)
+     *
+     * Es el cambio correcto: dos personas que cuesta distinguir se resuelven leyendo el nombre;
+     * una barra que dice "incumplimiento" sin incumplir no se resuelve con nada.
+     *
+     * ⚠️ ESTOS DOCE COLORES DEPENDEN DE LA GEOMETRÍA DE LA BARRA. No es una lista que se pueda
+     * copiar y pegar: sale de un cálculo que TIENE DENTRO el alto (16 px), el ancho típico (50 px),
+     * el grosor de cada anillo (2/3/4) y hasta la trama del imposible. El día que cambie
+     * cualquiera de esos números, la paleta hay que VOLVER A GENERARLA — parchear un color a mano
+     * rompe la garantía, y la garantía es lo único que impide que una barra vuelva a mentir.
      *
      * Y son DOCE: por encima, el ΔE mínimo cae en picado. Doce que se distinguen valen más que
      * quince que no.
      */
     private const COLORS = [
-        '#5C68CC', // añil
-        '#14C8D2', // turquesa
-        '#E69EC0', // rosa palo
-        '#981472', // magenta oscuro
-        '#98B6F0', // azul claro
-        '#1486A2', // teal
-        '#B662C0', // orquídea
-        '#504478', // violeta oscuro
-        '#148CF0', // azul
-        '#14507E', // azul marino
-        '#1AB6F0', // cian
-        '#C29EF0', // lavanda
+        '#6EAAE4', // azul cielo
+        '#742C8A', // púrpura oscuro
+        '#E68CC6', // rosa
+        '#145C8A', // azul marino
+        '#56C2BA', // turquesa
+        '#8674C6', // violeta
+        '#B6AAE4', // lavanda
+        '#1486AE', // teal
+        '#50508A', // añil oscuro
+        '#BC5CBA', // orquídea
+        '#447AE4', // azul
+        '#2CC2E4', // cian
     ];
 
     /**

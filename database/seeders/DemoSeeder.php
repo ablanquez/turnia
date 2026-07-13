@@ -34,7 +34,8 @@ use Illuminate\Support\Facades\Hash;
  *   · UNA jornada partida ......... Lucía, el lunes (dos barras con un agujero real)
  *   · UN turno nocturno ........... Diego, de lunes a viernes (cruza el borde del día)
  *   · UN aviso de doble empresa ... Marco, el miércoles (sin decir dónde)
- *   · UN incumplimiento forzado ... Sara, el lunes (descanso corto), con constancia
+ *   · UN incumplimiento forzado ... Sara, el lunes (descanso corto), con constancia → SIN cartel
+ *   · EL MISMO, SIN forzar ........ Leo, el lunes (descanso corto), sin revisar → CON cartel
  *   · UN imposible ................ Tomás, el martes (se solapa consigo mismo)
  *   · UNA baja .................... Ana, de miércoles a viernes — Y SIN TURNOS ESOS DÍAS
  *   · UN puesto sin candidato ..... Sumiller, el sábado
@@ -86,6 +87,7 @@ class DemoSeeder extends Seeder
         $this->jornadaPartida();
         $this->turnoNocturno();
         $this->descansoCortoForzado($owner);
+        $this->incumplimientoSinForzar();
         $this->solapeImposible();
         $this->bajaSinTurnos($people, $catalogue);
         $this->conceptosHorarios($catalogue);
@@ -415,6 +417,36 @@ class DemoSeeder extends Seeder
         foreach ([1, 2, 3, 4, 5] as $day) {
             $this->shift('diego', 'cocina', $day, '22:00', '06:00');
         }
+    }
+
+    /**
+     * UN INCUMPLIMIENTO SIN FORZAR. Leo, el lunes: EL MISMO DESCANSO CORTO QUE SARA.
+     *
+     * ⚠️ Y ES EL MISMO CASO A PROPÓSITO. LO ÚNICO QUE CAMBIA ES QUE A ÉSTE NADIE LO HA MIRADO.
+     *
+     * Sara y Leo rompen la MISMA regla, el MISMO día, con las MISMAS horas. Pero el turno de Sara
+     * lo forzó alguien y quedó constancia, y el de Leo no lo ha tocado nadie. Así que:
+     *
+     *   · Sara → anillo naranja + muesca + nota "Forzado, con constancia".  SIN cartel.
+     *   · Leo  → anillo naranja.                          CON cartel: "INCUMPLIMIENTO · descanso
+     *                                                     corto entre turnos".
+     *
+     * Es la ley 14 puesta una al lado de la otra: el cartel es para lo que PIDE UNA DECISIÓN, y
+     * en el de Sara la decisión ya está tomada. Dos celdas de la misma fila del mismo lunes, y la
+     * diferencia se lee sin explicación.
+     *
+     * ⚠️ Y EL TURNO QUE LO PROVOCA VA EN LA VÍSPERA (domingo pasado), FUERA DE LA SEMANA VISIBLE.
+     *
+     * No es un truco: es la única forma de meter un descanso corto SIN sumar horas a esta semana.
+     * Leo ya hace sus 40, y el tope semanal es una regla que salta en TODOS los turnos de la
+     * semana — le pintaría de naranja los cinco días. Eso es el "cuadrante en llamas" que este
+     * seeder existe para evitar. El descanso corto, en cambio, salta en UN turno y solo en uno.
+     */
+    private function incumplimientoSinForzar(): void
+    {
+        // El domingo pasado hasta medianoche; el lunes a las 10:00. Diez horas de descanso donde
+        // el perfil exige doce. Y nadie lo ha revisado.
+        $this->shift('leo', 'caja', 0, '16:00', '24:00');
     }
 
     /**
