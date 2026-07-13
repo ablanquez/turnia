@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import { BRAND_DARK, severityColor, severityIcon } from '../../composables/useSeverity.js';
-import { pintarBanda, pintarBloque, violacionesDe } from '../../composables/useMatrizVisual.js';
+import { pintarBanda, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
@@ -309,6 +309,7 @@ const cerrado = computed(() => (props.coverage?.closed ?? []).includes(props.day
                                 v-for="p2 in row.pintadas"
                                 :key="`${p2.bar.kind}-${p2.bar.id}`"
                                 data-t="barra"
+                                :data-persona="peopleById[p2.bar.personId]?.name"
                                 :style="barStyle(p2)"
                                 :title="title(p2.bar)"
                             >
@@ -326,10 +327,27 @@ const cerrado = computed(() => (props.coverage?.closed ?? []).includes(props.day
                                     class="absolute right-0 top-0 h-full w-[4px] bg-ink"
                                 />
 
+                                <!--
+                                    ⚠️ EN EL DÍA, LA IDENTIDAD LA LLEVA ESTE AVATAR, y por eso va
+                                    a color PLENO dentro de la barra.
+
+                                    El relleno de la barra es una tinta al 15 % porque encima va
+                                    escrito el nombre y la hora, y a plena intensidad no se
+                                    leerían. Pero la ley 2 no se negocia por vista: "tapa los
+                                    nombres y todavía tienes que poder reconstruir quién hace
+                                    qué". Aquí lo reconstruyes por el disco de color, que está
+                                    DENTRO de la barra y es sólido. En la Semana no hay avatar
+                                    dentro de la pista, así que ahí lo lleva el relleno.
+                                -->
                                 <span
                                     v-if="p2.bar.kind === 'shift'"
-                                    class="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-white"
-                                    :style="{ background: peopleById[p2.bar.personId]?.color }"
+                                    data-t="avatar"
+                                    :data-persona="peopleById[p2.bar.personId]?.name"
+                                    class="tabular flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold"
+                                    :style="{
+                                        background: peopleById[p2.bar.personId]?.color,
+                                        color: tintaSobre(peopleById[p2.bar.personId]?.color ?? '#000000'),
+                                    }"
                                 >{{ peopleById[p2.bar.personId]?.initials }}</span>
                                 <span
                                     v-else

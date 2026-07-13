@@ -118,7 +118,7 @@ class SchedulePayload
             'granularity' => $granularity,
             'axis' => $axis->toArray(),
             'positions' => $this->positions($calendar),
-            'people' => $this->people($assignments, $concepts, $absences),
+            'people' => $this->people($company, $assignments, $concepts, $absences),
             'assignments' => $this->assignmentRows($assignments, $company, $axis),
             'conceptEntries' => $this->conceptRows($concepts, $company, $axis),
             'absences' => $this->absenceRows($absences, $company),
@@ -407,9 +407,18 @@ class SchedulePayload
             ->all();
     }
 
-    /** Los que salen pintados, con su color estable. */
-    private function people(Collection ...$sources): array
+    /**
+     * Los que salen pintados, con su color estable.
+     *
+     * ⚠️ EL COLOR SE PIDE PARA LA EMPRESA ENTERA, no persona a persona. Antes era un hash del
+     * nombre, y dos personas de la misma plantilla podían caer en el mismo color — y caían: Bea
+     * y Tomás tenían la barra EXACTAMENTE del mismo RGB. En la semana, donde la barra es lo único
+     * que dice de quién es, eso es la ley 2 rota de la peor manera posible: en silencio.
+     */
+    private function people(Company $company, Collection ...$sources): array
     {
+        $paleta = PersonPalette::forCompany($company);
+
         return collect($sources)
             ->flatten(1)
             ->pluck('person')
@@ -419,7 +428,7 @@ class SchedulePayload
                 'id' => $p->id,
                 'name' => trim($p->first_name.' '.$p->last_name),
                 'initials' => PersonPalette::initials($p->first_name, $p->last_name),
-                'color' => PersonPalette::for($p->first_name.' '.$p->last_name),
+                'color' => $paleta[$p->id] ?? PersonPalette::fallback($p->first_name.' '.$p->last_name),
             ])
             ->values()
             ->all();
@@ -656,6 +665,10 @@ class SchedulePayload
 
         $shared = $this->sharedElsewhere($employments->pluck('person_id')->all(), $window, $company);
 
+        // El MISMO reparto de colores que la parrilla: el panel y la rejilla no pueden pintar a
+        // la misma persona de dos colores distintos.
+        $paleta = PersonPalette::forCompany($company);
+
         // El contador de TODA la plantilla en dos consultas, no en dos por persona.
         $minutes = $this->counter->workedMinutesFor($employments->modelKeys(), $window);
 
@@ -675,7 +688,7 @@ class SchedulePayload
             ->get()
             ->keyBy('person_id');
 
-        return $employments->map(function (Employment $e) use ($minutes, $shared, $porPersona, $bajas, $company) {
+        return $employments->map(function (Employment $e) use ($minutes, $shared, $porPersona, $bajas, $company, $paleta) {
             $limits = $this->limits->for($e);
             $worked = $minutes[$e->id] ?? 0;
             $suyas = $porPersona->get($e->person_id, new Collection);
@@ -685,7 +698,7 @@ class SchedulePayload
                 'personId' => $e->person_id,
                 'name' => trim($e->person->first_name.' '.$e->person->last_name),
                 'initials' => PersonPalette::initials($e->person->first_name, $e->person->last_name),
-                'color' => PersonPalette::for($e->person->first_name.' '.$e->person->last_name),
+                'color' => $paleta[$e->person_id] ?? PersonPalette::fallback($e->person->first_name.' '.$e->person->last_name),
                 'profile' => $e->profile?->name,
                 'positions' => $e->positions->pluck('name')->all(),
                 'workedMinutes' => $worked,

@@ -39,12 +39,22 @@ const M = JSON.parse(readFileSync(new URL('./matriz.json', import.meta.url), 'ut
  * LAS REGLAS, REESCRITAS DESDE EL DOCUMENTO. Segunda implementación, a propósito.
  * ══════════════════════════════════════════════════════════════════════════════ */
 
-// Las TINTAS de la gravedad (useSeverity.SEVERITY[x].text). El color que ESCRIBE, no el que
-// rellena: el naranja de relleno (#E8590C) da 3,4 de contraste como texto y es ilegible.
-const TINTA = {
-    impossible: 'rgb(176, 20, 20)',   // #B01414
-    breach: 'rgb(168, 65, 10)',       // #A8410A
-    notice: 'rgb(125, 86, 6)',        // #7D5606
+/**
+ * ⚠️ EL BORDE LLEVA EL RELLENO DE LA GRAVEDAD, NO SU TINTA. Y AQUÍ TENÍA LA TINTA.
+ *
+ * Hay dos versiones de cada color de gravedad, y por una buena razón: el que RELLENA (vibrante,
+ * para verse de un vistazo) y el que ESCRIBE (oscuro, para leerse con 4,5 de contraste). El
+ * naranja de relleno #E8590C es ilegible como letra; el marrón de tinta #A8410A es invisible
+ * como borde.
+ *
+ * Un borde no se lee: se VE. Estaba pintado con la tinta, y el aviso ámbar de Marco salía
+ * marrón sucio — la ley 3 dice "ámbar = aviso" y la barra no decía ámbar. Mi propia regla,
+ * aplicada al revés.
+ */
+const RELLENO = {
+    impossible: 'rgb(200, 30, 30)',   // #C81E1E
+    breach: 'rgb(232, 89, 12)',       // #E8590C
+    notice: 'rgb(194, 135, 10)',      // #C2870A
 };
 
 const RANGO = { impossible: 3, breach: 2, notice: 1 };
@@ -81,7 +91,7 @@ function reglaDe(caso) {
         rellenoEsDeLaPersona: densidad !== 'hueco',
         tramado: densidad === 'tramado',
         // LEY 3: el borde lleva la gravedad. Sin gravedad, el color de la persona (borde mudo).
-        bordeColor: sev ? TINTA[sev] : 'P',
+        bordeColor: sev ? RELLENO[sev] : 'P',
         // LEY 5: continuo = turno, discontinuo = concepto.
         bordeEstilo: kind === 'concept' ? 'dashed' : 'solid',
         // Canales propios. El forzado NO comparte el naranja del que incumple.
@@ -246,13 +256,33 @@ const medirCeldas = (celdas) => {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
 
-// Ni aquí `networkidle`: era el que tiraba el instrumento. Se espera a estar DENTRO (a que la
-// URL deje de ser /login), que es el hecho que me importa, no a que la red se aburra.
-await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-await page.fill('input[type=email]', 'demo@turnia.test');
-await page.fill('input[type=password]', 'turnia');
-await page.click('button[type=submit]');
-await page.waitForFunction(() => !location.pathname.startsWith('/login'), null, { timeout: 60000 });
+/**
+ * ⚠️ EL LOGIN TENÍA UNA CARRERA, Y SALÍA POR LA VENTANA COMO SI FUERA UN HALLAZGO.
+ *
+ * Con `domcontentloaded` el HTML ya está, pero Vue TODAVÍA NO HA HIDRATADO: el clic en el botón
+ * cae en un formulario que aún no escucha, no pasa nada, y el instrumento se queda esperando en
+ * /login hasta el timeout. Y un TimeoutError devuelve el mismo código de salida que un fallo de
+ * verdad: la contraprueba de mutaciones cantaba "REVENTÓ" y yo me ponía a buscar un bug en la
+ * banda de las bajas que no existía.
+ *
+ * Se espera al `load` (que incluye el JS), y si aun así no entra, se vuelve a intentar. No es
+ * paranoia: es que una carrera perdida y un bug se parecen mucho desde fuera.
+ */
+for (let intento = 1; intento <= 3; intento++) {
+    await page.goto(`${BASE}/login`, { waitUntil: 'load', timeout: 60000 });
+    await page.fill('input[type=email]', 'demo@turnia.test');
+    await page.fill('input[type=password]', 'turnia');
+    await page.click('button[type=submit]');
+
+    try {
+        await page.waitForFunction(() => !location.pathname.startsWith('/login'), null, { timeout: 20000 });
+        break;
+    } catch (e) {
+        if (intento === 3) {
+            throw new Error('no se pudo entrar tras tres intentos de login');
+        }
+    }
+}
 
 await page.addInitScript(() => {
     window.__pedir = async (url) => {

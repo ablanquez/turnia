@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { BRAND_DARK, severityColor, severityIcon, worst } from '../../composables/useSeverity.js';
-import { pintarBloque, violacionesDe } from '../../composables/useMatrizVisual.js';
+import { pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
@@ -150,8 +150,10 @@ const title = computed(() => {
         <div class="flex items-start gap-1.5">
             <span class="relative mt-px flex shrink-0">
                 <span
-                    class="tabular flex h-4 w-4 items-center justify-center rounded-full text-[7.5px] font-semibold text-white"
-                    :style="{ background: person.color }"
+                    data-t="avatar"
+                    :data-persona="person.name"
+                    class="tabular flex h-4 w-4 items-center justify-center rounded-full text-[7.5px] font-semibold"
+                    :style="{ background: person.color, color: tintaSobre(person.color) }"
                 >{{ person.initials }}</span>
 
                 <!-- Punto ámbar: ese día también trabaja en otro sitio. Se ve sin leer nada. -->

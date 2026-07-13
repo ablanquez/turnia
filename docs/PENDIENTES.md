@@ -80,6 +80,12 @@ mismo, y no por falta de tiempo.
 Ver `BACKTEST-COMBINATORIO.md` §8. En resumen, lo que **no** está probado y solo se sabrá en
 producción:
 
+- **⚠️ PLANTILLAS DE MÁS DE DOCE PERSONAS.** La paleta tiene doce colores con separación
+  perceptual verificada (ΔE00 mínimo 16,5), y se REPARTEN por orden de id — sin colisiones hasta
+  el doce. A partir de ahí **se repiten**, y dos personas de la misma empresa vuelven a tener la
+  misma barra. No hay doce mil colores que se distingan en la zona fría, así que la salida no es
+  «más colores»: habrá que decidir otra cosa (¿un segundo canal? ¿el color solo para quien está
+  en la celda?). `tests/Visual/pixeles.mjs` lo denunciará en cuanto ocurra.
 - **Más de tres personas por celda.** Los seeders llegan a tres. Con seis, el aire entre bloques
   podría dejar de decir la verdad sobre quién va con quién.
 - **El daltonismo.** La ley 6 (ningún color va solo) está probada: toda gravedad lleva su

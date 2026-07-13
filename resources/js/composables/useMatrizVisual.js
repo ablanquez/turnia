@@ -41,7 +41,7 @@
  * dos capas, y por eso no hay que aprenderla dos veces.
  */
 
-import { BRAND_DARK, severityColor, severityIcon, shortText, worst } from './useSeverity.js';
+import { BRAND_DARK, severityColor, severityFill, severityIcon, shortText, worst } from './useSeverity.js';
 
 /**
  * LA TRAMA. Una sola, y siempre la misma.
@@ -65,8 +65,15 @@ export const TRAMA_TIRA = 'repeating-linear-gradient(45deg, rgba(60,56,84,.20) 0
  *
  * Misma gramática (rayas = aquí no hay servicio), otro volumen. Lo vi al abrir la página; los
  * tres tests estaban en verde.
+ *
+ * ⚠️ SEGUNDO INTENTO, Y EL PRIMERO SEGUÍA SIENDO UN TACHÓN. Bajé la raya a 2 px cada 8 al 16 %
+ * y seguía compitiendo con el "Ana López · Baja médica" que lleva encima. Una banda no es una
+ * barra: es un RÓTULO, y en un rótulo el texto manda.
+ *
+ * Ahora es una raya fina —1,5 px cada 8, al 11 %— que se ve como una textura y no como un
+ * tachado. Sigue diciendo lo mismo (esta ausencia BLOQUEA la disponibilidad) y deja leer.
  */
-export const TRAMA_BANDA = 'repeating-linear-gradient(45deg, rgba(60,52,137,.16) 0 2px, transparent 2px 8px)';
+export const TRAMA_BANDA = 'repeating-linear-gradient(45deg, rgba(60,52,137,.11) 0 1.5px, transparent 1.5px 8px)';
 
 const DENSIDAD = { solido: 'solido', tramado: 'tramado', hueco: 'hueco' };
 
@@ -123,8 +130,18 @@ function rellenoDe(block, person, severidad, escala) {
         return 'transparent';
     }
 
-    // 8 dígitos: el color de la persona con alfa. En el Día la barra lleva texto encima.
-    const color = escala === 'dia' ? `${person.color}26` : person.color;
+    /*
+     * ⚠️ EL ALFA DEL DÍA ESTABA AL 15 %, Y A ESE ALFA NINGÚN COLOR IDENTIFICA A NADIE.
+     *
+     * Medido sobre la imagen renderizada (tests/Visual/pixeles.mjs): con 0x26, las barras del Día
+     * daban #DDE5ED, #DCEAEE, #F4E0F0… — todo lavado, con ΔE00 de 2,5 · 3,7 · 6,6 entre personas
+     * distintas. Diez pares indistinguibles. La ley 2 se cumplía en la Semana y no en el Día, y
+     * una ley que se cumple según la vista no es una ley.
+     *
+     * 0x6E (43 %) es lo que hace falta para que el relleno identifique Y el nombre siga
+     * leyéndose dentro de la barra. No es un número elegido: es el que pasa el instrumento.
+     */
+    const color = escala === 'dia' ? `${person.color}6E` : person.color;
 
     if (densidad === DENSIDAD.tramado) {
         // La trama va ENCIMA del color de la persona, no en vez de él: el bloque sigue
@@ -152,12 +169,54 @@ function rellenoDe(block, person, severidad, escala) {
 function bordeDe(block, person, severidad) {
     const estilo = block.kind === 'concept' ? 'dashed' : 'solid';
 
-    // Sin gravedad, el borde es del color de la persona: la barra se lee como un bloque macizo
-    // y el canal del borde queda LIBRE para cuando de verdad haya algo que decir.
-    const color = severityColor(severidad) ?? person.color;
+    /*
+     * ⚠️ EL BORDE ES UN RELLENO, NO UN TEXTO. Y LO ESTABA PINTANDO CON LA TINTA.
+     *
+     * Aquí ponía severityColor(), que devuelve la TINTA de la gravedad —#7D5606 para el aviso,
+     * #A8410A para el incumplimiento—: colores oscuros y apagados, calculados para LEERSE como
+     * letra sobre el fondo de la celda, con 4,5 de contraste.
+     *
+     * Pero un borde no se lee: se VE. Y con la tinta, el borde ámbar del aviso de Marco salía
+     * marrón sucio, indistinguible de un borde de incumplimiento, y ni siquiera parecía ámbar.
+     * La ley 3 dice "ámbar = aviso" y la barra no decía ámbar.
+     *
+     * Es MI PROPIA REGLA aplicada al revés ("el color que rellena y el color que escribe no
+     * pueden ser el mismo"): tengo las dos versiones desde hace dos tandas, y usé la que no era.
+     *
+     * severityFill() → #C2870A / #E8590C / #C81E1E. Vibrantes, que es lo que hace falta para que
+     * un borde de 2 px se vea de un vistazo.
+     */
+    const color = severityFill(severidad) ?? person.color;
     const grosor = severidad ? '2px' : '1.5px';
 
     return `${grosor} ${estilo} ${color}`;
+}
+
+/**
+ * LA TINTA QUE SE LEE SOBRE UN COLOR DE PERSONA. Blanca o negra, la que contraste.
+ *
+ * La paleta ya no es toda de tonos medios: ahora va de un azul marino (L* 32) a un malva claro
+ * (L* 74), porque la diferencia de LUMINOSIDAD es la única señal que sobrevive a una barra de
+ * 10 px. Pero eso rompe la inicial blanca del avatar: blanco sobre #CEAAC6 da 2,1 de contraste,
+ * que no se lee.
+ *
+ * Así que la inicial la decide el color, no una constante.
+ */
+export function tintaSobre(hex) {
+    const n = parseInt(hex.slice(1), 16);
+
+    const canal = (v) => {
+        const c = v / 255;
+
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+
+    const L = 0.2126 * canal((n >> 16) & 255)
+        + 0.7152 * canal((n >> 8) & 255)
+        + 0.0722 * canal(n & 255);
+
+    // El umbral que iguala los dos contrastes: por encima gana la tinta, por debajo el blanco.
+    return L > 0.184 ? '#2C2643' : '#FFFFFF';
 }
 
 /**

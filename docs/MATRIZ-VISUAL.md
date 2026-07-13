@@ -128,11 +128,30 @@ que hay; **jamás se recorta un bloque**. Un turno de media hora es 3 px, pero e
 El relleno de una barra es **el color de la persona**. Nunca el estado. Tapa los nombres de una
 celda y todavía tienes que poder reconstruir quién hace qué.
 
+> ⚠️ **Y ESO SE MIDE EN EL PÍXEL, NO EN EL CSS.** La paleta tenía quince colores *distintos* —en
+> el CSS— y quince índigos con la misma luminosidad son **un solo color para el ojo**: quince
+> pares por debajo del umbral perceptible, con Bea y Tomás compartiendo el RGB exacto. `matriz.mjs`
+> daba 44 firmas y 0 gemelos mientras la fila de Barra eran tres barras iguales.
+>
+> «Firma distinta» no es lo mismo que «se distingue». Lo comprueba `tests/Visual/pixeles.mjs`,
+> midiendo el ΔE00 sobre la imagen renderizada. Ver `COTEJO-VISUAL.md`.
+>
+> **El portador cambia con la vista, y la ley no.** En la Semana la barra está vacía: si tapas el
+> nombre solo queda el relleno, y tiene que identificar. En el Día la barra lleva el nombre
+> ESCRITO dentro, así que su relleno es un tinte (a plena tinta el texto no se leería, ley 6) y
+> quien identifica es el **avatar sólido que va dentro de la barra**. La identidad está siempre
+> dentro de lo que se ve, y siempre a plena voz.
+
 ### Ley 3 — EL BORDE DICE LA GRAVEDAD
 
 Rojo = imposible · naranja = incumplimiento · ámbar = aviso · sin borde = limpio.
 **Nunca identidad.** Así la gravedad no borra a la persona, y la persona no disfraza la
 gravedad.
+
+> ⚠️ **CON EL COLOR QUE RELLENA, NO CON EL QUE ESCRIBE.** Cada gravedad tiene dos versiones: el
+> relleno (vibrante, para verse de un vistazo) y la tinta (oscura, para leerse con 4,5 de
+> contraste). El borde usaba la TINTA, y el ámbar del aviso salía marrón sucio: la ley se cumplía
+> en el código y no en la pantalla. **Un borde no se lee: se ve.**
 
 ### Ley 4 — LA TRAMA DICE «ESTO NO CUBRE EL PUESTO»
 
