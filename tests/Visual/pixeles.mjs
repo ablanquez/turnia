@@ -33,7 +33,7 @@
  *   node tests/Visual/pixeles.mjs
  */
 import { chromium } from 'playwright';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 
 const BASE = 'http://turnia.test';
 
@@ -135,6 +135,69 @@ const deltaE00 = (c1, c2) => {
 
 const hex = ([r, g, b]) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
 
+/**
+ * LOS COLORES QUE ESTA APP SE RESERVA PARA EL ESTADO. NINGUNA PERSONA PUEDE SONAR A UNO DE ELLOS.
+ *
+ * ⚠️ Y ESTE BLOQUE ENTERO ES LA COMPROBACIÓN QUE NO EXISTÍA — LA QUE HABRÍA CAZADO EL MARRÓN.
+ *
+ * El usuario abrió la página y vio la barra de Marco (ciruela apagado) con un anillo ámbar, y la
+ * leyó como un INCUMPLIMIENTO. Y tenía razón: la barra medía 10 px y el borde de gravedad se
+ * comía 4, así que lo que salía era una MEZCLA — #855F3E, marrón, a ΔE 10 de la tinta de aviso.
+ *
+ * Ningún instrumento lo veía, porque todos preguntaban lo mismo: "¿se distingue esta persona de
+ * las demás?". Nadie preguntaba: "¿se parece esta persona a un ESTADO?". Y esa pregunta es peor,
+ * porque un color de persona que suena a rojo no confunde a dos personas: dispara una alarma que
+ * nadie ha declarado. Un aviso falso, pintado.
+ *
+ * Así que van dos medidas, y las dos SOBRE LA IMAGEN:
+ *
+ *   1. EL RELLENO SOLO   → ΔE(relleno, estado) ≥ 20. El color de una persona, por sí mismo,
+ *      nunca puede sonar a un estado.
+ *
+ *   2. LA BARRA ENTERA CON SU ANILLO → la barra tiene que seguir pareciéndose MÁS a su persona
+ *      que a cualquier estado. Es la medida que el ojo hace de verdad: nadie ve el relleno
+ *      aislado, se ve la barra con lo que lleva pegado.
+ */
+const SEMANTICOS = {
+    'rojo · imposible': { rgb: [200, 30, 30], familia: 'impossible' },
+    'tinta de imposible': { rgb: [176, 20, 20], familia: 'impossible' },
+    'rojo · hueco de cobertura': { rgb: [220, 38, 38], familia: 'impossible' },
+    'naranja · incumplimiento': { rgb: [232, 89, 12], familia: 'breach' },
+    'tinta de incumplimiento': { rgb: [168, 65, 10], familia: 'breach' },
+    'ámbar · aviso': { rgb: [194, 135, 10], familia: 'notice' },
+    'tinta de aviso': { rgb: [125, 86, 6], familia: 'notice' },
+    'verde · cobertura correcta': { rgb: [21, 128, 61], familia: 'ok' },
+};
+
+/** El estado al que más suena un color, y a qué distancia. */
+const sueneA = (pixel, excluir = null) => Object.entries(SEMANTICOS)
+    .filter(([, s]) => s.familia !== excluir)
+    .map(([nombre, s]) => ({ nombre, familia: s.familia, d: deltaE00(pixel, s.rgb) }))
+    .sort((a, b) => a.d - b.d)[0];
+
+/**
+ * ⚠️ LA PREGUNTA TIENE QUE SER LA FINA, O SUSPENDE AL QUE ACIERTA.
+ *
+ * "¿Esta barra se parece a un estado?" es la pregunta equivocada para una barra IMPOSIBLE: se
+ * parece a un rojo, y TIENE QUE PARECERSE — es un imposible, y el usuario pide justo que se lea
+ * como tal. Un instrumento que la suspendiera por eso estaría exigiendo que la alarma no suene.
+ *
+ * La pregunta buena es la que el usuario hizo de verdad: la barra de Marco, que tiene un AVISO,
+ * ¿puede confundirse con un INCUMPLIMIENTO? O sea:
+ *
+ *     UNA BARRA NUNCA PUEDE PARECERSE A UNA GRAVEDAD QUE NO ES LA SUYA
+ *     MÁS QUE A LA PERSONA DE QUIEN ES.
+ *
+ * Con el borde dentro, la barra de Marco se veía #855F3E: ΔE 10 de la tinta de AVISO —su propia
+ * gravedad, eso valdría— pero también ΔE 11 de la tinta de IMPOSIBLE y ΔE 28 de Marco. Se parecía
+ * a un imposible casi tres veces más que a sí mismo. Eso es lo que hay que cazar.
+ */
+const FAMILIA_DE_ANILLO = {
+    'rgb(200, 30, 30)': 'impossible',
+    'rgb(232, 89, 12)': 'breach',
+    'rgb(194, 135, 10)': 'notice',
+};
+
 /* ── El instrumento ────────────────────────────────────────────────────────── */
 
 /*
@@ -227,20 +290,21 @@ const localizar = () => {
         if (!visible(r)) continue;
 
         /*
-         * ⚠️ LAS BARRAS TRAMADAS NO ENTRAN EN LA COMPARACIÓN DE IDENTIDAD.
+         * ⚠️ LAS BARRAS TRAMADAS SE MARCAN, NO SE TIRAN. Y TIRARLAS ERA LA MENTIRA NÚMERO TRECE.
          *
-         * Una barra tramada (un imposible, un concepto) lleva el color de la persona CON UNA
-         * TRAMA OSCURA ENCIMA: el rosa de Iker (#E662AE) sale como #AE508D. Meterlas en la misma
-         * mediana que sus barras lisas produce un color que no es ninguno de los dos, y el
-         * instrumento acaba comparando fantasmas.
+         * Una barra tramada (un imposible, un concepto) lleva el color de la persona CON UNA TRAMA
+         * OSCURA ENCIMA, así que no puede entrar en la misma MEDIANA que las lisas: el resultado no
+         * sería ninguno de los dos colores y el instrumento acabaría comparando fantasmas. Eso es
+         * cierto, y por eso se excluyen DE LA COMPARACIÓN DE IDENTIDAD.
          *
-         * No es que la identidad se pierda en una barra tramada —el tono sigue siendo el suyo, y
-         * todas las tramadas se oscurecen igual—: es que no se pueden mezclar dos poblaciones en
-         * una sola mediana. Se comparan las LISAS, que es donde el relleno va a plena voz.
+         * Pero aquí ponía `continue`, y eso las borraba del fichero entero. Resultado: la barra
+         * IMPOSIBLE —que es tramada, y es la que lleva el anillo MÁS GORDO (3 px), o sea la que
+         * más puede contaminarse— NO SE MEDÍA EN NINGUNA COMPROBACIÓN. El instrumento daba verde
+         * sobre el caso que más lo necesitaba, y ni siquiera decía que se lo había saltado.
+         *
+         * Un descarte silencioso es un aprobado por omisión. Ahora se marca y se sigue midiendo.
          */
-        if (css(barra, 'backgroundImage') !== 'none') {
-            continue;
-        }
+        const tramada = css(barra, 'backgroundImage') !== 'none';
 
         // Por DENTRO del borde: se mide el relleno, no el filo de gravedad.
         const borde = parseFloat(css(barra, 'borderTopWidth')) || 0;
@@ -251,13 +315,31 @@ const localizar = () => {
             continue;
         }
 
+        // El ANILLO de gravedad va POR FUERA. La "barra que se ve" es el relleno MÁS su anillo, y
+        // es esa caja entera la que hay que integrar para saber a qué suena de un vistazo.
+        const anillo = css(barra, 'outlineStyle') === 'none' ? 0 : (parseFloat(css(barra, 'outlineWidth')) || 0);
+
         piezas.push({
             tipo: 'barra',
+            tramada,
             // En la Semana la persona la da el carril; en el Día, la propia barra.
             persona: carril?.dataset.persona ?? barra.dataset.persona ?? '?',
             celda: celda?.dataset.celda ?? '?',
             declarado: css(barra, 'backgroundColor'),
-            bordeDeclarado: css(barra, 'borderTopColor'),
+            anillo,
+            anilloDeclarado: anillo ? css(barra, 'outlineColor') : null,
+            caja: {
+                left: r.left - anillo, top: r.top - anillo,
+                right: r.right + anillo, bottom: r.bottom + anillo,
+            },
+            // Lo que hay DENTRO de la barra no es la barra: el nombre, la hora, la muesca y el
+            // filo se descuentan de la integración. Promediar letras no dice a qué suena la
+            // barra — dice a qué suena la tipografía, que es la misma para todo el mundo.
+            hijos: [...barra.children].map((c) => {
+                const h = c.getBoundingClientRect();
+
+                return { left: h.left, top: h.top, right: h.right, bottom: h.bottom };
+            }),
             x: punto.x,
             y: punto.y,
             alto: r.height,
@@ -340,7 +422,49 @@ const muestrear = async (png, piezas) => page.evaluate(async ({ dataUrl, piezas 
             return v[Math.floor(v.length / 2)];
         });
 
-        return { ...p, pixel: mediana };
+        /*
+         * LA BARRA ENTERA, CON SU ANILLO PEGADO. Es lo que el ojo integra de un vistazo, y es lo
+         * único que responde a "¿esta barra suena a un estado?".
+         *
+         * Se promedia toda la caja (relleno + anillo) descontando lo que la barra lleve DENTRO.
+         */
+        let integrada = null;
+
+        if (p.caja && p.anillo > 0) {
+            const x0 = Math.round(p.caja.left * escala);
+            const y0 = Math.round(p.caja.top * escala);
+            const w = Math.round((p.caja.right - p.caja.left) * escala);
+            const h = Math.round((p.caja.bottom - p.caja.top) * escala);
+
+            if (w > 0 && h > 0 && x0 >= 0 && y0 >= 0 && x0 + w <= c.width && y0 + h <= c.height) {
+                const d = ctx.getImageData(x0, y0, w, h).data;
+                const suma = [0, 0, 0];
+                let n = 0;
+
+                for (let py = 0; py < h; py++) {
+                    for (let px = 0; px < w; px++) {
+                        const cx = (x0 + px) / escala;
+                        const cy = (y0 + py) / escala;
+
+                        if (p.hijos.some((k) => cx >= k.left - 1 && cx <= k.right + 1 && cy >= k.top - 1 && cy <= k.bottom + 1)) {
+                            continue;
+                        }
+
+                        const o = (py * w + px) * 4;
+                        suma[0] += d[o];
+                        suma[1] += d[o + 1];
+                        suma[2] += d[o + 2];
+                        n++;
+                    }
+                }
+
+                if (n > 0) {
+                    integrada = suma.map((s) => Math.round(s / n));
+                }
+            }
+        }
+
+        return { ...p, pixel: mediana, integrada };
     });
 }, { dataUrl: `data:image/png;base64,${png.toString('base64')}`, piezas });
 
@@ -363,19 +487,43 @@ const muestrear = async (png, piezas) => page.evaluate(async ({ dataUrl, piezas 
  * Decir "en el Día también vale el relleno" sería mentir; decir "en el Día no se identifica"
  * también, porque se identifica — con el disco, que está dentro de la barra y es sólido.
  */
+/**
+ * ⚠️ Y UNA CUARTA VISTA QUE NO ES UNA VISTA: EL CUADRANTE DE LA MATRIZ.
+ *
+ * En la demo hay TRES barras con anillo (Marco con un aviso, Sara con un incumplimiento, Tomás
+ * con un imposible) sobre doce colores de paleta. O sea: la comprobación de la ley 0 se estaba
+ * haciendo sobre las parejas (color, gravedad) que la demo enseña POR CASUALIDAD — nueve de cada
+ * doce colores no se probaban con ningún anillo.
+ *
+ * Y se notó: al reintroducir la paleta de croma bajo (la del ciruela que se volvía marrón), el
+ * instrumento la dejó PASAR. No porque el color fuera bueno, sino porque al ciruela le tocó una
+ * persona sin gravedad. Cobertura por suerte no es cobertura.
+ *
+ * El cuadrante de MatrizSeeder tiene 96 casos con todas las gravedades y todos los colores. Ahí
+ * las combinaciones se pintan DE VERDAD, y ahí se mide. No entra en la comparación de identidad
+ * —96 personas para 12 colores, los colores se repiten a propósito— y por eso lleva bandera.
+ */
+const matriz = JSON.parse(readFileSync(new URL('./matriz.json', import.meta.url), 'utf8'));
+
 const vistas = [
     { clave: 'semana', nombre: 'SEMANA (con gente)', portador: 'barra', url: `/companies/1/calendars/1/schedule?week=${lunesDe(0)}` },
     { clave: 'dia', nombre: 'DÍA (lunes)', portador: 'avatar', url: `/companies/1/calendars/1/schedule/day?day=${lunesDe(0)}` },
     { clave: 'vacia', nombre: 'SEMANA VACÍA (sin un solo turno)', portador: 'barra', url: `/companies/1/calendars/1/schedule?week=${lunesDe(2)}` },
+    { clave: 'matriz', nombre: 'CUADRANTE DE LA MATRIZ (96 casos)', portador: 'barra', soloLey0: true, url: matriz.bloques.url },
 ];
 
 const resultado = {};
 const fallosPrevios = [];
 
 for (const vista of vistas) {
+    // El cuadrante de la matriz tiene 96 casos: sin un viewport muy alto, la mayoría cae fuera de
+    // la imagen y no se puede medir. El ANCHO sigue siendo 1366 — es lo único que cambia el
+    // diseño; el alto solo decide cuánto se ve de una vez.
+    await page.setViewportSize({ width: ANCHO, height: vista.soloLey0 ? 9000 : 2400 });
+
     await page.goto(`${BASE}${vista.url}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('[data-t=indicador]', { timeout: 60000 });
-    await page.waitForTimeout(700);
+    await page.waitForSelector('[data-t=indicador]', { timeout: 90000 });
+    await page.waitForTimeout(vista.soloLey0 ? 1500 : 700);
 
     const piezas = await page.evaluate(localizar);
 
@@ -417,6 +565,10 @@ for (const vista of vistas) {
 
         if (n.length > 3 && n[3] < 0.99) {
             continue;   // translúcido: el píxel es una mezcla, y no tiene por qué coincidir
+        }
+
+        if (m.tramada) {
+            continue;   // la trama va ENCIMA del color declarado: el píxel es otro a propósito
         }
 
         const d = deltaE00(m.pixel, [n[0], n[1], n[2]]);
@@ -487,10 +639,19 @@ const paresDe = (gente) => {
 };
 
 for (const [clave, { vista, piezas }] of Object.entries(resultado)) {
-    const barras = dePersona(piezas.filter((p) => p.tipo === 'barra'));
+    // Las TRAMADAS no entran en la mediana de identidad: llevan la trama encima del color, y
+    // mezclar dos poblaciones en una sola mediana da un color que no es de ninguna de las dos.
+    // Se excluyen de ESTA comparación — y de ninguna otra: siguen midiéndose en la ley 0.
+    const barras = dePersona(piezas.filter((p) => p.tipo === 'barra' && !p.tramada));
     const avatares = dePersona(piezas.filter((p) => p.tipo === 'avatar'));
 
     porVista[clave] = { vista, barras, avatares };
+
+    // El cuadrante de la matriz NO se compara por identidad: tiene 96 personas para 12 colores, y
+    // los colores se repiten A PROPÓSITO. Está aquí solo para que la ley 0 se pruebe de verdad.
+    if (vista.soloLey0) {
+        continue;
+    }
 
     di();
     di(`▓ ${vista.nombre}   —   aquí la identidad la lleva: ${vista.portador.toUpperCase()}`);
@@ -547,6 +708,155 @@ for (const [clave, { vista, piezas }] of Object.entries(resultado)) {
     }
 }
 
+/* ── ¿ALGÚN COLOR DE PERSONA SUENA A UN ESTADO? ── */
+
+di();
+di('▓ LEY 0 — NINGÚN COLOR DE PERSONA PUEDE CONFUNDIRSE CON UNA GRAVEDAD');
+di('─'.repeat(122));
+
+const SUENA = 20;   // por debajo, un color de persona SOLO ya suena a un estado
+
+/*
+ * ⚠️ SE AGRUPA POR COLOR, NO POR PERSONA. Y ESE CAMBIO ES LO QUE CAZA LA PALETA MALA.
+ *
+ * Agrupando por persona, la comprobación cubría lo que la demo enseña POR CASUALIDAD: tres barras
+ * con anillo (Marco un aviso, Sara un incumplimiento, Tomás un imposible) sobre doce colores. Al
+ * reintroducir a propósito la paleta de croma bajo —la del ciruela que se volvía marrón—, el
+ * instrumento la dejó PASAR: al ciruela le había tocado una persona sin gravedad.
+ *
+ * Cobertura por suerte no es cobertura. Lo que se prueba es la PAREJA (color, gravedad), y se
+ * dice EN VOZ ALTA cuáles no han salido. Un hueco declarado no aprueba; un hueco callado, sí.
+ */
+const declaradoDe = (p) => (p.declarado.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+
+/**
+ * ⚠️ UN BLOQUE HUECO NO TIENE RELLENO, Y LEERLO COMO SI LO TUVIERA ES LA MENTIRA NÚMERO CATORCE.
+ *
+ * Un concepto que ni cubre ni cuenta se pinta HUECO —`background: transparent`—, y el navegador
+ * devuelve `rgba(0, 0, 0, 0)`. Yo le arrancaba los tres primeros números y me quedaba con
+ * NEGRO: un color que no está en la paleta, que no es de nadie, y contra el que cualquier
+ * comparación es basura. El instrumento denunciaba un margen de −33 sobre una barra que no tiene
+ * relleno que contaminar.
+ *
+ * Un hueco identifica por su BORDE discontinuo, que va en el color de la persona y que el anillo
+ * —al ir por fuera— no toca. Así que la ley 2 se cumple ahí por otro canal, y estas barras no
+ * entran en una comprobación que habla del relleno. Se descuentan, y se dice cuántas.
+ */
+const conRelleno = (p) => {
+    const n = (p.declarado?.match(/[\d.]+/g) ?? []).map(Number);
+
+    return n.length >= 3 && !(n.length > 3 && n[3] === 0);
+};
+
+const todasLasBarras = Object.values(resultado)
+    .flatMap(({ piezas }) => piezas.filter((p) => p.tipo === 'barra'));
+
+const huecas = todasLasBarras.filter((p) => !conRelleno(p)).length;
+
+/* 1. EL RELLENO SOLO. Un color de persona, por sí mismo, jamás puede sonar a un estado. */
+
+di();
+di('  1. EL RELLENO SOLO — cada COLOR de la paleta que sale en pantalla, contra los ocho semánticos');
+di();
+di(`     ${pad('COLOR', 10)} ${pad('PÍXEL MEDIDO', 13)} ${pad('QUIÉN LO LLEVA', 16)} ${pad('ESTADO MÁS CERCANO', 28)} ΔE00`);
+di('     ' + '─'.repeat(85));
+
+const porColor = new Map();
+
+for (const p of todasLasBarras.filter((x) => !x.tramada && x.pixel && conRelleno(x))) {
+    const k = hex(declaradoDe(p));
+    if (!porColor.has(k)) porColor.set(k, p);
+}
+
+for (const [color, p] of [...porColor.entries()].sort()) {
+    const s = sueneA(p.pixel);
+
+    di(`     ${pad(color, 10)} ${pad(hex(p.pixel), 13)} ${pad(p.persona, 16)} ${pad(s.nombre, 28)} ${s.d < SUENA ? '❌' : '✅'} ${s.d.toFixed(1)}`);
+
+    if (s.d < SUENA) {
+        fallos.push(`LEY 0 · el relleno ${color} (lo lleva «${p.persona}») SUENA A «${s.nombre}» — ΔE00 ${s.d.toFixed(1)}. Un color de persona no puede parecerse a una gravedad.`);
+    }
+}
+
+/*
+ * 2. LA BARRA ENTERA CON SU ANILLO. La medida que faltaba, y la que el usuario hizo con los ojos.
+ *
+ * ⚠️ Y LA PREGUNTA ES "¿SE PARECE A OTRA GRAVEDAD?", NO "¿SE PARECE A UNA GRAVEDAD?".
+ *
+ * Una barra imposible SE TIENE QUE PARECER a un rojo: es un imposible, y el usuario pide justo
+ * que se lea como tal. Lo que no puede es parecerse a una gravedad AJENA más que a la persona de
+ * quien es — que es exactamente lo que pasaba: la barra de Marco, con un AVISO, se veía #855F3E,
+ * a ΔE 11 de la tinta de IMPOSIBLE y a ΔE 28 del propio Marco.
+ */
+di();
+di('  2. LA BARRA ENTERA, CON SU ANILLO DE GRAVEDAD PEGADO (que es lo que el ojo integra de verdad)');
+di();
+di(`     ${pad('COLOR', 10)} ${pad('GRAVEDAD', 11)} ${pad('BARRA VISTA', 12)} ${pad('OTRA GRAVEDAD MÁS CERCANA', 27)} ${pad('ΔE', 6)} ${pad('A SU COLOR', 11)} MARGEN*`);
+di('     ' + '─'.repeat(105));
+
+const porPareja = new Map();
+
+for (const p of todasLasBarras.filter((x) => x.integrada && x.anillo > 0 && conRelleno(x))) {
+    const k = `${hex(declaradoDe(p))}|${FAMILIA_DE_ANILLO[p.anilloDeclarado] ?? '?'}`;
+    if (!porPareja.has(k)) porPareja.set(k, p);
+}
+
+let peorMargen = Infinity;
+
+for (const [k, p] of [...porPareja.entries()].sort()) {
+    const [color, mia] = k.split('|');
+    const suyo = declaradoDe(p);
+
+    const otra = sueneA(p.integrada, mia);
+    const aSuColor = deltaE00(p.integrada, suyo);
+    const margen = otra.d - aSuColor;
+
+    peorMargen = Math.min(peorMargen, margen);
+
+    di(
+        `     ${pad(color, 10)} ${pad(mia, 11)} ${pad(hex(p.integrada), 12)} ${pad(otra.nombre, 27)} `
+        + `${pad(otra.d.toFixed(1), 6)} ${pad(aSuColor.toFixed(1), 11)} ${margen >= 0 ? '✅ +' : '❌ '}${margen.toFixed(1)}`,
+    );
+
+    if (margen < 0) {
+        fallos.push(
+            `LEY 0 · una barra ${color} con anillo de «${mia}» (la de «${p.persona}») se ve ${hex(p.integrada)}, y eso se `
+            + `parece MÁS a «${otra.nombre}» (ΔE ${otra.d.toFixed(1)}) que a su propio color (ΔE ${aSuColor.toFixed(1)}). `
+            + 'La barra está diciendo una gravedad que no es la suya.',
+        );
+    }
+}
+
+/* ⚠️ NADA SE DA POR BUENO POR AUSENCIA. Los huecos se dicen: un hueco callado es un aprobado. */
+const colores = [...porColor.keys()];
+const faltan = [];
+
+for (const c of colores) {
+    for (const g of ['impossible', 'breach', 'notice']) {
+        if (!porPareja.has(`${c}|${g}`)) faltan.push(`${c}+${g}`);
+    }
+}
+
+di();
+di(`     ${porPareja.size} parejas (color, gravedad) medidas de ${colores.length * 3} posibles · margen peor: ${peorMargen === Infinity ? '—' : peorMargen.toFixed(1)}`);
+di(`     ${huecas} barras HUECAS descontadas: un concepto que ni cubre ni cuenta no tiene relleno, y su identidad`);
+di('        va en el borde discontinuo —color de la persona— que el anillo, al ir por fuera, no toca.');
+
+if (faltan.length) {
+    di(`     ⚠️  NO PROBADAS (${faltan.length}): ${faltan.join(' · ')}`);
+    di('        No están mal: es que no han salido en pantalla. Se dicen para no aprobarlas por omisión.');
+}
+
+for (const familia of ['impossible', 'breach', 'notice']) {
+    if (![...porPareja.keys()].some((k) => k.endsWith(`|${familia}`))) {
+        fallos.push(`LEY 0: no ha salido NI UNA barra con anillo de «${familia}». Esa gravedad no se ha probado, y callarlo sería aprobar por omisión.`);
+    }
+}
+
+di();
+di('  * margen = ΔE(barra vista, gravedad AJENA más cercana) − ΔE(barra vista, su propio color).');
+di('    Negativo = la barra se parece más a una gravedad que NO tiene que al color de quien es.');
+
 /* ── ¿Se cumple la ley 2 IGUAL en las dos vistas? ── */
 
 di();
@@ -554,6 +864,14 @@ di('▓ LA MISMA LEY EN LAS DOS VISTAS');
 di('─'.repeat(122));
 
 for (const { vista, barras, avatares } of Object.values(porVista)) {
+    // ⚠️ El cuadrante de la matriz NO va aquí: 96 personas para 12 colores, y los colores se
+    // repiten A PROPÓSITO. Se coló, cantó "ΔE 0,0 · la ley 2 NO se cumple" y el resumen de abajo
+    // seguía diciendo ✅ — el instrumento contradiciéndose a sí mismo en la misma pantalla. Un
+    // informe que se desmiente solo no se lee: se ignora, y entonces ya no sirve para nada.
+    if (vista.soloLey0) {
+        continue;
+    }
+
     const gente = vista.portador === 'avatar' ? avatares : barras;
 
     if (gente.length < 2) {

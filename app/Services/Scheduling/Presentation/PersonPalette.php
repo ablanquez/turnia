@@ -51,25 +51,52 @@ final class PersonPalette
      *
      * SIGUE SIENDO UNA PALETA FRÍA, y por la misma razón de siempre: rojo, naranja, ámbar y
      * verde están reservados para el ESTADO. Si una persona pudiera salir en rojo, el rojo
-     * dejaría de significar "imposible" y el encargado dejaría de mirarlo. El generador lo
-     * impone: ningún color a menos de ΔE 28 de los cinco colores de estado.
+     * dejaría de significar "imposible" y el encargado dejaría de mirarlo.
      *
-     * Y son DOCE y no quince a propósito: por debajo de ese matiz el ΔE mínimo cae en picado.
-     * Doce colores que se distinguen valen más que quince que no.
+     * ⚠️ Y EL CRITERIO DE "NO PARECERSE A UN ESTADO" ERA EL EQUIVOCADO. ESTA ES LA TERCERA VERSIÓN.
+     *
+     * La segunda paleta (#14748A, #5C4460, #927496…) cumplía "ningún color a menos de ΔE 28 de un
+     * color de estado" — los doce, con holgura, el peor a 29,6. Y la barra de Marco se veía
+     * MARRÓN igual, y el usuario la leyó como un incumplimiento.
+     *
+     * ¿Por qué? Porque ese ΔE compara DOS PARCHES AISLADOS, y en una parrilla nada está aislado.
+     * Una barra lleva PEGADA su marca de gravedad, y el ojo integra las dos. Medido:
+     *
+     *     #5C4460 (ciruela apagado) + ámbar  →  #855F3E   marrón, a ΔE 10 de la tinta de aviso
+     *     #14748A (teal)            + ámbar  →  #5A7C57   VERDE, a ΔE 10 del verde de COBERTURA
+     *
+     * Un aviso pintado del color de "todo bien". Y la causa de fondo es el CROMA: por debajo de
+     * C≈30 un color no tiene identidad propia y adopta la del vecino. Los dos culpables tenían
+     * C 22 y C 20.
+     *
+     * Así que el generador (tests/Visual/paleta.mjs) mide ahora LO QUE SE VE —la barra CON su
+     * anillo— y exige que siga pareciéndose más a SU PERSONA que a cualquier estado (margen ≥ 8).
+     * Eso obliga a C ≥ 30, y de paso deja fuera toda la zona de barro.
+     *
+     *   · ΔE00 mínimo entre personas: 15,5    (segunda paleta: 16,5 · primera: 4,0)
+     *   · Croma mínimo:               30      (antes: 20)
+     *   · Margen contra los estados:  8,1     (antes: NEGATIVO — la barra mentía)
+     *
+     * Se pierden 1,0 de ΔE entre personas y se gana que ninguna barra finja una gravedad que no
+     * tiene. Es el cambio correcto: dos personas que cuesta distinguir se resuelven leyendo el
+     * nombre; una barra que dice "incumplimiento" sin incumplir no se resuelve con nada.
+     *
+     * Y son DOCE: por encima, el ΔE mínimo cae en picado. Doce que se distinguen valen más que
+     * quince que no.
      */
     private const COLORS = [
-        '#14748A', // teal oscuro
-        '#E662AE', // rosa
-        '#5C4460', // ciruela oscuro
-        '#9EB0F0', // azul claro
-        '#14C2E4', // cian
-        '#6E68C6', // índigo
-        '#1492DE', // azul
-        '#CEAAC6', // malva claro
-        '#AA328A', // magenta oscuro
-        '#1A5084', // azul marino
-        '#927496', // gris violeta
-        '#BC86EA', // lavanda
+        '#5C68CC', // añil
+        '#14C8D2', // turquesa
+        '#E69EC0', // rosa palo
+        '#981472', // magenta oscuro
+        '#98B6F0', // azul claro
+        '#1486A2', // teal
+        '#B662C0', // orquídea
+        '#504478', // violeta oscuro
+        '#148CF0', // azul
+        '#14507E', // azul marino
+        '#1AB6F0', // cian
+        '#C29EF0', // lavanda
     ];
 
     /**

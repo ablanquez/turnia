@@ -142,16 +142,41 @@ celda y todavía tienes que poder reconstruir quién hace qué.
 > quien identifica es el **avatar sólido que va dentro de la barra**. La identidad está siempre
 > dentro de lo que se ve, y siempre a plena voz.
 
-### Ley 3 — EL BORDE DICE LA GRAVEDAD
+### Ley 3 — UN ANILLO **POR FUERA** DICE LA GRAVEDAD
 
-Rojo = imposible · naranja = incumplimiento · ámbar = aviso · sin borde = limpio.
+Rojo = imposible · naranja = incumplimiento · ámbar = aviso · sin anillo = limpio.
 **Nunca identidad.** Así la gravedad no borra a la persona, y la persona no disfraza la
 gravedad.
 
 > ⚠️ **CON EL COLOR QUE RELLENA, NO CON EL QUE ESCRIBE.** Cada gravedad tiene dos versiones: el
 > relleno (vibrante, para verse de un vistazo) y la tinta (oscura, para leerse con 4,5 de
-> contraste). El borde usaba la TINTA, y el ámbar del aviso salía marrón sucio: la ley se cumplía
-> en el código y no en la pantalla. **Un borde no se lee: se ve.**
+> contraste). Usaba la TINTA, y el ámbar del aviso salía marrón sucio: la ley se cumplía en el
+> código y no en la pantalla. **Una marca no se lee: se ve.**
+
+> ⚠️⚠️ **Y VA POR FUERA DE LA BARRA. ESO NO ES UN DETALLE DE CSS: ES LA LEY 0 EN SU FORMA LITERAL.**
+>
+> Durante dos tandas la gravedad fue un **borde**, o sea tinta **dentro** de la barra. Y una barra
+> de la Semana mide 12 px, así que un borde de 2 px arriba y 2 abajo es el **cuarenta por ciento**
+> de la barra. El ojo no ve dos canales: ve **una mezcla**. Medido sobre la imagen:
+>
+> | barra | se ve | suena a |
+> |---|---|---|
+> | ciruela `#5C4460` + borde ámbar | `#855F3E` **marrón** | tinta de aviso, ΔE 10,1 |
+> | teal `#14748A` + borde ámbar | `#5A7C57` **VERDE** | **verde de COBERTURA**, ΔE 10,2 |
+>
+> La segunda línea es la que da miedo: **una barra con un AVISO se veía del color que esta app usa
+> para decir «todo bien»**. Y la mezcla se alejaba ΔE 20–31 del color de la persona, así que el
+> borde también se estaba comiendo la ley 2 — la misma que subir de 8 a 10 px solo alivió.
+>
+> Ahora el anillo es un `outline`: no ocupa ni un píxel del relleno. **Dos preguntas, dos
+> espacios.** Y el **grosor** sube con la gravedad (aviso 1,5 · incumplimiento 2 · imposible 3):
+> eso NO viola la ley 0 —que prohíbe *un canal con dos preguntas*—, sino que aplica la ley 6 —*una
+> pregunta contestada por dos canales*.
+
+> ⚠️ **EL IMPOSIBLE SE LEE EN LA BARRA, Y ESO COSTÓ 3 px.** Con el anillo a 2 px, la celda de Tomás
+> —dos turnos que se pisan— era **azul con una textura rara**: el relleno mandaba, y el relleno es
+> azul. A 3 px y por fuera, la barra imposible es una **cápsula roja con el color de Tomás dentro**:
+> se lee la alarma **y** se lee de quién es. Antes había que elegir.
 
 ### Ley 4 — LA TRAMA DICE «ESTO NO CUBRE EL PUESTO»
 
@@ -185,6 +210,16 @@ obliga a deducir, y deducir en una parrilla es equivocarse.
 El imposible se dice **una** vez, bien. Tres carteles para un solo hecho no es insistir: es
 ruido, y el ruido entrena a no leer.
 
+> ⚠️ **Y «GRITA» TIENE QUE SIGNIFICAR «GRITA ESTE BLOQUE», NO «GRITA ALGO PARECIDO».**
+>
+> El cartel naranja **no** recoge los incumplimientos de un turno forzado (ley 14). Si la regla de
+> silencio se conformara con «la celda tiene un cartel de incumplimiento», una celda con dos
+> personas —una incumpliendo sin forzar y otra forzada— haría que el cartel de la primera
+> **callara la nota de la segunda**, y el motivo del turno forzado desaparecería de la pantalla.
+>
+> Un silencio falso construido por una regla de silencio. **El ruido se combate quitando
+> REPETICIONES, no datos.**
+
 ### Ley 10 — NADA SE TRUNCA
 
 Se degrada por escalones (`faltan 2` → `-2` → nada, con el color y el tooltip diciéndolo
@@ -207,6 +242,49 @@ exactamente donde está.
 devuelve**; no deciden un color por su cuenta. Dos sitios decidiendo el mismo color acaban
 divergiendo, y el que diverja pintará una mentira con aspecto de dato.
 
+> La tabla de motivos de los carteles estaba **duplicada** en `WeekGrid.vue` y en `DayGrid.vue`.
+> La misma constante, dos veces. Vive ahora en la matriz, como todo lo demás.
+
+### Ley 14 — EL CARTEL ES PARA LO QUE **PIDE UNA DECISIÓN**, NO PARA LO QUE OCURRE
+
+Un cartel es la señal más fuerte de la parrilla: se ve sin buscarla y lleva el motivo escrito.
+Una nota pequeña bajo la barra hay que ir a buscarla. Así que el cartel **se gana**.
+
+**VA A CARTEL** lo que exige que alguien haga algo:
+
+| | | qué hay que hacer |
+|---|---|---|
+| 🔴 **IMPOSIBLE** | rojo | quitarlo o cambiarlo |
+| 🟠 **INCUMPLIMIENTO** | naranja | decidir si se fuerza o se arregla |
+| ⬛ **SIN CANDIDATO** | gris | cualificar a alguien o cambiar el requisito |
+
+El **gris** del último no es un capricho de tono: dice que el problema **no está en el
+cuadrante, está en el catálogo**. Ninguna combinación de personas arregla un puesto que nadie
+de la plantilla sabe cubrir.
+
+**NO VA A CARTEL** lo que solo informa: una hora médica, un permiso, una hora extra (el bloque
+ya está ahí, con su forma y su etiqueta); una baja o unas vacaciones (la banda ya lo dice); un
+«también trabaja en otra empresa» (dato útil, ninguna acción).
+
+> **Y el motivo es el mismo por el que existe esta matriz: UN CUADRANTE EN LLAMAS NO IMPRESIONA,
+> ALARMA.** Si cada hora médica levantase un cartel rojo, la parrilla se llenaría de alarmas que
+> no piden nada y el encargado aprendería a no mirarlas. **Un aviso que se ignora no existe.**
+
+> ⚠️ **EL INCUMPLIMIENTO YA FORZADO NO LLEVA CARTEL.** Sale del mismo criterio: el cartel naranja
+> dice *«hay que decidir si se fuerza o se arregla»*, y ahí **ya se decidió**, con constancia. No
+> se esconde nada —la barra conserva su anillo naranja, su muesca y su nota «Forzado, con
+> constancia»—: lo que no hace es **pedir una decisión que ya está tomada**.
+>
+> El imposible, en cambio, va a cartel **siempre**, forzado o no. No hay «forzar» un imposible:
+> hay un turno que **no se puede cumplir**, y esa decisión no existe.
+
+Se **apilan**, en orden de gravedad, porque son **hechos independientes** (ley 0): una celda
+puede ser imposible **y** además no tener a nadie cualificado en el catálogo. Eran `v-if` /
+`v-else-if`, y la segunda no salía.
+
+Y el cartel dice **qué** pasa. **Quién** y **cuándo** los siguen diciendo la barra (su color, su
+anillo) y su rótulo (su hora): **el cartel no repite lo que otro canal ya lleva.**
+
 ---
 
 ## 3. El mapa de canales
@@ -217,10 +295,12 @@ divergiendo, y el que diverja pintará una mentira con aspecto de dato.
 | Sub-carril (Y) | **solapa consigo** (B6) | |
 | Filo vertical + avatar | **de quién es** (B7) | |
 | Relleno de la barra | **de quién es** (identidad) | ~~gravedad~~ ~~nocturnidad~~ |
-| Borde de la barra | **gravedad** (B3) | ~~forzado~~ |
+| **Anillo (fuera de la barra)** | **gravedad** (B3): color **y** grosor | ~~forzado~~ · y **no toca el relleno** |
+| Borde de la barra | **qué es** (turno / concepto) | ~~gravedad~~ |
 | Trama / rayas | **no cubre el puesto** (B1, B2, T2) | |
 | Muesca / marca de forma | **forzado** (B4) y **nocturno** (B5), distintas entre sí | |
 | Relleno del tramo | **estado de cobertura** (T1) | |
+| **Cartel de la celda** | **pide una decisión** (ley 14) | ~~lo que solo informa~~ |
 | Rótulos y notas | **el nombre del hecho**, en palabras (ley 6) | |
 | Cartel de celda | **lo que para el día** (C1, C2) — **se apilan** | |
 
@@ -289,12 +369,14 @@ ningún lado. **Un silencio falso con contador.**
 **Ahora:** el concepto hereda el sistema completo del turno (borde = gravedad, notas con su
 hora). La ausencia lleva su gravedad en la banda y su nota en el primer día.
 
-### 4.5 Los carteles de celda se APILAN
+### 4.5 Los carteles de celda se APILAN, y son TRES
 
 **Antes:** `v-if="imposible"` / `v-else-if="sinCandidato"`. Una celda que era las dos cosas
 enseñaba **solo** el imposible. Violación directa de la ley 0.
 
-**Ahora:** son dos hechos independientes y se pintan los dos.
+**Ahora:** son hechos independientes y se pintan todos, en orden de gravedad — y el sistema
+entero es la **ley 14**: rojo (imposible), naranja (incumplimiento **sin forzar**), gris (sin
+candidato). Lo que solo informa no lleva cartel.
 
 ### 4.6 La banda de ausencia va a TODAS las filas que esa persona puede cubrir
 
@@ -371,6 +453,53 @@ Con los cuatro instrumentos en verde, al abrir la página:
 
 **Ningún test mide «se entiende».** Por eso la página se abre. Siempre.
 
+### 4.12 Y `ALTO = 10` NO BASTABA: la lección completa
+
+El arreglo de §4.11 fue un **parche**, y la ronda siguiente lo demostró. Mientras la gravedad
+viviera **dentro** de la barra, el borde seguía siendo el 40 % de ella y el ojo seguía viendo una
+mezcla — solo que menos. La cuenta entera está en la **ley 3**, y el resultado es que hacían falta
+**dos** arreglos, y **ninguno de los dos bastaba solo**:
+
+| | gravedad como **borde** | gravedad como **anillo** |
+|---|---|---|
+| paleta de croma ≥ 20 | **−18,4** ❌ | **−2,3** ❌ |
+| paleta de croma ≥ 30 | **−14,1** ❌ | **+2,6** ✅ |
+
+*(margen = cuánto más se parece la barra vista a **su persona** que a la gravedad ajena más
+cercana. Negativo = la barra está diciendo una gravedad que no tiene.)*
+
+Y un tercer número que manda sobre los otros dos: **el alto de la barra**. El anillo pesa
+`2w / (ALTO + 2w)` de lo que el ojo integra, así que **subir la barra de 10 a 12 px le quita peso
+al anillo, y ese peso vuelve entero a la identidad**:
+
+| alto de la barra | margen exigido | ΔE00 mínimo **entre personas** |
+|---|---|---|
+| 10 px | ≥ 8 | 13,9 *(el umbral de «indistinguible» está en 12)* |
+| **12 px** | **≥ 8** | **15,5** ✅ |
+
+**La misma pelea de siempre —dos preguntas por el mismo sitio— resuelta dándoles más sitio.**
+
+### 4.13 El croma: por qué la paleta era la equivocada aunque pasara su propia prueba
+
+La segunda paleta cumplía su criterio: *«ningún color de persona a menos de ΔE 28 de un color de
+estado»*. Los doce, con holgura, el peor a **29,6**. Y la barra de Marco **se veía marrón igual**.
+
+Porque ese ΔE compara **dos parches aislados**, y en una parrilla **nada está aislado**: una barra
+lleva **pegada** su marca de gravedad, y el ojo integra las dos. El criterio medía una cosa que no
+pasa en la pantalla.
+
+Y la causa de fondo tiene nombre: el **croma**. Por debajo de C≈30 un color **no tiene identidad
+propia y adopta la del vecino**. Los dos culpables —`#5C4460` (ciruela apagado) y `#927496` (gris
+violeta)— tenían **C 22 y C 20**. Barro.
+
+El generador (`tests/Visual/paleta.mjs`) mide ahora **lo que se ve** —la barra **con** su anillo— y
+exige que siga pareciéndose más a su persona que a cualquier gravedad ajena. Eso obliga a C ≥ 30 y
+deja fuera toda la zona de barro **por construcción**, que es la única forma de que no vuelva.
+
+> **Se pierden 1,0 de ΔE entre personas y se gana que ninguna barra finja una gravedad que no
+> tiene.** Es el cambio correcto: dos personas que cuesta distinguir se resuelven **leyendo el
+> nombre**; una barra que dice «incumplimiento» sin incumplir **no se resuelve con nada**.
+
 ---
 
 ## 5. Tabla de referencia
@@ -379,19 +508,23 @@ Con los cuatro instrumentos en verde, al abrir la página:
 
 ### 5.1 Bloques
 
-| Caso | Barra | Rótulo | Nota | ¿Cuenta cobertura? |
+El **anillo** va siempre **por fuera** de la barra, y su grosor sube con la gravedad:
+aviso 1,5 px · incumplimiento 2 px · imposible 3 px.
+
+| Caso | Barra | Cartel de la celda | Nota | ¿Cuenta cobertura? |
 |---|---|---|---|---|
-| Turno limpio | sólida `P` | hora | — | **sí** |
-| Turno con aviso | sólida `P` + borde ámbar | hora | `↗ hora · …` ámbar | sí |
-| Turno que incumple | sólida `P` + borde naranja | hora | `⚠ hora · …` naranja | sí |
-| Turno imposible | tramada + borde rojo | hora | `● hora · …` rojo *(salvo ley 9)* | **no** |
-| Turno forzado limpio | sólida `P` + **muesca** | hora | `⚠ hora · Forzado, con constancia` | sí |
-| Turno forzado + incumple | sólida `P` + borde naranja + **muesca** | hora | `⚠ hora · Forzado · …` | sí |
-| Turno nocturno | sólida `P` + **filo de continuidad** | hora + `☾` | `☾ hora · cruza medianoche` | sí |
-| Turno que solapa consigo | dos barras en **sub-carriles** distintos | dos rótulos | *(ley 9)* | **no** |
-| Concepto que computa | **tramada** `P` (hueca) | hora + `◷ nombre · cuenta como trabajado · no cubre puesto` | — | **no** |
-| Concepto que no computa | **hueca** `P` (borde discontinuo) | hora + `◷ nombre · no cubre puesto` | — | **no** |
-| Concepto con violación | + borde de su gravedad | ídem | `⚠ hora · …` | no |
+| Turno limpio | sólida `P` | — | — | **sí** |
+| Turno con aviso | sólida `P` + **anillo ámbar** | — *(informa, no pide nada)* | `↗ hora · …` ámbar | sí |
+| Turno que incumple | sólida `P` + **anillo naranja** | 🟠 `INCUMPLIMIENTO · motivo` | *(ley 9: lo dice el cartel)* | sí |
+| Turno imposible | tramada + **anillo rojo 3 px** | 🔴 `IMPOSIBLE · motivo` | *(ley 9)* | **no** |
+| Turno forzado limpio | sólida `P` + **muesca** | — | `⚠ hora · Forzado, con constancia` | sí |
+| Turno forzado + incumple | sólida `P` + anillo naranja + **muesca** | **— (ley 14: ya se decidió)** | `⚠ hora · Forzado · …` | sí |
+| Turno nocturno | sólida `P` + **filo de continuidad** | — | `☾ hora · cruza medianoche` | sí |
+| Turno que solapa consigo | dos barras en **sub-carriles** distintos | 🔴 `IMPOSIBLE · solape` | *(ley 9)* | **no** |
+| Concepto que computa | **tramada** `P` | — | — | **no** |
+| Concepto que no computa | **hueca** `P` (borde discontinuo) | — | — | **no** |
+| Concepto con violación | + **anillo** de su gravedad | según la ley 14 | `⚠ hora · …` | no |
+| Puesto sin nadie cualificado | *(no hay barra)* | ⬛ `SIN CANDIDATO EN CATÁLOGO` | — | — |
 
 ### 5.2 Tramos de cobertura
 

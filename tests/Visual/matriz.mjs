@@ -40,21 +40,23 @@ const M = JSON.parse(readFileSync(new URL('./matriz.json', import.meta.url), 'ut
  * ══════════════════════════════════════════════════════════════════════════════ */
 
 /**
- * ⚠️ EL BORDE LLEVA EL RELLENO DE LA GRAVEDAD, NO SU TINTA. Y AQUÍ TENÍA LA TINTA.
+ * EL ANILLO LLEVA EL RELLENO DE LA GRAVEDAD, NO SU TINTA.
  *
  * Hay dos versiones de cada color de gravedad, y por una buena razón: el que RELLENA (vibrante,
  * para verse de un vistazo) y el que ESCRIBE (oscuro, para leerse con 4,5 de contraste). El
  * naranja de relleno #E8590C es ilegible como letra; el marrón de tinta #A8410A es invisible
- * como borde.
+ * como marca.
  *
- * Un borde no se lee: se VE. Estaba pintado con la tinta, y el aviso ámbar de Marco salía
- * marrón sucio — la ley 3 dice "ámbar = aviso" y la barra no decía ámbar. Mi propia regla,
- * aplicada al revés.
+ * Una marca no se lee: se VE. Estaba pintada con la tinta, y el aviso ámbar de Marco salía marrón
+ * sucio — la ley 3 dice "ámbar = aviso" y la barra no decía ámbar. Mi propia regla, al revés.
+ *
+ * ⚠️ Y EL GROSOR SUBE CON LA GRAVEDAD. La misma pregunta contestada dos veces (ley 6), que es lo
+ * contrario de un canal con dos preguntas (ley 0).
  */
-const RELLENO = {
-    impossible: 'rgb(200, 30, 30)',   // #C81E1E
-    breach: 'rgb(232, 89, 12)',       // #E8590C
-    notice: 'rgb(194, 135, 10)',      // #C2870A
+const ANILLO = {
+    impossible: { color: 'rgb(200, 30, 30)', px: 3 },     // #C81E1E
+    breach: { color: 'rgb(232, 89, 12)', px: 2 },         // #E8590C
+    notice: { color: 'rgb(194, 135, 10)', px: 1.5 },      // #C2870A
 };
 
 const RANGO = { impossible: 3, breach: 2, notice: 1 };
@@ -68,8 +70,8 @@ const hexRgb = (hex) => {
 };
 
 /**
- * LEY 2 (color = quién) + LEY 3 (borde = gravedad) + LEY 4 (trama = no cubre)
- * + LEY 5 (estilo del borde = qué es) + las dos marcas.
+ * LEY 2 (color = quién) + LEY 3 (ANILLO = gravedad) + LEY 4 (trama = no cubre)
+ * + LEY 5 (estilo del borde = qué es) + las dos marcas + LEY 14 (el cartel = pide una decisión).
  *
  * Esto es la matriz, escrita otra vez y sin mirar el código de producción.
  */
@@ -90,13 +92,29 @@ function reglaDe(caso) {
         // LEY 2: el relleno lleva el color de la persona. Salvo el hueco, que no lleva relleno.
         rellenoEsDeLaPersona: densidad !== 'hueco',
         tramado: densidad === 'tramado',
-        // LEY 3: el borde lleva la gravedad. Sin gravedad, el color de la persona (borde mudo).
-        bordeColor: sev ? RELLENO[sev] : 'P',
+        // LEY 3: la gravedad va en un ANILLO POR FUERA, y NO en el borde. Como borde se comía el
+        // 40 % de una barra de 12 px y salía una MEZCLA: ámbar sobre teal daba verde de cobertura.
+        anillo: sev ? ANILLO[sev] : null,
+        // El borde solo dice QUÉ ES, y lo pinta con el color de la persona.
+        bordeColor: 'P',
         // LEY 5: continuo = turno, discontinuo = concepto.
         bordeEstilo: kind === 'concept' ? 'dashed' : 'solid',
         // Canales propios. El forzado NO comparte el naranja del que incumple.
         muesca: !!forzado,
         filo: !!nocturno,
+
+        /*
+         * LEY 14: EL CARTEL ES PARA LO QUE PIDE UNA DECISIÓN, NO PARA LO QUE OCURRE.
+         *
+         *   · imposible                   → cartel rojo (siempre: no hay "forzar" un imposible)
+         *   · incumplimiento SIN forzar   → cartel naranja
+         *   · incumplimiento YA forzado   → NINGÚN cartel: la decisión ya se tomó, con constancia
+         *   · aviso                       → nunca: informa, no pide nada
+         */
+        carteles: [
+            ...(sevs.includes('impossible') ? ['IMPOSIBLE'] : []),
+            ...(sevs.includes('breach') && !forzado ? ['INCUMPLIMIENTO'] : []),
+        ],
     };
 }
 
@@ -119,13 +137,16 @@ function reglaDe(caso) {
  * Con las notas dentro, los dos casos SÍ se distinguen — y si algún día dejaran de distinguirse
  * (porque una nota se perdiera), este mismo test lo cazaría. Que es justo lo que tiene que pasar.
  */
-const firmaDeRegla = (r, notas = []) => [
+const firmaDeRegla = (r, notas = [], carteles = []) => [
     r.rellenoEsDeLaPersona ? 'P' : 'nada',
     r.tramado ? 'trama' : 'liso',
-    r.bordeColor,
+    r.anillo ? `${r.anillo.px}px ${r.anillo.color}` : 'sin anillo',
     r.bordeEstilo,
     r.muesca ? 'muesca' : '-',
     r.filo ? 'filo' : '-',
+    // Los carteles de la celda también son pintura: es donde el incumplimiento dice su motivo
+    // desde que dejó de decirlo en la nota. Sin ellos, un breach y un breach+notice colapsarían.
+    carteles.map((c) => c.split(' · ')[0]).sort().join('+') || 'sin cartel',
     // Las palabras, normalizadas: fuera la hora (que es igual en todos los casos) y ordenadas.
     notas.map((n) => n.replace(/\d{2}:\d{2}–\d{2}:\d{2}/g, '⏱').trim()).sort().join(' / ') || 'sin palabras',
 ].join(' │ ');
@@ -163,11 +184,16 @@ const medirBloques = (celdas) => {
 
         const barra = barras[0];
 
+        const sinAnillo = css(barra, 'outlineStyle') === 'none';
+
         out[clave] = {
             // El color que el navegador CALCULÓ. No el que yo declaré.
             fondo: css(barra, 'backgroundColor'),
             // La trama vive en background-image. Si no hay imagen, no hay trama.
             imagen: css(barra, 'backgroundImage'),
+            // La gravedad va en el ANILLO, por fuera. El borde solo dice turno/concepto.
+            anilloColor: sinAnillo ? null : css(barra, 'outlineColor'),
+            anilloPx: sinAnillo ? 0 : parseFloat(css(barra, 'outlineWidth')),
             bordeColor: css(barra, 'borderTopColor'),
             bordeEstilo: css(barra, 'borderTopStyle'),
             // Las dos marcas son ELEMENTOS: o están o no están. Nada que interpretar.
@@ -175,6 +201,9 @@ const medirBloques = (celdas) => {
             filo: !!barra.querySelector('[data-t=filo-noche]'),
             rotulos: [...carril.querySelectorAll('[data-t=rotulo]')].map((r) => r.innerText.replace(/\s+/g, ' ').trim()),
             notas: [...carril.querySelectorAll('[data-t=nota]')].map((n) => n.innerText.replace(/\s+/g, ' ').trim()),
+            // Los carteles de la CELDA. Desde que el incumplimiento va a cartel, su motivo vive
+            // aquí y no en la nota: si esto no se midiera, la ley 6 daría verde sobre un silencio.
+            carteles: [...cell.querySelectorAll('[data-t=cartel]')].map((c) => c.innerText.replace(/\s+/g, ' ').trim()),
             ancho: barra.getBoundingClientRect().width,
         };
     }
@@ -199,7 +228,7 @@ const medirTira = (celdas) => {
                 borde: css(t, 'borderTopColor'),
             })),
             rotulos: cell ? [...cell.querySelectorAll('[data-t=tramo-rotulo]')].map((r) => r.innerText.trim()).filter(Boolean) : [],
-            sinCandidato: !!cell?.querySelector('[data-t=sin-candidato]'),
+            sinCandidato: !!cell?.querySelector('[data-t=cartel][data-severidad=catalog]'),
         };
     }
 
@@ -240,11 +269,13 @@ const medirCeldas = (celdas) => {
 
     for (const [clave, celda] of Object.entries(celdas)) {
         const cell = document.querySelector(`[data-celda="${CSS.escape(celda)}"]`);
+        const carteles = cell ? [...cell.querySelectorAll('[data-t=cartel]')] : [];
 
         out[clave] = {
             existe: !!cell,
-            imposible: !!cell?.querySelector('[data-t=imposible]'),
-            sinCandidato: !!cell?.querySelector('[data-t=sin-candidato]'),
+            // El ORDEN importa: rojo, naranja, gris. Se lee de arriba abajo por gravedad.
+            severidades: carteles.map((c) => c.dataset.severidad),
+            textos: carteles.map((c) => c.innerText.replace(/\s+/g, ' ').trim()),
         };
     }
 
@@ -435,14 +466,31 @@ for (const caso of M.bloques.casos) {
         problemas.push(regla.tramado ? 'falta la trama (no cubre puesto)' : 'sobra la trama');
     }
 
-    const bordeEsperado = regla.bordeColor === 'P' ? colorPersona : regla.bordeColor;
+    // LEY 3: la gravedad va en el ANILLO, por fuera, y con el grosor que le toca.
+    if ((p.anilloColor ?? null) !== (regla.anillo?.color ?? null)) {
+        problemas.push(`anillo ${p.anilloColor ?? 'ninguno'}, se esperaba ${regla.anillo?.color ?? 'ninguno'}`);
+    }
 
-    if (p.bordeColor !== bordeEsperado) {
-        problemas.push(`borde ${p.bordeColor}, se esperaba ${bordeEsperado}`);
+    if (regla.anillo && Math.abs(p.anilloPx - regla.anillo.px) > 0.51) {
+        problemas.push(`anillo de ${p.anilloPx}px, se esperaban ${regla.anillo.px}px`);
+    }
+
+    // ⚠️ Y EL BORDE NO PUEDE LLEVAR LA GRAVEDAD. Ese era el bug: 2 px de gravedad DENTRO de una
+    // barra de 12 se mezclaban con el relleno y la barra acababa siendo de un color que no es de
+    // nadie. El borde lleva el color de la PERSONA, y no se discute.
+    if (p.bordeColor !== colorPersona) {
+        problemas.push(`el borde es ${p.bordeColor} y tiene que ser el color de la persona (${colorPersona}): la gravedad va FUERA`);
     }
 
     if (p.bordeEstilo !== regla.bordeEstilo) {
         problemas.push(`borde ${p.bordeEstilo}, se esperaba ${regla.bordeEstilo}`);
+    }
+
+    // LEY 14: el cartel es para lo que pide una decisión. Ni uno de más, ni uno de menos.
+    const titulos = p.carteles.map((c) => c.split(' · ')[0]).filter((t) => t !== 'SIN CANDIDATO EN CATÁLOGO').sort();
+
+    if (titulos.join('+') !== regla.carteles.slice().sort().join('+')) {
+        problemas.push(`carteles [${titulos.join(', ') || 'ninguno'}], se esperaba [${regla.carteles.join(', ') || 'ninguno'}]`);
     }
 
     if (p.muesca !== regla.muesca) {
@@ -454,16 +502,28 @@ for (const caso of M.bloques.casos) {
     }
 
     /*
-     * ── LEY 6: NINGÚN COLOR VA SOLO. Toda gravedad tiene su palabra. ──
+     * ── LEY 6: NINGÚN COLOR VA SOLO. Toda gravedad tiene su palabra, EN ALGUNA PARTE. ──
      *
-     * El único silencio permitido es el de la ley 9: el imposible que la CELDA ya grita arriba
-     * en su cartel rojo no se repite en el carril. Cualquier otra gravedad sin palabra es un
-     * color huérfano — y un color que hay que deducir no comunica nada.
+     * ⚠️ Y "EN ALGUNA PARTE" ES LA CORRECCIÓN DE ESTA TANDA.
+     *
+     * Antes la palabra vivía siempre en la NOTA del carril, y este test exigía una nota. Ahora el
+     * incumplimiento SIN FORZAR dice su motivo en el CARTEL —"INCUMPLIMIENTO · descanso corto"— y
+     * la nota se calla para no repetirlo (ley 9). Si el test siguiera mirando solo las notas,
+     * pasaría una de dos cosas, y las dos malas: o denunciaría un silencio que no existe, o —lo
+     * de verdad peligroso— daría verde el día que el cartel se cayera y la nota siguiera callada.
+     *
+     * Se mira dónde ESTÁ la palabra: notas ∪ carteles. El canal cambia; la ley no.
      */
-    const sinGritar = sevs.filter((s) => s !== 'impossible');
+    const DICE = {
+        impossible: () => p.carteles.some((c) => c.startsWith('IMPOSIBLE')),
+        breach: () => p.carteles.some((c) => c.startsWith('INCUMPLIMIENTO')),
+        notice: () => false,   // el aviso NUNCA va a cartel: informa, no pide nada
+    };
 
-    if (sinGritar.length && p.notas.length === 0) {
-        problemas.push(`tiene ${sinGritar.join('+')} y ninguna nota: el color va solo (ley 6)`);
+    for (const s of sevs) {
+        if (!DICE[s]() && p.notas.length === 0) {
+            problemas.push(`tiene ${s} y ni una palabra —ni nota ni cartel—: el color va solo (ley 6)`);
+        }
     }
 
     // ── LEY 8: toda nota lleva la hora del bloque del que habla. ──
@@ -477,7 +537,7 @@ for (const caso of M.bloques.casos) {
     // La firma se construye con lo que el NAVEGADOR pintó (las notas de verdad), no con lo que
     // la regla dice que debería haber. Si el pintado perdiera una palabra, la firma colapsaría
     // contra la de otro caso y saltaría aquí.
-    const firma = firmaDeRegla(regla, p.notas);
+    const firma = firmaDeRegla(regla, p.notas, p.carteles);
 
     if (problemas.length) {
         fallos.push(`${caso.clave} (${clave}): ${problemas.join(' · ')}`);
@@ -685,11 +745,29 @@ for (const [clave, b] of Object.entries(bandas)) {
 await abrir(M.celdas.url);
 const celdas = await page.evaluate(medirCeldas, M.celdas.celdas);
 
+/**
+ * LEY 14: EL CARTEL ES PARA LO QUE PIDE UNA DECISIÓN, NO PARA LO QUE SIMPLEMENTE OCURRE.
+ *
+ * Y los dos últimos son EL MISMO incumplimiento: lo único que cambia es que uno está forzado. Si
+ * el cartel saliera en los dos —o en ninguno—, la decisión sería una mentira.
+ */
 const ESPERADO_CELDA = {
-    'solo-imposible': { imposible: true, sinCandidato: false },
-    'solo-sin-candidato': { imposible: false, sinCandidato: true },
-    // LA COMBINACIÓN QUE NADIE HABÍA MIRADO. Eran v-if/v-else-if: el segundo cartel no salía.
-    'imposible-y-sin-candidato': { imposible: true, sinCandidato: true },
+    'solo-imposible': ['impossible'],
+    'solo-sin-candidato': ['catalog'],
+    /*
+     * LA COMBINACIÓN QUE NADIE HABÍA MIRADO. Eran v-if/v-else-if: el segundo cartel no salía.
+     *
+     * ⚠️ Y SON TRES, NO DOS. Yo esperaba dos y el test me corrigió: esta persona está contratada
+     * para OTRO puesto (así se consigue el "sin candidato"), o sea que además NO ESTÁ CUALIFICADA
+     * — un incumplimiento de pleno derecho. Tres hechos independientes, tres carteles apilados, y
+     * la página tenía razón. Escribir la expectativa a mano y que la página te enmiende es
+     * exactamente para lo que sirve tener las reglas escritas dos veces.
+     */
+    'imposible-y-sin-candidato': ['impossible', 'breach', 'catalog'],
+    'incumplimiento': ['breach'],
+    // ⚠️ Ya se decidió, con constancia. La barra conserva su anillo, su muesca y su nota — pero
+    // no pide una decisión que ya está tomada. Un cuadrante en llamas alarma, y se ignora.
+    'incumplimiento-forzado': [],
 };
 
 for (const [clave, esperado] of Object.entries(ESPERADO_CELDA)) {
@@ -700,12 +778,11 @@ for (const [clave, esperado] of Object.entries(ESPERADO_CELDA)) {
         continue;
     }
 
-    if (c.imposible !== esperado.imposible) {
-        fallos.push(`celda/${clave}: ${esperado.imposible ? 'falta' : 'sobra'} el cartel de IMPOSIBLE`);
-    }
-
-    if (c.sinCandidato !== esperado.sinCandidato) {
-        fallos.push(`celda/${clave}: ${esperado.sinCandidato ? 'falta' : 'sobra'} el cartel de SIN CANDIDATO`);
+    if (c.severidades.join(',') !== esperado.join(',')) {
+        fallos.push(
+            `celda/${clave}: carteles [${c.severidades.join(', ') || 'ninguno'}], se esperaba `
+            + `[${esperado.join(', ') || 'ninguno'}]  ${c.textos.length ? `— dicen: ${c.textos.join(' // ')}` : ''}`,
+        );
     }
 }
 

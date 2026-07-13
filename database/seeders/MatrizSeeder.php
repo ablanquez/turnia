@@ -379,6 +379,40 @@ class MatrizSeeder extends Seeder
         $this->shift($calendar, $e, $p, $this->monday, '14:00', '20:00');
         $celdas['imposible-y-sin-candidato'] = "{$p->name}|{$this->monday->toDateString()}";
 
+        /*
+         * EL CARTEL NARANJA. Un incumplimiento SIN FORZAR: pide una decisión, y por eso grita.
+         *
+         * (Incumple por cualificación: se le contrata para otro puesto y se le coloca en éste.)
+         */
+        $p = $this->position($company, 'Incumple');
+        $ajeno = $this->position($company, 'Ajeno');
+        $e = $this->hire($company, $calendar, 'Incumple', 'Celda', [$ajeno]);
+        $this->demand($calendar, $p, '10:00', '18:00', 1);
+        $this->shift($calendar, $e, $p, $this->monday, '10:00', '18:00');
+        $celdas['incumplimiento'] = "{$p->name}|{$this->monday->toDateString()}";
+
+        /*
+         * ⚠️ Y EL MISMO INCUMPLIMIENTO, YA FORZADO: NO LLEVA CARTEL. Decisión del usuario.
+         *
+         * El cartel naranja dice "hay que decidir si se fuerza o se arregla", y aquí YA SE
+         * DECIDIÓ, con constancia. No se esconde nada —la barra conserva su anillo naranja, su
+         * muesca y su nota "Forzado, con constancia"—: lo que no hace es pedir una decisión que
+         * ya está tomada. Un cuadrante en llamas no impresiona: alarma, y se aprende a ignorarlo.
+         *
+         * Este caso y el de arriba son el MISMO incumplimiento. Lo único que cambia es que uno
+         * está forzado. Si el cartel saliera en los dos, o en ninguno, la decisión sería mentira.
+         */
+        $p = $this->position($company, 'IncumpleForz');
+        $e = $this->hire($company, $calendar, 'Forzado', 'Celda', [$ajeno]);
+        $this->demand($calendar, $p, '10:00', '18:00', 1);
+        $this->shift($calendar, $e, $p, $this->monday, '10:00', '18:00')
+            ->override()->create([
+                'user_id' => $this->owner->id,
+                'reason' => 'Backtest de carteles',
+                'violations' => [],
+            ]);
+        $celdas['incumplimiento-forzado'] = "{$p->name}|{$this->monday->toDateString()}";
+
         return ['url' => $this->url($company, $calendar), 'celdas' => $celdas];
     }
 

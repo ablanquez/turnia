@@ -102,9 +102,13 @@ verificar $MATRIZ "3. los cuatro cómputos del concepto pintan igual" && probar 
 perl -0pi -e "s/const fuente = block\.kind === 'shift' \? violations\.assignments : violations\.conceptEntries;/const fuente = block.kind === 'shift' ? violations.assignments : {};/" $MATRIZ
 verificar $MATRIZ "4. las violaciones de los conceptos no se pintan" && probar "4. las violaciones de los conceptos no se pintan"
 
-# 5. Los carteles de celda, otra vez excluyentes.
-perl -0pi -e 's/v-if="uncoverableIn\(position\.id, day\.date\)"/v-else-if="uncoverableIn(position.id, day.date)"/' $WEEK
-verificar $WEEK "5. imposible y sin-candidato no se pueden ver a la vez" && probar "5. imposible y sin-candidato no se pueden ver a la vez"
+# 5. Los carteles de celda, otra vez excluyentes: solo se enseña el primero.
+#    (Eran v-if / v-else-if. Ahora son un v-for, así que la mutación equivalente es truncar la
+#     lista: una celda que es imposible Y sin candidato solo enseñaría el imposible.)
+#    (Los ficheros llevan CRLF: los patrones multilínea de perl con \n NO encajan. Se hace por
+#     líneas, que es lo único que aguanta los dos finales de línea.)
+sed -i 's/v-for="cartel in carteles(position.id, day.date)"/v-for="cartel in carteles(position.id, day.date).slice(0, 1)"/' $WEEK
+verificar $WEEK "5. los carteles no se apilan: solo se ve el primero" && probar "5. los carteles no se apilan: solo se ve el primero"
 
 # 6. La banda pierde la trama de "bloquea la disponibilidad".
 perl -0pi -e "s/const fondo = banda\.blocks \? \`\\\$\{TRAMA_BANDA\}, \\\$\{BANDA_BG\}\` : BANDA_BG;/const fondo = BANDA_BG;/" $MATRIZ
@@ -122,31 +126,49 @@ verificar $MATRIZ "7. 'no se pide a nadie' se pinta como 'sobra gente'" && proba
 sed -i "s/'crossesMidnight' => \$to > 24,/'crossesMidnight' => false,/g" $PAYLOAD
 verificar $PAYLOAD "8. el servidor se calla que un bloque cruza medianoche" && probar "8. el servidor se calla que un bloque cruza medianoche"
 
-# 9. El borde de gravedad vuelve a pintarse con la TINTA en vez de con el RELLENO.
-perl -0pi -e "s/const color = severityFill\(severidad\) \?\? person\.color;/const color = severityColor(severidad) ?? person.color;/" $MATRIZ
-verificar $MATRIZ "9. el borde de gravedad se pinta con la tinta (ámbar sucio)" && probar "9. el borde de gravedad se pinta con la tinta (ámbar sucio)"
+# 9. El anillo de gravedad vuelve a pintarse con la TINTA en vez de con el RELLENO.
+perl -0pi -e "s/outline: \`\\\$\{px\}px solid \\\$\{severityFill\(severidad\)\}\`,/outline: \`\\\$\{px\}px solid \\\$\{severityColor(severidad)\}\`,/" $MATRIZ
+verificar $MATRIZ "9. el anillo de gravedad se pinta con la tinta (ámbar sucio)" && probar "9. el anillo de gravedad se pinta con la tinta (ámbar sucio)"
 
-# ── Y las dos que matriz.mjs ES INCAPAZ DE VER ────────────────────────────────
+# 10. EL CARTEL NARANJA DESAPARECE: el incumplimiento vuelve a vivir solo en una nota pequeña.
+perl -0pi -e "s/    for \(const severidad of \['impossible', 'breach'\]\) \{/    for (const severidad of ['impossible']) {/" $MATRIZ
+verificar $MATRIZ "10. el incumplimiento pierde su cartel (vuelve a la nota pequeña)" && probar "10. el incumplimiento pierde su cartel (vuelve a la nota pequeña)"
+
+# 11. EL CARTEL NARANJA SALE TAMBIÉN EN EL FORZADO: alarma sobre una decisión ya tomada.
+perl -0pi -e "s/            \.filter\(\(b\) => severidad === 'impossible' \|\| ! b\.forced\)/            .filter(() => true)/" $MATRIZ
+verificar $MATRIZ "11. el incumplimiento YA FORZADO también grita (cuadrante en llamas)" && probar "11. el incumplimiento YA FORZADO también grita (cuadrante en llamas)"
+
+# ── Y LAS TRES QUE matriz.mjs ES INCAPAZ DE VER ───────────────────────────────
 #
-# ⚠️ ESTAS DOS JUSTIFICAN QUE EXISTA pixeles.mjs.
+# ⚠️ ESTAS TRES JUSTIFICAN QUE EXISTA pixeles.mjs.
 #
-# matriz.mjs compara los colores que el navegador CALCULA para cada propiedad CSS, y ahí los
+# matriz.mjs compara los colores que el navegador CALCULA para cada propiedad CSS. Y ahí los
 # quince índigos de la paleta vieja eran quince colores DISTINTOS: daba 44 firmas y 0 gemelos
-# mientras las barras de la Semana eran indistinguibles a ojo. "Firma distinta" no es lo mismo
-# que "se distingue", y esa diferencia solo se ve MIDIENDO EL PÍXEL DE LA IMAGEN.
+# mientras las barras de la Semana eran indistinguibles a ojo. Lo mismo con el borde: un borde
+# ámbar sobre un relleno teal SON dos propiedades correctas, y lo que sale es un verde que
+# significa "cobertura correcta". "Declarado bien" no es lo mismo que "se ve bien", y esa
+# diferencia solo aparece MIDIENDO EL PÍXEL DE LA IMAGEN.
 echo
-echo "  ── y estas dos, solo las ve pixeles.mjs ──"
+echo "  ── y estas tres, solo las ve pixeles.mjs ──"
 
-# 10. La paleta vieja: quince índigos con la misma luminosidad y el mismo croma.
-#     (Los ficheros llevan CRLF, así que los patrones multilínea de perl con \n no encajan: se
-#      hace por líneas, que es lo que aguanta los dos finales de línea.)
-sed -i "s/^        '#14748A'.*$/        '#7F77DD', '#5B8DEF', '#9B6FD1', '#6478C4', '#A86BB0', '#5E86C9', '#8A6FC7', '#6A76B8', '#7E6FB0', '#A06BB0', '#4E7FD1', '#7A73C9', '#5566B8', '#9166C0', '#6C74C6',/" $PALETA
-sed -i "/^        '#E662AE'/d; /^        '#5C4460'/d; /^        '#9EB0F0'/d; /^        '#14C2E4'/d; /^        '#6E68C6'/d; /^        '#1492DE'/d; /^        '#CEAAC6'/d; /^        '#AA328A'/d; /^        '#1A5084'/d; /^        '#927496'/d; /^        '#BC86EA'/d" $PALETA
-verificar $PALETA "10. la paleta vieja (quince índigos que el ojo no distingue)" && probar "10. la paleta vieja (quince índigos que el ojo no distingue)" pixeles
+# 12. LA GRAVEDAD VUELVE DENTRO DE LA BARRA (como borde). El bug de esta tanda, reintroducido.
+#     El borde se come el 40 % de la barra y el ojo ve una MEZCLA: el teal con un aviso ámbar da
+#     un verde a ΔE 10 del verde de "cobertura correcta". Un aviso pintado del color de "todo bien".
+#     Una sola sustitución: el anillo deja de ser `outline` (fuera) y vuelve a ser `border`
+#     (dentro), que es lo que pisaba el relleno. Como `border` va después de la base en el spread,
+#     la sobrescribe — igual que estaba antes.
+perl -0pi -e "s/        outline: \`\\\$\{px\}px solid \\\$\{severityFill\(severidad\)\}\`,\n        outlineOffset: '0px',/        border: \`2px solid \\\$\{severityFill(severidad)\}\`,/s" $MATRIZ
+verificar $MATRIZ "12. la gravedad vuelve DENTRO de la barra (borde en vez de anillo)" && probar "12. la gravedad vuelve DENTRO de la barra (borde en vez de anillo)" pixeles
 
-# 11. El color se SORTEA en vez de repartirse: dos personas de la misma empresa, el mismo color.
+# 13. La paleta de croma bajo: ciruelas y grises que no tienen color propio y adoptan el del
+#     anillo. Con el borde arreglado siguen fallando — los dos arreglos hacen falta.
+sed -i "s/^        '#5C68CC'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
+sed -i "/^        '#14C8D2'/d; /^        '#E69EC0'/d; /^        '#981472'/d; /^        '#98B6F0'/d; /^        '#1486A2'/d; /^        '#B662C0'/d; /^        '#504478'/d; /^        '#148CF0'/d; /^        '#14507E'/d; /^        '#1AB6F0'/d; /^        '#C29EF0'/d" $PALETA
+verificar $PALETA "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" && probar "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" pixeles
+
+# 14. El color se SORTEA en vez de repartirse: dos personas de la misma empresa, el mismo color.
 perl -0pi -e "s/        \\\$ids = Employment::query\(\)/        return Employment::query()->where('company_id', \\\$company->id)->distinct()->pluck('person_id')\n            ->mapWithKeys(fn (int \\\$id) => [\\\$id => self::COLORS[crc32((string) \\\$id) % 3]])->all();\n\n        \\\$ids = Employment::query()/" $PALETA
-verificar $PALETA "11. el color se sortea (hash) y colisiona dentro de la empresa" && probar "11. el color se sortea (hash) y colisiona dentro de la empresa" pixeles
+verificar $PALETA "14. el color se sortea (hash) y colisiona dentro de la empresa" && probar "14. el color se sortea (hash) y colisiona dentro de la empresa" pixeles
 
 echo "──────────────────────────────────────────────────────────────────────────────"
 echo "  CAZADOS: $cazados    ESCAPADOS: $escapados    NO PROBADAS: $rotas"

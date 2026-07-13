@@ -31,23 +31,32 @@ const props = defineProps({
     // El informe entero (assignments + conceptEntries), o null mientras no ha llegado.
     // null NO significa "sin incidencias".
     violations: { type: Object, default: null },
-    // La CELDA ya grita el imposible en un cartel rojo, arriba. Entonces el carril no lo repite.
-    celdaGrita: { type: Boolean, default: false },
+    // Las gravedades que la CELDA ya grita en un cartel, arriba. El carril no las repite.
+    gritadas: { type: Set, default: null },
 });
 
 /**
- * ⚠️ 10 px, Y LOS DOS DE MÁS SON PARA QUE EL RELLENO SIGA DICIENDO DE QUIÉN ES.
+ * ⚠️ 12 px, Y CADA UNO DE LOS DOCE ES DE LA PERSONA. Antes eran 10, y seis.
  *
- * Con 8 px, un borde de gravedad de 2 px arriba y 2 abajo dejaba CUATRO píxeles de relleno: la
- * barra de Sara —forzada y con descanso corto— era un borrón marrón del que ya no se sacaba su
- * color. El canal del borde se estaba comiendo al de la identidad, que es exactamente lo que la
- * ley 0 prohíbe: dos preguntas peleándose por el mismo sitio.
+ * Subir de 8 a 10 fue un parche. Con la gravedad pintada como BORDE, 2 px arriba y 2 abajo se
+ * comían el 40 % de la barra y el relleno salía MEZCLADO: el teal de Iker con un aviso ámbar daba
+ * un VERDE a ΔE 10 del verde de "cobertura correcta". El canal del borde se estaba comiendo al de
+ * la identidad, que es justo lo que la ley 0 prohíbe.
  *
- * Los tests estaban en verde —el borde era el color correcto y el relleno también— y la barra
- * era ilegible igual. Se vio al MIRARLA.
+ * Con el anillo de gravedad FUERA (outline), los 12 px son 12 px de persona. Y el 12 no es
+ * estético: es el número que le devuelve la separación a la paleta. El anillo pesa 2w/(ALTO+2w)
+ * de lo que el ojo integra, así que el alto de la barra manda sobre cuánto puede contaminar:
+ *
+ *     barra de 10 px  →  la paleta más separada que cumple el margen da ΔE 13,9 (el umbral es 12)
+ *     barra de 12 px  →  ...da ΔE 15,5   ✅
+ *
+ * Dos píxeles más de barra le quitan peso al anillo, y ese peso vuelve entero a la identidad.
+ *
+ * Y el hueco entre sub-carriles sube a 7 porque el anillo del imposible mide 3: sin ese aire, los
+ * anillos de dos barras que se pisan se tocarían y parecerían uno solo.
  */
-const ALTO = 10;
-const HUECO = 2;
+const ALTO = 12;
+const HUECO = 7;
 
 /**
  * EL REPARTO EN SUB-CARRILES ES GEOMÉTRICO Y NO JUZGA NADA:
@@ -76,10 +85,22 @@ const repartidos = computed(() => {
     return { bloques: orden, subcarriles: Math.max(1, finDeSubcarril.length) };
 });
 
+/**
+ * ⚠️ EL AIRE DE ARRIBA Y DE ABAJO NO ES ESTÉTICA: ES EL SITIO DEL ANILLO.
+ *
+ * La pista lleva overflow-hidden —si no, una barra se saldría de su carril—, y el anillo de
+ * gravedad vive FUERA de la barra. Sin estos 3 px, el anillo rojo del imposible se recortaría
+ * justo por arriba y por abajo, que es donde más se ve. La barra saldría con media alarma.
+ *
+ * Y el `padding` no sirve aquí: un hijo posicionado en absoluto se coloca contra la caja de
+ * relleno, así que el padding NO lo desplaza. Hay que sumarlo al `top` a mano.
+ */
+const AIRE = 3;
+
 const altoPista = computed(() => {
     const n = repartidos.value.subcarriles;
 
-    return n * ALTO + (n - 1) * HUECO;
+    return n * ALTO + (n - 1) * HUECO + AIRE * 2;
 });
 
 /** Lo que la matriz dice de cada bloque. Una sola llamada, y de ahí sale TODO lo que se pinta. */
@@ -89,7 +110,7 @@ const pintados = computed(() => repartidos.value.bloques.map((block) => ({
     ...pintarBloque(block, {
         person: props.person,
         violations: props.violations,
-        celdaGrita: props.celdaGrita,
+        gritadas: props.gritadas,
     }),
 })));
 
@@ -115,7 +136,7 @@ const barraStyle = (p) => ({
     position: 'absolute',
     left: `${p.block.left}%`,
     width: `${p.block.width}%`,
-    top: `${(p.block.subcarril ?? 0) * (ALTO + HUECO)}px`,
+    top: `${AIRE + (p.block.subcarril ?? 0) * (ALTO + HUECO)}px`,
     height: `${ALTO}px`,
     // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
     minWidth: '3px',
@@ -124,7 +145,7 @@ const barraStyle = (p) => ({
 
 /** La muestra del rótulo usa EXACTAMENTE el mismo relleno que su barra. Por eso se emparejan. */
 const muestraStyle = (p) => ({
-    ...p.relleno,
+    ...p.muestra,
     width: '10px',
     height: '7px',
     borderRadius: '2px',

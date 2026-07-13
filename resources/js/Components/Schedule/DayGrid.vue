@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import { BRAND_DARK, severityColor, severityIcon } from '../../composables/useSeverity.js';
-import { pintarBanda, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
+import { cartelesDe, gritadasDe, pintarBanda, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
@@ -32,16 +32,11 @@ const props = defineProps({
     violations: { type: Object, default: null },
 });
 
-const IMPOSIBLE = {
-    overlap: 'solape de la misma persona',
-    unavailable: 'la persona está ausente',
-    contract_inactive: 'fuera de la vigencia del contrato',
-    invalid_interval: 'intervalo imposible',
-    shift_too_long: 'más de 24 horas',
-};
-
 const LANE_H = 30;
-const LANE_GAP = 3;
+
+// El anillo de gravedad va por FUERA de la barra y mide hasta 3 px. Con el hueco de 3 px que
+// había, los anillos de dos barras encimadas se tocaban y parecían uno solo.
+const LANE_GAP = 9;
 
 /**
  * LA BARRA SE ADAPTA A LO QUE DE VERDAD CABE.
@@ -109,27 +104,22 @@ const rows = computed(() => props.positions.map((position) => {
 
     const { bars, lanes } = pack([...turnos, ...conceptos]);
 
-    // El cartel dice QUÉ es imposible. Lo tenía cableado a "solape de la misma persona", y en
-    // las celdas donde el imposible era una BAJA afirmaba un solape que no existía.
-    const motivos = [...new Set(
-        bars
-            .flatMap((b) => violacionesDe(b, props.violations))
-            .filter((v) => v.severity === 'impossible')
-            .map((v) => IMPOSIBLE[v.code] ?? 'no se puede colocar'),
-    )];
-
-    const imposible = motivos.length ? `IMPOSIBLE · ${motivos.join(' · ')}` : null;
-
     const segments = (props.coverage?.segments ?? []).filter(
         (s) => s.positionId === position.id && s.workDate === props.day.date,
     );
+
+    // Los carteles los decide la matriz, no esta vista. La tabla de motivos estaba DUPLICADA
+    // aquí y en WeekGrid: dos copias de la misma decisión, y solo hace falta que cambie una.
+    const carteles = cartelesDe(bars, props.violations, {
+        sinCandidato: segments.some((s) => s.uncoverable),
+    });
 
     const pintadas = bars.map((bar) => ({
         bar,
         ...pintarBloque(bar, {
             person: peopleById.value[bar.personId] ?? { color: BRAND_DARK, name: '?', initials: '?' },
             violations: props.violations,
-            celdaGrita: !!imposible,
+            gritadas: gritadasDe(carteles),
             escala: 'dia',
         }),
     }));
@@ -141,18 +131,10 @@ const rows = computed(() => props.positions.map((position) => {
         .flatMap((p) => p.notas)
         .filter((n) => !vistas.has(n.text) && vistas.add(n.text));
 
-    return {
-        position,
-        pintadas,
-        lanes,
-        imposible,
-        segments,
-        notas,
-        // LA TIRA SE PINTA TAMBIÉN CON UN IMPOSIBLE DENTRO. La ficción no estaba en pintarla:
-        // estaba en que el motor contaba como cobertura a alguien que no podía estar ahí. Eso
-        // se arregló en el motor, así que el número de aquí ya es el real.
-        sinCandidato: segments.some((s) => s.uncoverable),
-    };
+    // LA TIRA SE PINTA TAMBIÉN CON UN IMPOSIBLE DENTRO. La ficción no estaba en pintarla: estaba
+    // en que el motor contaba como cobertura a alguien que no podía estar ahí. Eso se arregló en
+    // el motor, así que el número de aquí ya es el real.
+    return { position, pintadas, lanes, carteles, segments, notas };
 }));
 
 const barStyle = (p) => ({
@@ -278,29 +260,28 @@ const cerrado = computed(() => (props.coverage?.closed ?? []).includes(props.day
                     </div>
 
                     <div>
-                        <!-- ⚠️ LOS CARTELES SE APILAN: son dos hechos independientes. -->
+                    <!--
+                        ⚠️ LOS CARTELES SE APILAN: son hechos independientes. Y el criterio es
+                        uno solo — el cartel es para lo que PIDE UNA DECISIÓN, no para lo que
+                        simplemente ocurre.
+                    -->
                         <div
-                            v-if="row.imposible"
-                            data-t="imposible"
-                            class="mb-1.5 inline-block rounded bg-impossible px-[7px] py-[3px] text-[9px] font-bold tracking-[.02em] text-white"
+                            v-for="cartel in row.carteles"
+                            :key="cartel.severidad"
+                            data-t="cartel"
+                            :data-severidad="cartel.severidad"
+                            class="mb-1.5 mr-1.5 inline-block rounded px-[7px] py-[3px] text-[9px] font-bold tracking-[.02em] text-white"
+                            :style="{ background: cartel.bg }"
                         >
-                            {{ row.imposible }}
-                        </div>
-
-                        <div
-                            v-if="row.sinCandidato"
-                            data-t="sin-candidato"
-                            class="mb-1.5 inline-block rounded bg-[#5A5A66] px-[7px] py-[3px] text-[9px] font-bold text-white"
-                        >
-                            Sin candidato en catálogo
+                            {{ cartel.texto }}
                         </div>
 
                         <div
                             :ref="p === 0 ? (el) => (pista = el) : undefined"
                             class="relative"
                             :style="{
-                                height: `${row.lanes * (30 + 3) - 3}px`,
-                                minHeight: '30px',
+                                height: `${row.lanes * (LANE_H + LANE_GAP) - LANE_GAP}px`,
+                                minHeight: `${LANE_H}px`,
                                 backgroundImage: 'linear-gradient(90deg, var(--color-line-soft) 1px, transparent 1px)',
                                 backgroundSize: gridEvery(axis, 3),
                             }"

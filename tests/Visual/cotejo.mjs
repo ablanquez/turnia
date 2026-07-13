@@ -130,8 +130,11 @@ const loPintado = () => {
         const cajaTira = tira ? caja(tira) : null;
 
         pintado[celda.dataset.celda] = {
-            imposible: celda.querySelector('[data-t=imposible]')?.textContent.trim() ?? null,
-            sinCandidato: !!celda.querySelector('[data-t=sin-candidato]'),
+            // Los carteles: rojo (imposible), naranja (incumplimiento), gris (sin candidato).
+            // Se apilan, y desde esta tanda el incumplimiento SIN FORZAR también lleva el suyo.
+            imposible: celda.querySelector('[data-t=cartel][data-severidad=impossible]')?.textContent.trim() ?? null,
+            incumplimiento: celda.querySelector('[data-t=cartel][data-severidad=breach]')?.textContent.trim() ?? null,
+            sinCandidato: !!celda.querySelector('[data-t=cartel][data-severidad=catalog]'),
 
             carriles: [...celda.querySelectorAll('[data-t=carril]')].map((l) => {
                 const pista = caja(l.querySelector('[data-t=pista]'));
@@ -410,8 +413,11 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 // tres avisos para un solo hecho. Lo que se exige es que se diga UNA vez, no
                 // que se diga en todas partes.
                 const reglas = new Set(suyos.filter((b) => b.kind === 'shift')
-                    .flatMap((b) => (motor.violations.assignments[b.id] ?? []))
+                    .flatMap((b) => (motor.violations.assignments[b.id] ?? []).map((v) => ({ ...v, forced: !!b.forced })))
                     .filter((v) => ! (v.severity === 'impossible' && visto?.imposible))
+                    // El incumplimiento SIN FORZAR dice su motivo en el cartel naranja. El forzado
+                    // NO lleva cartel (ya se decidió), así que el suyo tiene que seguir en la nota.
+                    .filter((v) => ! (v.severity === 'breach' && ! v.forced && visto?.incumplimiento))
                     .map((v) => v.code));
 
                 if (notas.length < reglas.size) {
@@ -605,6 +611,34 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                         ? `❌ "${ilegibles[0].texto}" a ${ilegibles[0].contraste}`
                         : (peorTira === Infinity ? '— (sin número)' : `sí · peor ${peorTira.toFixed(1)}:1`),
                     ok,
+                });
+            }
+
+            /*
+             * ── EL CARTEL NARANJA: si alguien incumple SIN FORZAR, tiene que estar. ──
+             *
+             * Y si el ÚNICO incumplimiento de la celda está FORZADO, NO tiene que estar: ya se
+             * decidió, con constancia, y un cartel pediría una decisión que está tomada.
+             */
+            const incumpleSinForzar = turnos.some(
+                (t) => ! t.forced && (motor.violations.assignments[t.id] ?? []).some((v) => v.severity === 'breach'),
+            );
+
+            if (incumpleSinForzar !== !! visto?.incumplimiento) {
+                noes++;
+
+                filas.push({
+                    semana: etiqueta,
+                    celda: `${position.name} · ${day.weekday} ${day.label}`,
+                    persona: '— cartel INCUMPLIMIENTO —',
+                    turno: '',
+                    barras: '',
+                    rotulos: '',
+                    dicen: visto?.incumplimiento ?? 'no está',
+                    sitio: incumpleSinForzar ? 'hay un incumplimiento SIN forzar' : 'no hay ninguno sin forzar',
+                    dueno: '—',
+                    lee: '—',
+                    ok: false,
                 });
             }
 

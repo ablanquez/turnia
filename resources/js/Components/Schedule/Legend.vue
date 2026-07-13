@@ -46,23 +46,58 @@ const P = '#7F77DD';
 
         <div class="h-4 w-px bg-line" />
 
-        <!-- EL BORDE: la gravedad. Nunca el relleno: el relleno dice de quién es. -->
-        <div class="flex flex-wrap items-center gap-3">
+        <!--
+            EL ANILLO: la gravedad. Y va POR FUERA de la barra, no dentro.
+
+            Como borde, 2 px arriba y 2 abajo se comían el 40 % de una barra de 10 px y el ojo
+            veía UNA MEZCLA: el teal de Iker con un aviso ámbar daba un verde a ΔE 10 del verde
+            de "cobertura correcta". El relleno dice de quién es; el anillo, qué pasa. Dos
+            preguntas, dos espacios.
+        -->
+        <div class="flex flex-wrap items-center gap-4">
             <span class="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Gravedad</span>
 
-            <span class="flex items-center gap-1.5 text-[#41404E]">
-                <span class="h-3.5 w-5 rounded-sm border-2 border-impossible" :style="{ background: `${TRAMA}, ${P}` }" />
+            <span class="flex items-center gap-2 text-[#41404E]">
+                <span class="h-3.5 w-5 rounded-sm outline outline-[3px] outline-impossible" :style="{ background: `${TRAMA}, ${P}` }" />
                 Imposible
             </span>
 
-            <span class="flex items-center gap-1.5 text-[#41404E]">
-                <span class="h-3.5 w-5 rounded-sm border-2 border-breach" :style="{ background: P }" />
+            <span class="flex items-center gap-2 text-[#41404E]">
+                <span class="h-3.5 w-5 rounded-sm outline outline-2 outline-breach" :style="{ background: P }" />
                 Incumple
             </span>
 
-            <span class="flex items-center gap-1.5 text-[#41404E]">
-                <span class="h-3.5 w-5 rounded-sm border-2 border-notice" :style="{ background: P }" />
+            <span class="flex items-center gap-2 text-[#41404E]">
+                <span class="h-3.5 w-5 rounded-sm outline outline-[1.5px] outline-notice" :style="{ background: P }" />
                 Aviso
+            </span>
+        </div>
+
+        <div class="h-4 w-px bg-line" />
+
+        <!--
+            EL CARTEL ES PARA LO QUE PIDE UNA DECISIÓN. NO PARA LO QUE SIMPLEMENTE OCURRE.
+
+            Una hora médica, una baja o un "trabaja en otra empresa" NO llevan cartel: el bloque
+            y la banda ya se ven, y no piden nada. Si cada uno levantara una alarma, el encargado
+            aprendería a no mirarlas — y un aviso que se ignora no existe.
+        -->
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Pide decisión</span>
+
+            <span class="flex items-center gap-1.5 text-[#41404E]">
+                <span class="rounded bg-impossible px-1.5 py-px text-[8px] font-bold text-white">IMPOSIBLE</span>
+                Quitarlo o cambiarlo
+            </span>
+
+            <span class="flex items-center gap-1.5 text-[#41404E]">
+                <span class="rounded bg-breach px-1.5 py-px text-[8px] font-bold text-white">INCUMPLIMIENTO</span>
+                Forzarlo o arreglarlo
+            </span>
+
+            <span class="flex items-center gap-1.5 text-[#41404E]">
+                <span class="rounded bg-[#5A5A66] px-1.5 py-px text-[8px] font-bold text-white">SIN CANDIDATO</span>
+                Cualificar a alguien
             </span>
         </div>
 

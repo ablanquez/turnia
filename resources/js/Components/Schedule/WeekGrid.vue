@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import PersonLane from './PersonLane.vue';
-import { pintarBanda } from '../../composables/useMatrizVisual.js';
+import { cartelesDe, gritadasDe, pintarBanda } from '../../composables/useMatrizVisual.js';
 
 /**
  * LA REJILLA: 7 días × puestos, y EL TIEMPO EN EL EJE X.
@@ -125,51 +125,47 @@ const coverageOf = (positionId, date) => (props.coverage?.segments ?? []).filter
 );
 
 /**
- * El imposible de la celda: se GRITA. Y LA TIRA DE COBERTURA SIGUE AHÍ.
+ * LOS CARTELES DE LA CELDA. Quién decide cuáles hay: la matriz. Aquí solo se pintan.
  *
  * ⚠️ AQUÍ HABÍA UN SILENCIO FALSO, Y LO METÍ RAZONANDO BIEN.
  *
- * Escribí que "con alguien que no puede estar ahí, la cobertura es una ficción" y la
- * escondí. El razonamiento era correcto y el resultado era peor que el problema: la celda
- * de Tomás se quedaba MUDA, sin verde ni rojo, cuando lo que de verdad pasaba es que FALTA
+ * Escribí que "con alguien que no puede estar ahí, la cobertura es una ficción" y escondí la
+ * tira. El razonamiento era correcto y el resultado era peor que el problema: la celda de
+ * Tomás se quedaba MUDA, sin verde ni rojo, cuando lo que de verdad pasaba es que FALTA
  * GENTE —él no puede estar, así que ese puesto está descubierto—. Callar no deshace el
  * hueco: lo esconde.
  *
- * La ficción se arregló donde nacía: el motor ya no cuenta como cobertura un turno
- * imposible. Ahora el número es el REAL, y por eso se pinta.
- *
- * ⚠️ Y EL BADGE DICE QUÉ ES IMPOSIBLE, no una frase fija.
- *
- * Lo tenía cableado a "solape de la misma persona", y en las celdas donde el imposible era
- * una BAJA el cartel afirmaba un solape que no existía. Un aviso correcto con un motivo
- * falso: exactamente el fallo que llevamos siete tandas cazando, y lo metí yo en el cartel
- * más grande de la pantalla.
+ * ⚠️ Y EL CARTEL DICE QUÉ PASA, no una frase fija. Lo tenía cableado a "solape de la misma
+ * persona", y en las celdas donde el imposible era una BAJA afirmaba un solape que no existía:
+ * un aviso correcto con un motivo falso, en el cartel más grande de la pantalla.
  */
-const impossibleIn = (positionId, date) => {
-    if (!props.violations) {
-        return null;
-    }
+const carteles = (positionId, date) => cartelesDe(
+    [
+        ...props.assignments
+            .filter((a) => a.positionId === positionId && a.workDate === date)
+            .map((a) => ({ ...a, kind: 'shift' })),
+        ...conceptosDe(positionId, date),
+    ],
+    props.violations,
+    { sinCandidato: uncoverableIn(positionId, date) },
+);
 
-    const motivos = props.assignments
-        .filter((a) => a.positionId === positionId && a.workDate === date)
-        .flatMap((a) => props.violations.assignments[a.id] ?? [])
-        .filter((v) => v.severity === 'impossible');
+/**
+ * Los conceptos que se pintan en esta celda: los de quien tiene turno aquí, más los huérfanos.
+ * Sus violaciones también van al cartel — un tope de horas extra pasado PIDE una decisión igual
+ * que cualquier otro incumplimiento, y hasta hoy no salía por ningún lado.
+ */
+const conceptosDe = (positionId, date) => {
+    const dePuesto = new Set(
+        props.assignments
+            .filter((a) => a.positionId === positionId && a.workDate === date)
+            .map((a) => a.personId),
+    );
 
-    if (!motivos.length) {
-        return null;
-    }
-
-    const razon = [...new Set(motivos.map((v) => IMPOSIBLE[v.code] ?? 'no se puede colocar'))];
-
-    return `IMPOSIBLE · ${razon.join(' · ')}`;
-};
-
-const IMPOSIBLE = {
-    overlap: 'solape de la misma persona',
-    unavailable: 'la persona está ausente',
-    contract_inactive: 'fuera de la vigencia del contrato',
-    invalid_interval: 'intervalo imposible',
-    shift_too_long: 'más de 24 horas',
+    return props.conceptEntries
+        .filter((c) => c.workDate === date && dePuesto.has(c.personId))
+        .map((c) => ({ ...c, kind: 'concept' }))
+        .concat(huerfanos(positionId, date).flatMap((l) => l.blocks));
 };
 
 /**
@@ -363,23 +359,23 @@ const esPar = (i) => i % 2 === 0;
                     <!--
                         ⚠️ LOS CARTELES SE APILAN. Eran `v-if` / `v-else-if`, y una celda que era
                         las DOS cosas —imposible Y sin candidato— enseñaba solo la primera. Son
-                        dos hechos independientes: uno está en el cuadrante, el otro en el
-                        catálogo. Callar uno porque hay otro es esconder un dato.
+                        hechos independientes: uno está en el cuadrante, el otro en el catálogo.
+                        Callar uno porque hay otro es esconder un dato.
+
+                        Y ahora TODO lo que pide una decisión lleva cartel, no solo el imposible:
+                        rojo (imposible) · naranja (incumplimiento) · gris (sin candidato). Lo que
+                        solo INFORMA —una hora médica, una baja, un "trabaja en otra empresa"— no
+                        lleva, porque un cuadrante en llamas no impresiona: alarma, y se ignora.
                     -->
                     <div
-                        v-if="impossibleIn(position.id, day.date)"
-                        data-t="imposible"
-                        class="mb-1.5 inline-block w-fit rounded bg-impossible px-[7px] py-[3px] text-[9px] font-bold tracking-[.02em] text-white"
+                        v-for="cartel in carteles(position.id, day.date)"
+                        :key="cartel.severidad"
+                        data-t="cartel"
+                        :data-severidad="cartel.severidad"
+                        class="mb-1.5 inline-block w-fit rounded px-[7px] py-[3px] text-[9px] font-bold tracking-[.02em] text-white"
+                        :style="{ background: cartel.bg }"
                     >
-                        {{ impossibleIn(position.id, day.date) }}
-                    </div>
-
-                    <div
-                        v-if="uncoverableIn(position.id, day.date)"
-                        data-t="sin-candidato"
-                        class="mb-1.5 inline-block w-fit rounded bg-[#5A5A66] px-[7px] py-[3px] text-[9px] font-bold text-white"
-                    >
-                        Sin candidato en catálogo
+                        {{ cartel.texto }}
                     </div>
 
                     <div
@@ -404,7 +400,7 @@ const esPar = (i) => i % 2 === 0;
                             :blocks="lane.blocks"
                             :axis="axis"
                             :violations="violations"
-                            :celda-grita="!!impossibleIn(position.id, day.date)"
+                            :gritadas="gritadasDe(carteles(position.id, day.date))"
                         />
 
                         <PersonLane
@@ -414,6 +410,7 @@ const esPar = (i) => i % 2 === 0;
                             :blocks="lane.blocks"
                             :axis="axis"
                             :violations="violations"
+                            :gritadas="gritadasDe(carteles(position.id, day.date))"
                         />
                     </div>
 

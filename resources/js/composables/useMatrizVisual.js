@@ -20,12 +20,39 @@
  *
  *   1. COLOR del relleno   → ¿DE QUIÉN ES?        el color de la persona. Nunca el estado.
  *   2. DENSIDAD del relleno → ¿CUÁNTO CUENTA?     sólido / tramado / hueco (ver abajo)
- *   3. COLOR del borde     → ¿QUÉ GRAVEDAD TIENE? rojo / naranja / ámbar / ninguna
+ *   3. ANILLO (fuera)      → ¿QUÉ GRAVEDAD TIENE? rojo / naranja / ámbar / ninguno
  *   4. ESTILO del borde    → ¿QUÉ ES?             continuo = turno · discontinuo = concepto
  *   5. MUESCA (esquina)    → ¿SE FORZÓ?           una decisión tomada, no un aviso desatendido
  *   6. FILO (borde del día) → ¿CRUZA MEDIANOCHE?  "sigue mañana"
  *
  * Y la POSICIÓN Y EL ANCHO no son un canal: son el eje X, y solo dicen CUÁNDO. Jamás otra cosa.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️ LA GRAVEDAD VA POR FUERA DE LA BARRA. Y ESO NO ES UN DETALLE DE CSS.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Durante dos tandas la gravedad fue un BORDE, o sea: tinta DENTRO de la barra. Y una barra de
+ * la semana mide 10 px, así que un borde de 2 px arriba y 2 abajo es el CUARENTA POR CIENTO de
+ * la barra. El ojo no ve dos canales: ve UNA MEZCLA. Medido (ΔE00 sobre la imagen):
+ *
+ *     Marco  #5C4460  + borde ámbar   →  #855F3E   marrón     · ΔE 10,1 de la tinta de aviso
+ *     Iker   #14748A  + borde ámbar   →  #5A7C57   VERDE      · ΔE 10,2 del verde de COBERTURA
+ *     Marco  #5C4460  + borde naranja →  #944C3E   ladrillo   · ΔE 11,1 de la tinta de imposible
+ *
+ * La segunda línea es la que da miedo: una barra CON UN AVISO se veía del color que esta app usa
+ * para decir "cobertura correcta". Y la mezcla se alejaba ΔE 20–31 del color de la persona, así
+ * que el borde también se estaba comiendo la ley 2 — la misma que subir de 8 a 10 px solo alivió.
+ *
+ * La paleta NO tenía la culpa: ningún color de persona está a menos de ΔE 29,6 de un color de
+ * estado. La culpa era de meter dos canales en el mismo espacio físico.
+ *
+ * Ahora la gravedad es un ANILLO POR FUERA (outline): no ocupa ni un píxel del relleno, no se
+ * mezcla con nada, y el relleno conserva sus 10 px enteros de persona. Dos preguntas, dos
+ * espacios. Es la ley 0 en su forma más literal.
+ *
+ * Y el GROSOR del anillo sube con la gravedad (aviso 1,5 · incumplimiento 2 · imposible 3): la
+ * misma pregunta contestada dos veces, que es lo que la ley 6 pide y no lo que la ley 0 prohíbe.
+ * Lo que la ley 0 prohíbe es un canal con DOS preguntas, no una pregunta con DOS canales.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * LA DENSIDAD ES UNA ESCALA, Y SE LEE SIN APRENDERLA:
@@ -153,43 +180,48 @@ function rellenoDe(block, person, severidad, escala) {
 }
 
 /**
- * EL BORDE DICE LA GRAVEDAD, Y SU ESTILO DICE LA NATURALEZA. Dos preguntas, dos propiedades.
+ * EL BORDE YA NO DICE LA GRAVEDAD: SOLO DICE QUÉ ES. Continuo = turno · discontinuo = concepto.
  *
- * ⚠️ EL NARANJA ERA DE DOS DUEÑOS, Y ESO ERA UN AVISO FALSO.
- *
- * Antes: `if (block.forced || severity === 'breach') → naranja`. Un turno FORZADO LIMPIO —uno
- * cuyo motivo ya no existe— se pintaba EXACTAMENTE igual que uno que INCUMPLE. Y son cosas
- * opuestas: el forzado es una decisión tomada con constancia; el incumplimiento es un aviso
- * que nadie ha atendido. El encargado veía naranja y no sabía cuál de las dos estaba mirando.
- *
- * Ahora el naranja es SOLO del incumplimiento, y el forzado tiene su muesca. Así un turno
- * forzado QUE ADEMÁS incumple enseña las DOS cosas, y uno forzado y limpio no finge un
- * problema que no tiene.
+ * Y se pinta con el color de la PERSONA, no con un gris neutro: en un concepto hueco el borde
+ * es toda la forma que hay, y también ahí tiene que poder reconstruirse de quién es.
  */
-function bordeDe(block, person, severidad) {
+function bordeDe(block, person) {
     const estilo = block.kind === 'concept' ? 'dashed' : 'solid';
 
-    /*
-     * ⚠️ EL BORDE ES UN RELLENO, NO UN TEXTO. Y LO ESTABA PINTANDO CON LA TINTA.
-     *
-     * Aquí ponía severityColor(), que devuelve la TINTA de la gravedad —#7D5606 para el aviso,
-     * #A8410A para el incumplimiento—: colores oscuros y apagados, calculados para LEERSE como
-     * letra sobre el fondo de la celda, con 4,5 de contraste.
-     *
-     * Pero un borde no se lee: se VE. Y con la tinta, el borde ámbar del aviso de Marco salía
-     * marrón sucio, indistinguible de un borde de incumplimiento, y ni siquiera parecía ámbar.
-     * La ley 3 dice "ámbar = aviso" y la barra no decía ámbar.
-     *
-     * Es MI PROPIA REGLA aplicada al revés ("el color que rellena y el color que escribe no
-     * pueden ser el mismo"): tengo las dos versiones desde hace dos tandas, y usé la que no era.
-     *
-     * severityFill() → #C2870A / #E8590C / #C81E1E. Vibrantes, que es lo que hace falta para que
-     * un borde de 2 px se vea de un vistazo.
-     */
-    const color = severityFill(severidad) ?? person.color;
-    const grosor = severidad ? '2px' : '1.5px';
+    return `1.5px ${estilo} ${person.color}`;
+}
 
-    return `${grosor} ${estilo} ${color}`;
+/**
+ * EL GROSOR DEL ANILLO SUBE CON LA GRAVEDAD. La misma pregunta, contestada dos veces.
+ *
+ * El imposible se lleva 3 px, y ese número tiene un motivo concreto: la barra de Tomás —dos
+ * turnos que se pisan— era AZUL con una textura rara, y el rojo se quedaba en un filete de 2 px
+ * dentro de una barra de 10. El relleno mandaba y el relleno es azul. Con el anillo FUERA y a
+ * 3 px, la barra imposible es una cápsula roja con el color de Tomás dentro: se lee la alarma Y
+ * se lee de quién es. Antes había que elegir.
+ */
+const ANILLO = { notice: '1.5px', breach: '2px', impossible: '3px' };
+
+/**
+ * ⚠️ EL ANILLO ES UN RELLENO, NO UN TEXTO. Y ANTES SE PINTABA CON LA TINTA.
+ *
+ * severityColor() devuelve la TINTA —#7D5606 para el aviso—: oscura y apagada a propósito, para
+ * LEERSE como letra con 4,5 de contraste. Pero un anillo no se lee: se VE. Con la tinta, el
+ * aviso de Marco salía marrón sucio y ni siquiera parecía ámbar.
+ *
+ * severityFill() → #C2870A / #E8590C / #C81E1E. Vibrantes, que es lo que un anillo necesita.
+ */
+function anilloDe(severidad, escala = 1) {
+    if (!severidad) {
+        return {};
+    }
+
+    const px = parseFloat(ANILLO[severidad]) * escala;
+
+    return {
+        outline: `${px}px solid ${severityFill(severidad)}`,
+        outlineOffset: '0px',
+    };
 }
 
 /**
@@ -225,19 +257,25 @@ export function tintaSobre(hex) {
  * @param {object} block   turno o concepto, ya posicionado por el servidor
  * @param {object} ctx     { person, violations, celdaGrita }
  */
-export function pintarBloque(block, { person, violations, celdaGrita = false, escala = 'semana' }) {
+export function pintarBloque(block, { person, violations, gritadas = null, escala = 'semana' }) {
     const rotas = violacionesDe(block, violations);
     const severidad = worst(rotas);
+
+    const base = {
+        background: rellenoDe(block, person, severidad, escala),
+        border: bordeDe(block, person),
+        boxSizing: 'border-box',
+    };
 
     return {
         severidad,
         densidad: densidadDe(block, severidad),
 
-        relleno: {
-            background: rellenoDe(block, person, severidad, escala),
-            border: bordeDe(block, person, severidad),
-            boxSizing: 'border-box',
-        },
+        relleno: { ...base, ...anilloDe(severidad) },
+
+        // La muestra del rótulo mide 10×7: el anillo va a la mitad, o se comería la muestra
+        // entera. Mismo relleno, mismo anillo, otra escala — por eso se emparejan de un vistazo.
+        muestra: { ...base, ...anilloDe(severidad, 0.5) },
 
         // La MUESCA: se forzó. Un canal propio, que no le quita el sitio a ningún otro.
         forzado: block.kind === 'shift' && !!block.forced,
@@ -257,7 +295,7 @@ export function pintarBloque(block, { person, violations, celdaGrita = false, es
         nocturno: !!block.crossesMidnight,
 
         rotulo: rotuloDe(block),
-        notas: notasDe(block, rotas, celdaGrita),
+        notas: notasDe(block, rotas, gritadas),
     };
 }
 
@@ -302,7 +340,7 @@ const sinIcono = (texto) => texto.replace(/^[●⚠↗·]\s*/, '').toLowerCase()
  * CONTABA — y la parrilla no las pintaba jamás, porque violationsOf() exigía kind === 'shift'.
  * Una hora extra que se pasa del tope no salía por ningún lado. Un silencio falso con contador.
  */
-function notasDe(block, rotas, celdaGrita) {
+function notasDe(block, rotas, gritadas) {
     const out = [];
     const vistas = new Set();
 
@@ -319,37 +357,146 @@ function notasDe(block, rotas, celdaGrita) {
         añadir('☾', 'cruza medianoche', BRAND_DARK);
     }
 
-    // "⚠ 08:00–16:00 · Forzado · descanso corto entre turnos", en UNA nota. Separar el "forzado"
-    // de su motivo daba dos líneas para un solo hecho.
-    if (block.forced && rotas.length) {
-        for (const v of rotas) {
-            if (v.severity === 'impossible' && celdaGrita) {
-                añadir('⚠', 'Forzado, con constancia', severityColor('breach'));
-                continue;
-            }
-
-            añadir(severityIcon(v.severity), `Forzado · ${sinIcono(shortText(v))}`, severityColor(v.severity));
-        }
-
-        return out;
-    }
-
-    if (block.forced) {
+    if (block.forced && ! rotas.length) {
         añadir('⚠', 'Forzado, con constancia', severityColor('breach'));
     }
 
     for (const v of rotas) {
-        // Ley 9: lo que la celda ya grita arriba, aquí no se repite. El solape de Tomás se decía
-        // TRES veces —el cartel, y una nota por cada una de sus dos barras— cuando las dos
-        // barras tramadas pisándose YA LO ENSEÑAN. El ruido entrena a no leer.
-        if (v.severity === 'impossible' && celdaGrita) {
+        if (cubiertaPorCartel(block, v, gritadas)) {
+            // El cartel se lleva el motivo. Pero NO dice que el turno esté forzado, y eso es
+            // justo lo que hay que saber: que la decisión ya se tomó y hay constancia de ella.
+            if (block.forced) {
+                añadir('⚠', 'Forzado, con constancia', severityColor('breach'));
+            }
+
             continue;
         }
 
-        añadir(severityIcon(v.severity), sinIcono(shortText(v)), severityColor(v.severity), v.severity === 'notice');
+        // "⚠ 08:00–16:00 · Forzado · descanso corto entre turnos", en UNA nota. Separar el
+        // "forzado" de su motivo daba dos líneas para un solo hecho.
+        const texto = block.forced ? `Forzado · ${sinIcono(shortText(v))}` : sinIcono(shortText(v));
+
+        añadir(severityIcon(v.severity), texto, severityColor(v.severity), v.severity === 'notice');
     }
 
     return out;
+}
+
+/**
+ * LEY 9: LO QUE LA CELDA YA GRITA, EL CARRIL NO LO REPITE.
+ *
+ * El solape de Tomás se decía TRES veces —el cartel, y una nota por cada una de sus dos barras—
+ * cuando las dos barras pisándose YA LO ENSEÑAN. El ruido entrena a no leer.
+ *
+ * ⚠️ PERO "GRITA" TIENE QUE SIGNIFICAR "GRITA ESTE BLOQUE", NO "GRITA ALGO PARECIDO".
+ *
+ * El cartel naranja NO recoge los incumplimientos de un turno FORZADO (ver cartelesDe). Si aquí
+ * bastara con `gritadas.has('breach')`, una celda con dos personas —una incumpliendo sin forzar
+ * y otra forzada— haría que el cartel de la primera CALLASE la nota de la segunda, y el motivo
+ * del turno forzado desaparecería de la pantalla. Un silencio falso construido por una regla de
+ * silencio: el ruido se combate quitando REPETICIONES, no datos.
+ */
+function cubiertaPorCartel(block, v, gritadas) {
+    if (! gritadas?.has(v.severity)) {
+        return false;
+    }
+
+    return v.severity === 'impossible' || ! block.forced;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * LOS CARTELES DE UNA CELDA
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * EL CARTEL ES PARA LO QUE PIDE UNA DECISIÓN. NO PARA LO QUE SIMPLEMENTE OCURRE.
+ *
+ * Ese criterio es la mitad del diseño; la otra mitad —qué va y qué no— sale de él sola.
+ *
+ * VA A CARTEL lo que EXIGE que alguien haga algo:
+ *   · IMPOSIBLE       → hay que quitarlo o cambiarlo                        (rojo)
+ *   · INCUMPLIMIENTO  → hay que decidir si se fuerza o se arregla           (naranja)
+ *   · SIN CANDIDATO   → hay que cualificar a alguien o cambiar el requisito (gris)
+ *
+ * NO VA A CARTEL lo que solo informa: una hora médica, un permiso o una hora extra (el bloque ya
+ * está ahí, con su forma y su etiqueta); una baja o unas vacaciones (la banda ya lo dice); un
+ * "también trabaja en otra empresa" (dato útil, ninguna acción).
+ *
+ * Y el motivo es el mismo por el que existe esta matriz: UN CUADRANTE EN LLAMAS NO IMPRESIONA,
+ * ALARMA. Si cada hora médica levantase un cartel rojo, la parrilla se llenaría de alarmas que no
+ * piden nada y el encargado aprendería a no mirarlas. Un aviso que se ignora no existe.
+ *
+ * ⚠️ EL INCUMPLIMIENTO YA FORZADO NO LLEVA CARTEL, y eso sale del mismo criterio: el cartel
+ * naranja dice "hay que decidir si se fuerza o se arregla", y ahí YA SE DECIDIÓ, con constancia.
+ * No se esconde nada —la barra conserva su anillo naranja, su muesca y su nota "Forzado, con
+ * constancia"—: lo que no hace es pedir una decisión que ya está tomada.
+ *
+ * ⚠️ Y ESTA TABLA VIVE AQUÍ, NO EN LOS COMPONENTES. La constante IMPOSIBLE estaba DUPLICADA en
+ * WeekGrid.vue y en DayGrid.vue, que es exactamente lo que la ley 13 prohíbe: el día que cambie
+ * un motivo, una de las dos copias se queda pintando la versión vieja y nadie se entera.
+ */
+const MOTIVO = {
+    overlap: 'solape de la misma persona',
+    unavailable: 'la persona está ausente',
+    contract_inactive: 'fuera de la vigencia del contrato',
+    invalid_interval: 'intervalo imposible',
+    shift_too_long: 'más de 24 horas',
+
+    hour_limit: 'se pasa del tope de horas',
+    shift_length: 'turno demasiado largo',
+    minimum_rest: 'descanso corto entre turnos',
+    workday_type: 'el perfil no admite esta jornada',
+    eligibility: 'no cualificado para el puesto',
+    overtime_limit: 'se pasa del tope de horas extra',
+};
+
+const CARTEL = {
+    impossible: { titulo: 'IMPOSIBLE', bg: severityFill('impossible') },
+    breach: { titulo: 'INCUMPLIMIENTO', bg: severityFill('breach') },
+};
+
+/**
+ * LOS CARTELES DE UNA CELDA: en orden de gravedad, y APILADOS.
+ *
+ * Se apilan porque son HECHOS INDEPENDIENTES (ley 0): una celda puede ser imposible Y además no
+ * tener a nadie cualificado en el catálogo. Eran `v-if` / `v-else-if`, y la segunda no se veía.
+ *
+ * El cartel dice QUÉ pasa. QUIÉN y CUÁNDO los siguen diciendo la barra (su color, su anillo) y su
+ * rótulo (su hora): el cartel no repite lo que otro canal ya lleva.
+ */
+export function cartelesDe(blocks, violations, { sinCandidato = false } = {}) {
+    const out = [];
+
+    for (const severidad of ['impossible', 'breach']) {
+        const motivos = [...new Set(
+            blocks
+                .filter((b) => severidad === 'impossible' || ! b.forced)
+                .flatMap((b) => violacionesDe(b, violations))
+                .filter((v) => v.severity === severidad)
+                .map((v) => MOTIVO[v.code] ?? 'revisar'),
+        )];
+
+        if (motivos.length) {
+            out.push({
+                severidad,
+                texto: `${CARTEL[severidad].titulo} · ${motivos.join(' · ')}`,
+                bg: CARTEL[severidad].bg,
+            });
+        }
+    }
+
+    if (sinCandidato) {
+        // Gris, y no naranja, porque el problema NO está en el cuadrante: está en el catálogo.
+        // Ninguna combinación de personas arregla un puesto que nadie de la plantilla sabe cubrir.
+        out.push({ severidad: 'catalog', texto: 'SIN CANDIDATO EN CATÁLOGO', bg: '#5A5A66' });
+    }
+
+    return out;
+}
+
+/** Las gravedades que la celda ya grita: lo que el carril NO debe repetir. */
+export function gritadasDe(carteles) {
+    return new Set(carteles.map((c) => c.severidad));
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -483,7 +630,10 @@ export function pintarBanda(banda, violations) {
             background: fondo,
             borderStyle: 'solid',
             borderWidth: '1px',
-            borderColor: severityColor(severidad) ?? BANDA_BORDE,
+            // Ley 3: el borde se ve, no se lee. Con la TINTA (severityColor) salía marrón sucio,
+            // el mismo error que tenía la barra. Aquí no contamina el relleno —1 px sobre una
+            // banda de 16— así que sigue siendo un borde y no hace falta sacarlo fuera.
+            borderColor: severityFill(severidad) ?? BANDA_BORDE,
             borderLeftWidth: banda.esPrimero ? '1px' : '0',
             borderRightWidth: seDesvanece ? '0' : (banda.esUltimo ? '1px' : '0'),
             borderRadius: banda.esPrimero && banda.esUltimo ? '5px'
