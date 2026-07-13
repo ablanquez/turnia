@@ -216,13 +216,34 @@ function bordeDe(block, person) {
 const ANILLO = { notice: '2px', breach: '3px', impossible: '4px' };
 
 /**
- * ⚠️ EL ANILLO ES UN RELLENO, NO UN TEXTO. Y ANTES SE PINTABA CON LA TINTA.
+ * ⚠️ EL ANILLO NO RODEA: SON DOS FRANJAS, ARRIBA Y ABAJO. Y ESO NO ES ESTÉTICA: ES LA LEY 0.
  *
- * severityColor() devuelve la TINTA —#7D5606 para el aviso—: oscura y apagada a propósito, para
- * LEERSE como letra con 4,5 de contraste. Pero un anillo no se lee: se VE. Con la tinta, el
- * aviso de Marco salía marrón sucio y ni siquiera parecía ámbar.
+ * Era un `outline`, o sea un anillo que rodea la barra por los CUATRO lados. Y ahí el peso del
+ * anillo —lo que el ojo integra— es 1 − (ancho×alto)/((ancho+2w)(alto+2w)): DEPENDE DEL ANCHO.
  *
- * severityFill() → #C2870A / #E8590C / #C81E1E. Vibrantes, que es lo que un anillo necesita.
+ * En un turno de ocho horas la barra mide 50 px y el anillo pesa el 35 %. En un turno de UNA hora
+ * mide 5 px y ese mismo anillo pasa a pesar el SESENTA Y SIETE POR CIENTO. Medido sobre la imagen:
+ *
+ *     barra de  5 px · anillo 67 %  →  el peor color queda a ΔE  5,8 de una gravedad AJENA  ❌
+ *     barra de 29 px · anillo 40 %  →  ΔE 17,5                                              ❌
+ *     barra de 50 px · anillo 35 %  →  ΔE 20,1                                              ✅
+ *
+ * O sea: un turno de una hora con un aviso ámbar se veía MARRÓN. El bug de Marco otra vez, y esta
+ * vez la culpa no era del color: era que EL CANAL CAMBIABA DE PESO CON LA GEOMETRÍA. Un canal que
+ * significa una cosa u otra según lo ancha que sea la barra no es un canal: es una lotería. Y la
+ * paleta estaba calibrada a un ancho concreto (50 px), así que solo era cierta ahí.
+ *
+ * Con dos franjas por fuera (box-shadow, que no come relleno), el peso es 2w/(ALTO+2w) y NO
+ * DEPENDE DEL ANCHO: 20 % / 27 % / 33 %, siempre. El problema del turno corto DESAPARECE POR
+ * CONSTRUCCIÓN, no por ajuste. Y contamina menos que el anillo que rodeaba, incluso en barras
+ * anchas.
+ *
+ * ⚠️ Y NI LA DEMO NI LOS 96 CASOS DEL CUADRANTE LO HABRÍAN ENSEÑADO NUNCA: todos usan turnos de
+ * ocho horas. El peor caso geométrico de la app no estaba sembrado en ninguna parte. Ahora sí
+ * (MatrizSeeder::anchos → tests/Visual/anchos.mjs).
+ *
+ * severityFill() → #C2870A / #E8590C / #C81E1E. Vibrantes: una marca no se lee, se VE. Con la
+ * TINTA (severityColor) el aviso salía marrón sucio y ni siquiera parecía ámbar.
  */
 function anilloDe(severidad, escala = 1) {
     if (!severidad) {
@@ -230,10 +251,12 @@ function anilloDe(severidad, escala = 1) {
     }
 
     const px = parseFloat(ANILLO[severidad]) * escala;
+    const color = severityFill(severidad);
 
+    // Dos copias de la barra, desplazadas arriba y abajo. Sin desenfoque y sin extensión: lo único
+    // que asoma son `px` píxeles de color, con el mismo redondeo que la barra.
     return {
-        outline: `${px}px solid ${severityFill(severidad)}`,
-        outlineOffset: '0px',
+        boxShadow: `0 -${px}px 0 0 ${color}, 0 ${px}px 0 0 ${color}`,
     };
 }
 

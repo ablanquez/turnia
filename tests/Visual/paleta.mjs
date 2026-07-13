@@ -44,32 +44,47 @@ const ESTADO = Object.values(FAMILIA).flat();
 const ajenos = (mia) => Object.entries(FAMILIA).filter(([k]) => k !== mia).flatMap(([, v]) => v);
 
 /*
- * LA GEOMETRÍA REAL DE LA BARRA (ver PersonLane.vue). Y aquí van tres errores de modelo, porque
- * cada uno costó una pasada y el que venga detrás no tiene por qué repetirlos.
+ * LA GEOMETRÍA REAL DE LA BARRA (ver PersonLane.vue). Aquí van CUATRO errores de modelo, y cada
+ * uno costó una pasada: el que venga detrás no tiene por qué repetirlos.
  *
- * ERROR 1 — EL ANILLO SOLO ESTABA ARRIBA Y ABAJO. El modelo decía que pesa 2w/(ALTO+2w) de lo que
- * el ojo integra. Falso: un `outline` rodea la barra por LOS CUATRO LADOS. En una barra de 50×16
- * con un anillo de 4, el anillo es el 43 % de la caja, no el 33 %. Y en una barra CORTA —un turno
- * de dos horas— es más de la mitad. La medida sobre la imagen no cuadraba con el modelo por 9
- * puntos de ΔE, y el modelo estaba mintiendo a favor.
+ * ERROR 1 — EL ANILLO SOLO SE PESABA ARRIBA Y ABAJO. El modelo decía 2w/(ALTO+2w). Falso: un
+ * `outline` rodea la barra por LOS CUATRO LADOS.
  *
  * ERROR 2 — LA TRAMA NO ENTRABA. La barra imposible es TRAMADA: su relleno real lleva la trama
- * encima. Comparar la barra vista contra el color PURO castigaba a la trama por hacer justo lo que
- * tiene que hacer. La referencia honesta es el relleno CON su trama.
+ * encima. Compararla contra el color PURO castigaba a la trama por hacer su trabajo.
  *
- * ERROR 3 — SE COMPARABA CONTRA SU PROPIA GRAVEDAD. Ver FAMILIA, arriba.
+ * ERROR 3 — SE COMPARABA CONTRA SU PROPIA GRAVEDAD. Una barra imposible SE TIENE QUE parecer a un
+ * rojo. Ver FAMILIA, arriba.
  *
- * El alto de la barra es el parámetro que REPARTE EL SITIO entre los dos canales que se pelean, y
- * ya va por su cuarta subida: 8 → 10 → 12 → 16. Siempre la misma lección.
+ * ⚠️ ERROR 4 — Y ESTE ES EL GORDO: EL MODELO USABA UN ANCHO FIJO DE 50 px.
+ *
+ * Al corregir el error 1, el peso del anillo pasó a depender del ANCHO de la barra. Y yo metí el
+ * ancho de un turno de 8 horas (50 px) como si fuera "el ancho". Resultado: LA PALETA SOLO
+ * FUNCIONABA A ESE ANCHO EXACTO. Medido sobre la imagen, con el anillo rodeando:
+ *
+ *     barra de  5 px (1 h) → el anillo pesa 67 %  → el peor color queda a ΔE  5,8   ❌
+ *     barra de 29 px (6 h) → pesa 40 %            → ΔE 17,5                         ❌
+ *     barra de 50 px (8 h) → pesa 35 %            → ΔE 20,1                         ✅
+ *     barra de 80 px       → pesa 32 %            → ΔE 19,9                         ❌
+ *
+ * Un turno de una hora con un aviso ámbar se veía MARRÓN. El bug de Marco, reencarnado — y esta
+ * vez la causa no era el color: era que EL ANILLO CAMBIA DE PESO CON LA GEOMETRÍA, y un canal que
+ * cambia de significado según lo ancha que sea la barra no es un canal: es una lotería.
+ *
+ * ⚠️ LA SOLUCIÓN NO ES OTRA PALETA: ES QUE EL ANILLO NO RODEE.
+ *
+ * Dos franjas, arriba y abajo, POR FUERA de la barra (box-shadow, que no come relleno). Su peso es
+ * 2w/(ALTO+2w) y NO DEPENDE DEL ANCHO — 20 % / 27 % / 33 %, siempre. El problema del turno corto
+ * desaparece POR CONSTRUCCIÓN, no por ajuste. Y de paso contamina MENOS que el anillo que rodeaba,
+ * incluso en las barras anchas.
+ *
+ * El alto de la barra sigue siendo el parámetro que reparte el sitio: 8 → 10 → 12 → 16.
  */
 const ALTO = 16;
 const ANILLOS = [['notice', [194,135,10], 2], ['breach', [232,89,12], 3], ['impossible', [200,30,30], 4]];
 
-// El ancho de un turno de 8 h en una columna de la Semana, medido en la página.
-const ANCHO = 50;
-
-// El anillo rodea la barra ENTERA. Su peso es el área que ocupa, no dos franjas.
-const peso = (w) => 1 - (ANCHO * ALTO) / ((ANCHO + 2*w) * (ALTO + 2*w));
+// EL ANILLO SON DOS FRANJAS, ARRIBA Y ABAJO. No rodea, así que su peso NO depende del ancho.
+const peso = (w) => (2*w) / (ALTO + 2*w);
 
 // La trama del imposible: rgba(44,38,67,.30) con 3 px de raya cada 7.
 const TRAMA = [44,38,67];
@@ -95,7 +110,16 @@ const mezcla = (c, ring, f) => c.map((v,i) => v*(1-f) + ring[i]*f);
  * margen salía negativo. El umbral absoluto caza los tres casos reales (el marrón de Marco a
  * ΔE 11, el verde de Iker a 10,2, el magenta que se vuelve rojo a 17,2) y no acusa al que no.
  */
-const UMBRAL = 20;
+/*
+ * ⚠️ Y EL GENERADOR EXIGE 24, NO 20. Porque un mínimo no es un colchón.
+ *
+ * El umbral REAL de la ley 0 es 20 (lo comprueba pixeles.mjs sobre la imagen). Pero el modelo no
+ * es exacto: no sabe de esquinas redondeadas, ni de antialiasing, ni del subpíxel. Cuando el
+ * generador daba justo 20,0, la imagen medía 19,1 y la ley se rompía.
+ *
+ * Un generador que apunta al aprobado suspende. Se le pide 24 para que la imagen dé ≥ 20.
+ */
+const UMBRAL = 24;
 
 const sonarA = (c) => Math.min(...ANILLOS.map(([g, ring, w]) => {
   const base = g === 'impossible' ? mezcla(c, TRAMA, PESO_TRAMA) : c;

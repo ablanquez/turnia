@@ -132,17 +132,17 @@ const P = '#7F77DD';
                 <span class="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Gravedad</span>
 
                 <span class="flex items-center gap-2 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm outline outline-[4px] outline-impossible" :style="{ background: `${TRAMA}, ${P}` }" />
+                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-4px_0_0_var(--color-impossible),0_4px_0_0_var(--color-impossible)]" :style="{ background: `${TRAMA}, ${P}` }" />
                     Imposible
                 </span>
 
                 <span class="flex items-center gap-2 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm outline outline-[3px] outline-breach" :style="{ background: P }" />
+                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-3px_0_0_var(--color-breach),0_3px_0_0_var(--color-breach)]" :style="{ background: P }" />
                     Incumple
                 </span>
 
                 <span class="flex items-center gap-2 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm outline outline-2 outline-notice" :style="{ background: P }" />
+                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-2px_0_0_var(--color-notice),0_2px_0_0_var(--color-notice)]" :style="{ background: P }" />
                     Aviso
                 </span>
             </div>

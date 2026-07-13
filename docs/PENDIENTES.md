@@ -80,12 +80,16 @@ mismo, y no por falta de tiempo.
 Ver `BACKTEST-COMBINATORIO.md` §8. En resumen, lo que **no** está probado y solo se sabrá en
 producción:
 
-- **⚠️ EL MARGEN DE LA PALETA ESTÁ AJUSTADO, NO HOLGADO.** La barra que más se acerca a una
-  gravedad **ajena** queda a **ΔE00 20,7**, con el umbral en 20. Sobra menos de un punto. Y los doce
-  colores dependen de una geometría concreta —barra de 16 px, anillos de 2/3/4, el ancho típico de
-  un turno, hasta la trama del imposible—: **si cambia cualquiera de esos números, la paleta hay que
-  VOLVER A GENERARLA** (`tests/Visual/paleta.mjs`), no parchear un color a mano. `pixeles.mjs` lo
-  denuncia en cada pasada, pero conviene saber que el colchón es fino.
+- **⚠️ LA PALETA DEPENDE DE LA GEOMETRÍA DE LA BARRA.** Los doce colores salen de un cálculo que
+  tiene DENTRO el alto (16 px), el grosor de cada franja de gravedad (2/3/4) y hasta la trama del
+  imposible. **Si cambia cualquiera de esos números, la paleta hay que VOLVER A GENERARLA**
+  (`tests/Visual/paleta.mjs`), no parchear un color a mano. Ya pasó una vez: el modelo metía "el
+  ancho de una barra" como si fuera uno solo (50 px, un turno de 8 h) y la paleta **solo era cierta
+  a ese ancho** — un turno de una hora se veía marrón. Ver `docs/RESPONSIVE.md` §4.
+- **⚠️ SOLO SE HA PROBADO EN CHROMIUM, Y A `deviceScaleFactor: 1`.** Una pantalla Retina (DPR 2)
+  renderiza el antialiasing distinto, y **el antialiasing es exactamente lo que separa el modelo de
+  la imagen** en toda esta matriz. Es el hueco más grande que queda. Firefox y Safari tampoco se han
+  abierto.
 - **⚠️ PLANTILLAS DE MÁS DE DOCE PERSONAS.** La paleta tiene doce colores con separación
   perceptual verificada (ΔE00 mínimo 16,5), y se REPARTEN por orden de id — sin colisiones hasta
   el doce. A partir de ahí **se repiten**, y dos personas de la misma empresa vuelven a tener la

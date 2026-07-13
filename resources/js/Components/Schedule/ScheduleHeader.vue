@@ -113,10 +113,22 @@ const logout = () => router.post('/logout');
             </span>
         </template>
 
+        <!--
+            ⚠️ SIN `whitespace-nowrap`, Y ES LA LEY 10.
+
+            Con él, el indicador —"5 turnos con incidencias · 4 tramos sin cubrir · 1 aviso de
+            catálogo"— mide 460 px y no rompe NUNCA. A 960 px de ventana se salía por la derecha y
+            la cabecera, que lleva overflow-hidden, LO CORTABA EN SECO: se leía "…1 aviso de".
+
+            Un dato cortado no es medio dato: es un error con aspecto de dato. Y este es el dato
+            más importante de la pantalla — el que dice si el cuadrante tiene problemas.
+
+            Ahora envuelve. Ocupa dos líneas cuando hace falta, y se lee entero.
+        -->
         <span
             v-if="partes.length"
             data-t="indicador"
-            class="tabular whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-semibold"
+            class="tabular rounded-lg px-3 py-1.5 text-[11px] font-semibold"
             :style="tono"
             :title="partes.join('\n')"
         >{{ partes.join(' · ') }}</span>

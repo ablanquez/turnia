@@ -1,5 +1,6 @@
 <script setup>
 import AppLayout from '../../Layouts/AppLayout.vue';
+import AvisoEstrecho from '../../Components/Schedule/AvisoEstrecho.vue';
 import CatalogueConflicts from '../../Components/Schedule/CatalogueConflicts.vue';
 import Legend from '../../Components/Schedule/Legend.vue';
 import ScheduleHeader from '../../Components/Schedule/ScheduleHeader.vue';
@@ -42,6 +43,14 @@ defineProps({
 
         <template #banner>
             <Legend :axis="axis" />
+
+            <!-- Si la ventana es demasiado estrecha para los siete días, se DICE. Ver useAncho.js. -->
+            <AvisoEstrecho
+                :company="company"
+                :calendar="calendar"
+                :day="window.days[0].date"
+            />
+
             <CatalogueConflicts :conflicts="coverage?.conflicts ?? []" />
         </template>
 

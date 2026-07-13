@@ -184,7 +184,10 @@ const medirBloques = (celdas) => {
 
         const barra = barras[0];
 
-        const sinAnillo = css(barra, 'outlineStyle') === 'none';
+        // EL ANILLO SON DOS FRANJAS (box-shadow), no un `outline` que rodea. El peso de un anillo
+        // que rodea depende del ANCHO de la barra, y por eso un turno de una hora se veía marrón.
+        const sombra = css(barra, 'boxShadow');
+        const sinAnillo = sombra === 'none';
 
         out[clave] = {
             // El color que el navegador CALCULÓ. No el que yo declaré.
@@ -192,8 +195,8 @@ const medirBloques = (celdas) => {
             // La trama vive en background-image. Si no hay imagen, no hay trama.
             imagen: css(barra, 'backgroundImage'),
             // La gravedad va en el ANILLO, por fuera. El borde solo dice turno/concepto.
-            anilloColor: sinAnillo ? null : css(barra, 'outlineColor'),
-            anilloPx: sinAnillo ? 0 : parseFloat(css(barra, 'outlineWidth')),
+            anilloColor: sinAnillo ? null : (sombra.match(/rgba?\([^)]+\)/)?.[0] ?? null),
+            anilloPx: sinAnillo ? 0 : Math.abs(parseFloat(sombra.match(/(-?[\d.]+)px/g)?.[1] ?? 0)),
             bordeColor: css(barra, 'borderTopColor'),
             bordeEstilo: css(barra, 'borderTopStyle'),
             // Las dos marcas son ELEMENTOS: o están o no están. Nada que interpretar.

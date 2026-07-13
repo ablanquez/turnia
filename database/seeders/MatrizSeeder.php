@@ -61,6 +61,7 @@ class MatrizSeeder extends Seeder
             'tira' => $this->tira(),
             'bandas' => $this->bandas(),
             'celdas' => $this->celdas(),
+            'anchos' => $this->anchos(),
         ];
 
         file_put_contents(
@@ -222,6 +223,71 @@ class MatrizSeeder extends Seeder
             'url' => $this->url($company, $calendar),
             'casos' => $salida,
         ];
+    }
+
+    /**
+     * CAPA 5: LOS TURNOS CORTOS. EL PEOR CASO GEOMÉTRICO, Y NO EXISTÍA EN NINGÚN SITIO.
+     *
+     * ⚠️ EL ANILLO NO PESA LO MISMO EN UNA BARRA ANCHA QUE EN UNA ESTRECHA. Y NUNCA LO HABÍA MEDIDO.
+     *
+     * El anillo de gravedad rodea la barra por los cuatro lados, así que su peso es
+     *
+     *     1 − (ancho × alto) / ((ancho + 2w) × (alto + 2w))
+     *
+     * En un turno de OCHO horas dentro de una columna de 150 px, la barra mide ~50 px de ancho y el
+     * anillo del imposible (4 px) pesa el 43 %. Pero en un turno de UNA hora la barra mide 6 px, y
+     * ese mismo anillo pasa a pesar EL SETENTA POR CIENTO: la barra deja de ser "el color de una
+     * persona con una alarma alrededor" y se convierte en una PASTILLA ROJA.
+     *
+     * Y toda la demo —y todo el cuadrante de la matriz— usa turnos de 8 horas. O sea: el peor caso
+     * geométrico de la app NO ESTABA SEMBRADO EN NINGUNA PARTE, y por tanto ningún instrumento lo
+     * había medido nunca. Se ve al pensar en el responsive, porque estrechar una columna hace lo
+     * mismo que acortar un turno.
+     *
+     * Aquí se siembra: un turno de UNA HORA con cada gravedad, y uno limpio de control.
+     */
+    private function anchos(): array
+    {
+        [$company, $calendar] = $this->company('matriz-anchos', 'Matriz · anchos');
+
+        $ajeno = $this->position($company, 'Ajeno');
+
+        $celdas = [];
+
+        // SEIS DURACIONES × TRES GRAVEDADES. El umbral no se calcula: se MIDE, y para medirlo hay
+        // que sembrar la rampa entera. Un turno de 8 h y uno de 1 h son dos casos distintos.
+        // Cada (duración, gravedad) va en SU PROPIO PUESTO. Meterlos todos en el mismo puesto los
+        // encadenaba a lo largo del día y el último se salía de las 24 h; y si se solapaban, el
+        // imposible saltaría donde no toca y estaríamos midiendo otra cosa.
+        foreach ([1, 2, 3, 4, 6, 8] as $horas) {
+            foreach (['Aviso', 'Incumple', 'Imposible'] as $gravedad) {
+                $puesto = $this->position($company, "H{$horas}·".mb_substr($gravedad, 0, 3));
+
+                $e = $this->hire(
+                    $company,
+                    $calendar,
+                    "H{$horas}",
+                    $gravedad,
+                    // El "no cualificado" se contrata para OTRO puesto y se le coloca en éste.
+                    positions: [$gravedad === 'Incumple' ? $ajeno : $puesto],
+                    // "Contrato sin condiciones definidas" → aviso, y de una sola regla.
+                    sinPerfil: $gravedad === 'Aviso',
+                );
+
+                $fin = sprintf('%02d:00', 10 + $horas);
+                $this->shift($calendar, $e, $puesto, $this->monday, '10:00', $fin);
+
+                if ($gravedad === 'Imposible') {
+                    // Un segundo turno que se pisa con el primero: los dos quedan imposibles, y los
+                    // dos con la misma duración — que es justo lo que se está midiendo.
+                    $this->shift($calendar, $e, $puesto, $this->monday, '10:30', sprintf('%02d:30', 10 + $horas));
+                }
+
+                $celdas["{$horas}h-".mb_strtolower($gravedad)] = "H{$horas} {$gravedad}";
+            }
+        }
+
+        return ['url' => $this->url($company, $calendar), 'personas' => $celdas];
     }
 
     /**

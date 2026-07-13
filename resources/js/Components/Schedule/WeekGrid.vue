@@ -275,7 +275,7 @@ const esPar = (i) => i % 2 === 0;
         >
             <div
                 class="w-full"
-                style="display: grid; grid-template-columns: 124px repeat(7, minmax(160px, 1fr))"
+                style="display: grid; grid-template-columns: 112px repeat(7, minmax(150px, 1fr))"
             >
             <!-- Cabecera: día y fecha APILADOS. Sin regla horaria: el rango lo dice la leyenda. -->
             <div class="corner-sticky border-b-2 border-r-2 border-edge bg-rail" />

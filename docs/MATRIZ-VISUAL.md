@@ -142,7 +142,33 @@ celda y todavía tienes que poder reconstruir quién hace qué.
 > quien identifica es el **avatar sólido que va dentro de la barra**. La identidad está siempre
 > dentro de lo que se ve, y siempre a plena voz.
 
-### Ley 3 — UN ANILLO **POR FUERA** DICE LA GRAVEDAD
+### Ley 3 — DOS FRANJAS **POR FUERA** DICEN LA GRAVEDAD
+
+> ⚠️⚠️ **Y SON DOS FRANJAS —ARRIBA Y ABAJO— Y NO UN ANILLO QUE RODEA. ESO NO ES CSS: ES LA LEY 0.**
+>
+> El anillo era un `outline`, o sea que rodeaba la barra por los cuatro lados. Y ahí su peso —lo que
+> el ojo integra— es `1 − (ancho×alto)/((ancho+2w)(alto+2w))`: **depende del ANCHO de la barra.**
+>
+> | barra | el anillo pesa | el peor color queda a |
+> |---|---|---|
+> | 50 px (turno de 8 h) | 35 % | ΔE **20,1** ✅ |
+> | 10 px (2 h) | 55 % | ΔE **8,7** ❌ |
+> | 5 px (**1 h**) | **67 %** | ΔE **5,8** ❌ |
+>
+> **Un turno de una hora con un aviso ámbar se veía MARRÓN.** El bug de Marco, reencarnado — y esta
+> vez la culpa no era del color: era que **el canal cambiaba de peso con la geometría**. Un canal
+> que significa una cosa u otra según lo ancha que sea la barra no es un canal: **es una lotería.**
+>
+> Con dos franjas por fuera (`box-shadow`, que no come relleno) el peso es `2w/(alto+2w)` y **no
+> depende del ancho**: 20 % / 27 % / 33 %, siempre. **El problema desaparece por construcción, no
+> por ajuste.** Y contamina *menos* que el anillo que rodeaba, incluso en barras anchas. Se sigue
+> leyendo como un anillo, porque el redondeo de la barra cierra los lados.
+>
+> ⚠️ **Y NI LA DEMO NI LOS 96 CASOS DEL CUADRANTE LO HABRÍAN ENSEÑADO NUNCA: todos usan turnos de
+> ocho horas.** El peor caso geométrico de la app no estaba sembrado en ninguna parte. Ver
+> `docs/RESPONSIVE.md` §4 y `tests/Visual/anchos.mjs`.
+
+### Ley 3 (cómo era, y por qué se sacó de dentro de la barra)
 
 Rojo = imposible · naranja = incumplimiento · ámbar = aviso · sin anillo = limpio.
 **Nunca identidad.** Así la gravedad no borra a la persona, y la persona no disfraza la

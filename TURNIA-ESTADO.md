@@ -1091,3 +1091,128 @@ navegador **afirmando que no cruza el día**. Y **las tres comprobaciones daban 
 - [ ] **La demo final llevará UN AÑO ENTERO de cuadrantes** *(cargar la semana en curso y
       precargar las vecinas — ⚠️ pero eso NO sirve para el zoom Año: ahí el problema no es que
       tarde, es que **el contrato de datos es distinto**)*
+
+---
+
+## 28. LA PARRILLA, CERRADA ✅
+
+**Commits finales:** `eeaef89` · `d355374` · **todo subido a GitHub.**
+**207 tests PHP · 21 comprobar · 72 backtest · 89 cotejo · 44 matriz · pixeles.mjs · lupa.mjs**
+
+### 🎯 LA PRUEBA DE QUE EL SISTEMA FUNCIONA: Sara vs Leo
+El mismo lunes, la misma regla, las mismas horas, el mismo anillo naranja:
+- **Sara** → forzado. Tiene su anillo, su muesca y su nota. **Y CALLA.**
+- **Leo** → sin forzar. Tiene el mismo anillo. **Y GRITA** su cartel *INCUMPLIMIENTO · descanso
+  corto*.
+
+> **Misma infracción. Uno revisado, otro no. Y se lee sin explicación.**
+
+*(Detalle del seeder: el turno que provoca el incumplimiento de Leo va **en la víspera, fuera de
+la semana visible**. Meterlo dentro le habría sumado horas y **el tope semanal salta en TODOS los
+turnos de la semana** → le habría pintado los cinco días de naranja. **El cuadrante en llamas que
+el seeder existe para evitar.**)*
+
+---
+
+## 29. 🎣 EL HALLAZGO FINAL: UN AVISO PINTADO DE "TODO BIEN"
+
+Señalé que el marrón de Marco se parecía al naranja. **Y lo que encontró midiendo era peor:**
+
+| barra de 10px | se ve | suena a |
+|---|---|---|
+| Marco `#5C4460` + borde ámbar | `#855F3E` | marrón *(lo que yo vi)* |
+| **Iker `#14748A` + borde ámbar** | **`#5A7C57`** | ⚠️ **VERDE DE COBERTURA** |
+
+> **Una barra con un AVISO se veía del color que esta app usa para decir "TODO BIEN".**
+> El silencio falso más perfecto posible.
+
+### El culpable no era la paleta: era la GEOMETRÍA
+La paleta estaba bien (ΔE 28,8 contra los semánticos, umbral 20). **Lo que estaba mal era que el
+borde iba DENTRO de la barra:** 2px arriba y 2px abajo sobre 10px es el **40% de la barra**.
+> **El ojo no ve dos canales: ve una MEZCLA.**
+
+**Y ninguna solución bastaba sola:**
+
+| | gravedad como borde | gravedad como **anillo** (fuera) |
+|---|---|---|
+| paleta croma ≥ 20 | −18,4 ❌ | −2,3 ❌ |
+| **paleta croma ≥ 30** | −14,1 ❌ | **+2,6 ✅** |
+
+Y **un tercer número mandaba sobre los dos: el ALTO DE LA BARRA.** `8 → 10 → 12 → 16`.
+**Cuarta vez la misma lección.**
+
+### 🔑 TRES ERRORES DEL MODELO, LOS TRES A SU FAVOR
+1. Pesaba el anillo **solo por arriba y por abajo**. Un `outline` rodea **los cuatro lados**: es
+   el **43%** de la caja, no el 33.
+2. **La trama del imposible no entraba en la referencia** → castigaba a la trama por hacer su
+   trabajo.
+3. ⚠️ **Comparaba la barra contra su PROPIA gravedad.**
+   > *"Estaba **suspendiendo a la barra roja por parecerse al rojo**. O sea: **exigiendo que la
+   > alarma no sonara**."*
+
+### 🔑 Y EL CRITERIO ERA RELATIVO CUANDO DEBÍA SER ABSOLUTO
+> **"Ninguna barra puede quedar a menos de ΔE 20 de una gravedad que NO ES LA SUYA."**
+>
+> **"Lo que importa no es DE QUÉ SE ALEJA una barra: es DE QUÉ SE ACERCA."**
+
+Caza el marrón de Marco (ΔE 11), el verde de Iker (10,2) y un magenta que con anillo naranja se
+volvía rojo (17,2) — **y ABSUELVE al teal**, que era un inocente (el criterio viejo lo condenaba).
+
+**Y la validación que lo cierra:** el generador predice **20,1** y la imagen mide **20,7**.
+> *"Es la primera vez que modelo y realidad coinciden — **la prueba de que el error de las cuatro
+> caras era el de verdad**."*
+
+---
+
+## 30. 🚨 EL INSTRUMENTO HA MENTIDO **QUINCE** VECES
+
+**Las tres últimas, y la peor de todas:**
+
+| # | Cómo mintió |
+|---|---|
+| 13 | ⚠️ **DESCARTABA LAS BARRAS TRAMADAS** → **el IMPOSIBLE —el que lleva el anillo más gordo— NO SE MEDÍA EN NINGUNA COMPROBACIÓN.** Verde sobre el caso que más lo necesitaba… **y sin decir que se lo saltaba.** |
+| 14 | Medía solo las parejas *(color, gravedad)* **que la demo enseña por casualidad** → al reintroducir la paleta mala, **la dejó pasar**. |
+| 15 | El criterio relativo **acusaba a inocentes** *(el teal)* mientras absolvía culpables. |
+
+### ⚠️ Y LA CONFESIÓN QUE MÁS VALE DE TODA LA SESIÓN
+> **"'Se ve poco' NO ES UNA MEDIDA. Que el anillo se quedara corto NO LO CAZÓ NINGÚN INSTRUMENTO
+> — LO CAZASTE TÚ, MIRANDO.**
+> Lo único que lo sujeta ahora es que `matriz.mjs` exige el grosor que la matriz declara. **Pero
+> ese número lo puso un OJO, no un test."**
+
+**Hay un límite a lo que los instrumentos pueden cazar.** Reconocerlo vale más que fingir
+cobertura.
+
+→ **Herramienta nueva: `tests/Visual/lupa.mjs`.** Recorta una celda de la página real y la amplía.
+**NO MIDE: sirve para MIRAR** — que es lo único que caza esto.
+
+---
+
+## 31. 📌 Estado y pendientes
+
+### ✅ CERRADO
+- Motor completo y estresado (20 negocios, 32.000 asignaciones, 4-6 ms por validación)
+- Autenticación + 3 roles derivados + Policies probadas
+- **Parrilla que NO MIENTE**: matriz visual con 14 leyes, 44 casos, 0 gemelos
+- Zoom Semana + Día · panel colapsable · leyenda plegable
+- **Todo subido a GitHub** *(iban 8 commits sin subir: regla fija ahora → **push al cerrar cada
+  tanda**)*
+
+### 🔜 LO SIGUIENTE
+- [ ] **RESPONSIVE** — el foco aplazado dos veces. *Web para quien GESTIONA; móvil para quien
+      CONSULTA → **dos vistas, no una que se encoge.***
+- [ ] **Drag & drop + escritura + CANDADO (TOCTOU)** ⚠️ **Riesgo nº1 vivo.**
+      *La validación que se enseña al arrastrar es una PREVISUALIZACIÓN; la que DECIDE corre dentro
+      del candado.*
+
+### 📋 Anotado
+- Zona horaria **por calendario** *(cambio de modelo)*
+- ⚠️ **El inicio del eje (06:00) está CABLEADO** → parámetro del calendario, en tramos de 24h
+- El indicador de incidencias debe **llevar a algún sitio**
+- Zooms Año/Mes → necesitan **agregados**
+- **Plantillas >12 personas:** los colores se repiten. **No hay salida en "más colores"**
+- **Daltonismo:** la paleta no se ha medido en escala de grises
+- ⚠️ **Margen de +0,7** (ΔE 20,7 sobre umbral 20). *Los doce colores dependen de la GEOMETRÍA: si
+  cambia el alto, un grosor o la trama, **la paleta se REGENERA, no se parchea un color**.*
+- `/public/build` en `.gitignore` y Hostinger sin Node
+- Páginas de error propias · resto de pantallas · landing

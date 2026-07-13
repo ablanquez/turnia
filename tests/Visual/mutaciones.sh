@@ -127,7 +127,7 @@ sed -i "s/'crossesMidnight' => \$to > 24,/'crossesMidnight' => false,/g" $PAYLOA
 verificar $PAYLOAD "8. el servidor se calla que un bloque cruza medianoche" && probar "8. el servidor se calla que un bloque cruza medianoche"
 
 # 9. El anillo de gravedad vuelve a pintarse con la TINTA en vez de con el RELLENO.
-perl -0pi -e "s/outline: \`\\\$\{px\}px solid \\\$\{severityFill\(severidad\)\}\`,/outline: \`\\\$\{px\}px solid \\\$\{severityColor(severidad)\}\`,/" $MATRIZ
+sed -i "s|    const color = severityFill(severidad);|    const color = severityColor(severidad);|" $MATRIZ
 verificar $MATRIZ "9. el anillo de gravedad se pinta con la tinta (ámbar sucio)" && probar "9. el anillo de gravedad se pinta con la tinta (ámbar sucio)"
 
 # 10. EL CARTEL NARANJA DESAPARECE: el incumplimiento vuelve a vivir solo en una nota pequeña.
@@ -157,8 +157,15 @@ echo "  ── y estas tres, solo las ve pixeles.mjs ──"
 #     Una sola sustitución: el anillo deja de ser `outline` (fuera) y vuelve a ser `border`
 #     (dentro), que es lo que pisaba el relleno. Como `border` va después de la base en el spread,
 #     la sobrescribe — igual que estaba antes.
-sed -i "s|        outline: \`\${px}px solid \${severityFill(severidad)}\`,|        border: \`2px solid \${severityFill(severidad)}\`,|" $MATRIZ
-verificar $MATRIZ "12. la gravedad vuelve DENTRO de la barra (borde en vez de anillo)" && probar "12. la gravedad vuelve DENTRO de la barra (borde en vez de anillo)" pixeles
+sed -i "s|        boxShadow: \`0 -\${px}px 0 0 \${color}, 0 \${px}px 0 0 \${color}\`,|        border: \`2px solid \${color}\`,|" $MATRIZ
+verificar $MATRIZ "12. la gravedad vuelve DENTRO de la barra (borde en vez de franja)" && probar "12. la gravedad vuelve DENTRO de la barra (borde en vez de franja)" pixeles
+
+# 12c. EL ANILLO VUELVE A RODEAR (outline). El bug del turno corto, reintroducido: el peso del
+#      anillo pasa a depender del ANCHO de la barra, y en un turno de una hora se come el 67 %.
+#      ⚠️ SOLO LO VE anchos.mjs, porque la demo y los 96 casos del cuadrante usan turnos de 8 h:
+#      con barras anchas, el anillo que rodea PASA. El peor caso geométrico hay que sembrarlo.
+sed -i "s|        boxShadow: \`0 -\${px}px 0 0 \${color}, 0 \${px}px 0 0 \${color}\`,|        outline: \`\${px}px solid \${color}\`,|" $MATRIZ
+verificar $MATRIZ "12c. el anillo vuelve a RODEAR (y en un turno de 1 h se come la barra)" && probar "12c. el anillo vuelve a RODEAR (y en un turno de 1 h se come la barra)" anchos
 
 # 12b. EL ANILLO DEL INCUMPLIMIENTO SE QUEDA FINO OTRA VEZ (2 px, como estaba).
 #      A 2 px sobre una barra de 16 el naranja se lee como un borde, no como una alarma. Esto NO
@@ -169,8 +176,8 @@ verificar $MATRIZ "12b. el anillo del incumplimiento se queda fino (2 px)" && pr
 
 # 13. La paleta de croma bajo: ciruelas y grises que no tienen color propio y adoptan el del
 #     anillo. Con el borde arreglado siguen fallando — los dos arreglos hacen falta.
-sed -i "s/^        '#6EAAE4'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
-sed -i "/^        '#742C8A'/d; /^        '#E68CC6'/d; /^        '#145C8A'/d; /^        '#56C2BA'/d; /^        '#8674C6'/d; /^        '#B6AAE4'/d; /^        '#1486AE'/d; /^        '#50508A'/d; /^        '#BC5CBA'/d; /^        '#447AE4'/d; /^        '#2CC2E4'/d" $PALETA
+sed -i "s/^        '#1480B4'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
+sed -i "/^        '#E06EC6'/d; /^        '#623884'/d; /^        '#A4B0F0'/d; /^        '#56C2D2'/d; /^        '#7474A8'/d; /^        '#1A5096'/d; /^        '#A456B4'/d; /^        '#56B0F0'/d; /^        '#AA80EA'/d; /^        '#6286F0'/d; /^        '#C8A4D8'/d" $PALETA
 verificar $PALETA "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" && probar "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" pixeles
 
 # 14. El color se SORTEA en vez de repartirse: dos personas de la misma empresa, el mismo color.

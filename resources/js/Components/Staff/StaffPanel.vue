@@ -127,6 +127,8 @@ const visibles = computed(() => {
     -->
     <aside
         v-if="!panelAbierto"
+        data-t="panel"
+        data-abierto="false"
         class="bg-panel flex w-10 shrink-0 flex-col items-center gap-3 self-stretch border-l-2 border-edge py-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
     >
         <button
@@ -147,7 +149,9 @@ const visibles = computed(() => {
 
     <aside
         v-else
-        class="bg-panel flex min-h-0 w-[264px] shrink-0 flex-col gap-3 self-stretch overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
+        data-t="panel"
+        data-abierto="true"
+        class="bg-panel flex min-h-0 w-[220px] shrink-0 flex-col gap-3 self-stretch overflow-y-auto border-l-2 border-edge px-3.5 pb-[18px] pt-3.5 shadow-[-8px_0_16px_-12px_rgb(40_36_80/30%)]"
     >
         <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-ink">Plantilla disponible</span>
@@ -195,8 +199,8 @@ const visibles = computed(() => {
                 </span>
 
                 <div class="min-w-0 flex-1">
-                    <div class="truncate text-xs font-semibold text-ink">{{ persona.name }}</div>
-                    <div class="truncate text-[9.5px] text-ink-faint">
+                    <div class="break-words text-xs font-semibold text-ink">{{ persona.name }}</div>
+                    <div class="text-[9.5px] text-ink-faint">
                         {{ persona.profile ?? 'Sin perfil definido' }}
                     </div>
                 </div>

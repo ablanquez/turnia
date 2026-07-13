@@ -83,35 +83,44 @@ final class PersonPalette
      * el verde de Iker a 10,2, un magenta que con anillo naranja se vuelve rojo a 17,2) y no
      * acusa al que no.
      *
-     *   · ΔE00 mínimo entre personas:            14,1
-     *   · Croma mínimo:                          30    (antes: 20)
-     *   · Lo más cerca de una gravedad AJENA:    20,1  (antes: 10,1 — la barra mentía)
+     * ⚠️ Y LA VERSIÓN ANTERIOR TENÍA UN AGUJERO QUE SOLO SE VIO AL PENSAR EN EL RESPONSIVE.
      *
-     * Es el cambio correcto: dos personas que cuesta distinguir se resuelven leyendo el nombre;
-     * una barra que dice "incumplimiento" sin incumplir no se resuelve con nada.
+     * El generador metía "el ancho de una barra" como si fuera UNO: 50 px, el de un turno de ocho
+     * horas. Y el peso del anillo depende del ancho, así que la paleta SOLO FUNCIONABA A ESE ANCHO.
+     * Medido sobre la imagen, con un turno de UNA hora (5 px de barra), el anillo pesaba el 67 % y
+     * el peor color quedaba a ΔE 5,8 de una gravedad ajena: un aviso ámbar sobre un púrpura oscuro
+     * se veía MARRÓN. El bug de Marco, reencarnado — y ni la demo ni los 96 casos del cuadrante lo
+     * habrían enseñado nunca, porque TODOS usan turnos de ocho horas.
+     *
+     * La solución no fue otra paleta: fue que EL ANILLO DEJE DE RODEAR. Dos franjas, arriba y
+     * abajo, cuyo peso es 2w/(alto+2w) y NO DEPENDE DEL ANCHO. Ver useMatrizVisual.js.
+     *
+     *   · ΔE00 mínimo entre personas:            13,8
+     *   · Croma mínimo:                          30    (antes: 20)
+     *   · Lo más cerca de una gravedad AJENA:    24,1  a CUALQUIER ancho de barra
      *
      * ⚠️ ESTOS DOCE COLORES DEPENDEN DE LA GEOMETRÍA DE LA BARRA. No es una lista que se pueda
-     * copiar y pegar: sale de un cálculo que TIENE DENTRO el alto (16 px), el ancho típico (50 px),
-     * el grosor de cada anillo (2/3/4) y hasta la trama del imposible. El día que cambie
-     * cualquiera de esos números, la paleta hay que VOLVER A GENERARLA — parchear un color a mano
-     * rompe la garantía, y la garantía es lo único que impide que una barra vuelva a mentir.
+     * copiar y pegar: salen de un cálculo que TIENE DENTRO el alto (16 px), el grosor de cada
+     * franja (2/3/4) y hasta la trama del imposible. El día que cambie cualquiera de esos números,
+     * la paleta hay que VOLVER A GENERARLA — parchear un color a mano rompe la garantía, y la
+     * garantía es lo único que impide que una barra vuelva a mentir.
      *
      * Y son DOCE: por encima, el ΔE mínimo cae en picado. Doce que se distinguen valen más que
      * quince que no.
      */
     private const COLORS = [
-        '#6EAAE4', // azul cielo
-        '#742C8A', // púrpura oscuro
-        '#E68CC6', // rosa
-        '#145C8A', // azul marino
-        '#56C2BA', // turquesa
-        '#8674C6', // violeta
-        '#B6AAE4', // lavanda
-        '#1486AE', // teal
-        '#50508A', // añil oscuro
-        '#BC5CBA', // orquídea
-        '#447AE4', // azul
-        '#2CC2E4', // cian
+        '#1480B4', // azul
+        '#E06EC6', // rosa
+        '#623884', // púrpura oscuro
+        '#A4B0F0', // azul claro
+        '#56C2D2', // turquesa
+        '#7474A8', // añil grisáceo
+        '#1A5096', // azul marino
+        '#A456B4', // orquídea
+        '#56B0F0', // azul cielo
+        '#AA80EA', // violeta
+        '#6286F0', // añil
+        '#C8A4D8', // lavanda
     ];
 
     /**

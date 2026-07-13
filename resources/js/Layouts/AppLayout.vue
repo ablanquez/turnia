@@ -5,7 +5,7 @@ import { Link } from '@inertiajs/vue3';
 <template>
     <div class="flex h-full w-full min-w-0 flex-col overflow-hidden">
         <header
-            class="sticky top-0 z-20 flex items-center gap-4 border-b border-line bg-white px-6 py-3.5"
+            class="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-white px-6 py-3.5"
         >
             <Link href="/dashboard" class="flex items-center gap-3">
                 <svg width="26" height="26" viewBox="0 0 40 40" aria-hidden="true">
