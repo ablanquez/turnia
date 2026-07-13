@@ -36,7 +36,25 @@ use Illuminate\Support\Facades\DB;
  */
 class CoverageCalculator
 {
-    public function forCalendar(Calendar $calendar, TimeWindow $window): CoverageReport
+    /**
+     * @param  array<int, int>  $notCovering  Turnos que NO cuentan como cobertura, por ids.
+     *
+     * ⚠️ UN TURNO IMPOSIBLE NO CUBRE NADA, Y CONTARLO ERA UN SILENCIO FALSO.
+     *
+     * Tomás tiene dos turnos que se pisan en Caja: 10-18 y 14-20. Físicamente no puede
+     * estar en los dos, así que a las 15:00 en Caja NO HAY NADIE — y sin embargo la
+     * cobertura contaba dos personas y pintaba la barra en verde. El puesto estaba
+     * descubierto y la parrilla decía que estaba resuelto.
+     *
+     * Quien decide qué turno es imposible NO es esta clase: es el motor de reglas. Aquí
+     * solo se aplica la consecuencia, y por eso llega como una lista de ids desde fuera.
+     * Duplicar aquí el criterio de "imposible" sería una segunda fuente de verdad, y dos
+     * respuestas a la misma pregunta acaban divergiendo.
+     *
+     * Y los turnos excluidos SIGUEN partiendo el día: sus bordes crean tramos igual, para
+     * que el hueco se pinte exactamente donde está y no una franja entera de más.
+     */
+    public function forCalendar(Calendar $calendar, TimeWindow $window, array $notCovering = []): CoverageReport
     {
         $company = $calendar->company;
         $requirements = $this->requirementsOf($calendar);
@@ -59,7 +77,7 @@ class CoverageCalculator
                 $conflicts = $conflicts->concat($this->duplicatesIn($forPosition, $date));
 
                 $segments = $segments->concat(
-                    $this->segmentsFor($shifts, $company, $forPosition, $date)
+                    $this->segmentsFor($shifts, $company, $forPosition, $date, $notCovering)
                 );
             }
         }
@@ -251,9 +269,10 @@ class CoverageCalculator
     /**
      * El corazón: partir el día por los bordes y evaluar cada tramo.
      *
+     * @param  array<int, int>  $notCovering
      * @return Collection<int, CoverageSegment>
      */
-    private function segmentsFor(Collection $allShifts, $company, Collection $forPosition, CarbonImmutable $date): Collection
+    private function segmentsFor(Collection $allShifts, $company, Collection $forPosition, CarbonImmutable $date, array $notCovering): Collection
     {
         $position = $forPosition->first()->position;
 
@@ -274,6 +293,9 @@ class CoverageCalculator
             ->map(fn (Assignment $a) => [
                 'from' => CarbonImmutable::parse($a->starts_at),
                 'to' => CarbonImmutable::parse($a->ends_at),
+                // Está colocado, pero puede no contar. Un turno imposible ocupa sitio en el
+                // cuadrante y NO cubre el puesto: parte el día igual, suma cero.
+                'counts' => ! in_array($a->id, $notCovering, true),
             ]);
 
         $boundaries = $demands->concat($shifts)
@@ -295,9 +317,18 @@ class CoverageCalculator
                 ->sum('count');
 
             $covered = $shifts
-                ->filter(fn (array $s) => $s['from']->lte($from) && $s['to']->gte($to))
+                ->filter(fn (array $s) => $s['counts'] && $s['from']->lte($from) && $s['to']->gte($to))
                 ->count();
 
+            /*
+             * Ni se pide gente ni la hay: no hay nada que contar, y una tira gris vacía no
+             * informa de nada.
+             *
+             * ⚠️ Si aquí SOLO había turnos imposibles, el tramo desaparece — y es lo
+             * correcto: en un puesto donde no se pide a nadie, un imposible no crea un
+             * hueco. El aviso de que ese turno no puede estar ahí lo da el motor, en rojo,
+             * y no hace falta inventarle un déficit que nadie ha pedido.
+             */
             if ($required === 0 && $covered === 0) {
                 continue;
             }

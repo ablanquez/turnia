@@ -59,7 +59,25 @@ class ScheduleController extends Controller
              * silencio falso.
              */
             'violations' => Inertia::defer(
-                fn () => $this->payload->violations($company, $window, $scope)
+                fn () => $this->payload->violations($company, $window, $scope),
+                'informe',
+            ),
+
+            /*
+             * LA COBERTURA VIAJA CON EL INFORME, Y EN EL MISMO GRUPO A PROPÓSITO.
+             *
+             * Mismo grupo = una sola petición diferida. Y tienen que ir juntas porque la
+             * cobertura DEPENDE del informe: un turno imposible no cubre el puesto, y saber
+             * cuál es imposible es justo el trabajo que cuesta los 700 ms.
+             *
+             * ⚠️ Mientras no llega, la tira de cobertura NO SE PINTA. No es un descuido: es
+             * que todavía no se sabe. Pintar verde y corregirlo a rojo medio segundo después
+             * sería enseñar una mentira y luego desdecirse, y quien mire rápido se queda con
+             * la mentira.
+             */
+            'coverage' => Inertia::defer(
+                fn () => $this->payload->coverage($calendar, $window, $scope),
+                'informe',
             ),
         ]);
     }
@@ -86,7 +104,13 @@ class ScheduleController extends Controller
             // Mismo criterio que en la semana, y por el mismo motivo: mientras no llega,
             // la ausencia de rojo NO significa "todo correcto".
             'violations' => Inertia::defer(
-                fn () => $this->payload->violations($company, $window, $scope)
+                fn () => $this->payload->violations($company, $window, $scope),
+                'informe',
+            ),
+
+            'coverage' => Inertia::defer(
+                fn () => $this->payload->coverage($calendar, $window, $scope),
+                'informe',
             ),
         ]);
     }

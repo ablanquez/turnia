@@ -28,3 +28,7 @@ Thumbs.db
 
 # Capturas de la auditoría visual: se regeneran con tests/Visual/*.mjs
 /tests/Visual/salida
+
+# El índice de escenarios lo escribe BacktestSeeder: es un artefacto, no una fuente.
+# Se regenera con: php artisan db:seed --class=BacktestSeeder
+/tests/Visual/escenarios.json

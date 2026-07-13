@@ -41,9 +41,30 @@ use Illuminate\Support\Collection;
  * El informe de incumplimientos NO está en la carga: se sirve aparte (violations()),
  * como prop diferida. Cuesta ~700 ms la semana, y meterlo aquí haría que la página
  * tardara un segundo en aparecer.
+ *
+ * ⚠️ Y LA COBERTURA VIAJA CON ÉL (coverage()), EN LA MISMA PETICIÓN DIFERIDA.
+ *
+ * No es una optimización: es que la cobertura DEPENDE del informe. Un turno imposible no
+ * cubre el puesto, y saber cuáles son imposibles es exactamente el trabajo que cuesta 700 ms.
+ *
+ * Y por eso se calcula en el SERVIDOR y no en la vista: al empleado se le mandan las
+ * violaciones de SUS turnos y no las de sus compañeros, así que un navegador que dedujera el
+ * déficit a partir de lo que ha recibido pintaría un hueco distinto según quién mirase. El
+ * hueco de un puesto es un hecho del cuadrante, no una opinión del espectador.
  */
 class SchedulePayload
 {
+    /**
+     * El informe de la ventana, calculado UNA vez.
+     *
+     * violations() y coverage() son dos props diferidas del MISMO grupo: llegan en la misma
+     * petición, y las dos necesitan el informe. Sin este memo se validaría dos veces la
+     * misma semana, y son 700 ms cada pasada.
+     *
+     * @var array{key: string, rows: Collection<int, ReportedViolation>}|null
+     */
+    private ?array $memo = null;
+
     public function __construct(
         private HourCounter $counter,
         private LimitResolver $limits,
@@ -65,9 +86,22 @@ class SchedulePayload
         $assignments = $this->assignments($calendar, $window);
         $concepts = $this->conceptEntries($company, $window, $scope);
         $absences = $this->absences($company, $window, $scope);
-        $coverage = $this->coverageCalculator->forCalendar($calendar, $window);
 
-        $axis = $this->axisFor($company, $assignments, $concepts, $coverage->segments);
+        /*
+         * El eje SÍ se calcula en la carga, y para eso hace falta la cobertura: un requisito
+         * de barra a las 05:00 tiene que ensanchar el eje aunque no haya nadie colocado.
+         *
+         * Este cálculo es barato (dos consultas: requisitos y turnos) y NO lleva exclusiones,
+         * y no las necesita: excluir un turno del RECUENTO no mueve ningún borde —el turno
+         * sigue partiendo el día— así que el eje sale idéntico al de la petición diferida.
+         * Lo caro es decidir QUÉ turno es imposible, y eso no se hace aquí.
+         */
+        $axis = $this->axisFor(
+            $company,
+            $assignments,
+            $concepts,
+            $this->coverageCalculator->forCalendar($calendar, $window)->segments,
+        );
 
         return [
             'company' => [
@@ -87,7 +121,6 @@ class SchedulePayload
             'assignments' => $this->assignmentRows($assignments, $company, $axis),
             'conceptEntries' => $this->conceptRows($concepts, $company, $axis),
             'absences' => $this->absenceRows($absences),
-            'coverage' => $this->coverage($coverage, $company, $axis),
             /*
              * ⚠️ EL CONTADOR DE LA PLANTILLA VA SIEMPRE SOBRE LA SEMANA, mire uno el zoom
              * que mire, y no es un descuido de haber reutilizado la ventana.
@@ -122,7 +155,7 @@ class SchedulePayload
     {
         $redactor = new ViolationRedactor($scope);
 
-        $rows = $this->report->forCompany($company, $window)
+        $rows = $this->reportFor($company, $window)
             ->filter(fn (ReportedViolation $row) => $this->visible($row, $scope));
 
         $grouped = [
@@ -140,6 +173,70 @@ class SchedulePayload
             'conceptEntries' => (object) $grouped['concept_entry'],
             'absences' => (object) $grouped['absence'],
         ];
+    }
+
+    /**
+     * LA COBERTURA REAL. También diferida, y en el MISMO grupo que las violaciones.
+     *
+     * Descuenta los turnos que el motor declara IMPOSIBLES: si Tomás está en Caja de 10 a 18
+     * y de 14 a 20 a la vez, a las 15:00 no hay nadie en Caja, por mucho que haya dos filas
+     * en la tabla. Contarlas era pintar de verde un puesto descubierto.
+     *
+     * ⚠️ NO SE RECORTA POR ESPECTADOR, y es deliberado: el déficit de un puesto es el mismo
+     * para el dueño, para el encargado y para el que friega. No lleva ningún dato personal —
+     * son números— y hacerlo depender de quién mira sería fabricar dos verdades.
+     */
+    public function coverage(Calendar $calendar, TimeWindow $window, ScheduleScope $scope): array
+    {
+        $imposibles = $this->reportFor($calendar->company, $window)
+            ->filter(fn (ReportedViolation $row) => $row->kind === 'assignment')
+            ->filter(fn (ReportedViolation $row) => $row->result->impossibles()->isNotEmpty())
+            ->map(fn (ReportedViolation $row) => $row->subject->getKey())
+            ->all();
+
+        $report = $this->coverageCalculator->forCalendar($calendar, $window, $imposibles);
+
+        return $this->coverageRows($report, $calendar->company, $this->axisOf($calendar, $window, $scope));
+    }
+
+    /**
+     * El informe de la ventana, calculado una sola vez por petición.
+     *
+     * @return Collection<int, ReportedViolation>
+     */
+    private function reportFor(Company $company, TimeWindow $window): Collection
+    {
+        $key = $company->id.'|'.$window->from->toDateString().'|'.$window->to->toDateString();
+
+        if ($this->memo === null || $this->memo['key'] !== $key) {
+            $this->memo = ['key' => $key, 'rows' => $this->report->forCompany($company, $window)];
+        }
+
+        return $this->memo['rows'];
+    }
+
+    /**
+     * El MISMO eje que se mandó en la carga.
+     *
+     * Los segmentos de cobertura se posicionan en porcentajes, y un porcentaje solo
+     * significa algo contra un eje. Si esta petición usara un eje distinto del que ya está
+     * pintado, las barras de cobertura caerían desplazadas respecto a los turnos: cada cosa
+     * en su hora, y las dos mintiendo.
+     *
+     * ⚠️ Y POR ESO LLEVA EL SCOPE, aunque la cobertura no se recorte por espectador: el eje
+     * de la carga se ensancha con los conceptos que ESE espectador ve, y el empleado no ve
+     * los de sus compañeros. Mismo espectador, mismo input, mismo eje.
+     */
+    private function axisOf(Calendar $calendar, TimeWindow $window, ScheduleScope $scope): TimeAxis
+    {
+        $company = $calendar->company;
+
+        return $this->axisFor(
+            $company,
+            $this->assignments($calendar, $window),
+            $this->conceptEntries($company, $window, $scope),
+            $this->coverageCalculator->forCalendar($calendar, $window)->segments,
+        );
     }
 
     /**
@@ -354,7 +451,7 @@ class SchedulePayload
         ])->all();
     }
 
-    private function coverage(CoverageReport $report, Company $company, TimeAxis $axis): array
+    private function coverageRows(CoverageReport $report, Company $company, TimeAxis $axis): array
     {
         // Los puestos que NADIE de la plantilla puede cubrir. Su hueco NO es rojo: un
         // hueco rojo dice "ponle a alguien", y aquí no hay a quién poner. Pintarlo igual
@@ -365,35 +462,65 @@ class SchedulePayload
             ->filter()
             ->all();
 
+        $segments = $report->segments->map(function (CoverageSegment $s) use ($company, $axis, $uncoverable) {
+            $from = TimeAxis::hourOf($s->startsAt, $s->workDate, $company);
+            $to = TimeAxis::hourOf($s->endsAt, $s->workDate, $company);
+
+            $incubrible = $s->isGap() && in_array($s->position->id, $uncoverable, true);
+
+            return [
+                'positionId' => $s->position->id,
+                'workDate' => $s->workDate->toDateString(),
+                'startHour' => $from,
+                'endHour' => $to,
+                'left' => $axis->percent($from),
+                'width' => $axis->percent($to) - $axis->percent($from),
+                'required' => $s->required,
+                'covered' => $s->covered,
+                /*
+                 * ⚠️ EL DÉFICIT VA SIEMPRE, TAMBIÉN CUANDO NADIE PUEDE CUBRIRLO.
+                 *
+                 * "sin candidato" y "faltan 2" son DOS informaciones distintas, y la primera
+                 * se estaba comiendo a la segunda: el tramo del sumiller solo decía "sin…"
+                 * —truncado, ilegible— y el número no aparecía en ninguna parte. Que no haya
+                 * a quién poner no hace que falte menos gente.
+                 *
+                 * El "sin candidato" ya se dice con el rayado gris y con la etiqueta de la
+                 * celda. El hueco, con su número, como cualquier otro.
+                 */
+                'missing' => $s->missing(),
+                'excess' => $s->excess(),
+                // covered | missing | excess. Lo decide el motor, no la vista: dos
+                // respuestas a la misma pregunta acaban divergiendo.
+                'state' => $s->state(),
+                // Y esto es un hecho del CATÁLOGO, no del tramo: no sustituye al estado,
+                // lo acompaña. Un tramo puede estar cubierto en un puesto incubrible.
+                'uncoverable' => $incubrible,
+                'label' => $this->clock($from).'–'.$this->clock($to),
+            ];
+        })->values()->all();
+
         return [
-            'segments' => $report->segments->map(function (CoverageSegment $s) use ($company, $axis, $uncoverable) {
-                $from = TimeAxis::hourOf($s->startsAt, $s->workDate, $company);
-                $to = TimeAxis::hourOf($s->endsAt, $s->workDate, $company);
-
-                $incubrible = $s->isGap() && in_array($s->position->id, $uncoverable, true);
-
-                return [
-                    'positionId' => $s->position->id,
-                    'workDate' => $s->workDate->toDateString(),
-                    'startHour' => $from,
-                    'endHour' => $to,
-                    'left' => $axis->percent($from),
-                    'width' => $axis->percent($to) - $axis->percent($from),
-                    'required' => $s->required,
-                    'covered' => $s->covered,
-                    'missing' => $s->missing(),
-                    'excess' => $s->excess(),
-                    // covered | missing | excess | uncoverable. Lo decide el motor, no la
-                    // vista: dos respuestas a la misma pregunta acaban divergiendo.
-                    'state' => $incubrible ? 'uncoverable' : $s->state(),
-                    'label' => $this->clock($from).'–'.$this->clock($to),
-                ];
-            })->values()->all(),
+            'segments' => $segments,
 
             // Errores de CONFIGURACIÓN, no del cuadrante: puestos que nadie puede
             // cubrir, requisitos duplicados, demandas anuladas por precedencia. El
             // problema no está en la parrilla, está en el catálogo.
             'conflicts' => $report->conflicts->map(fn ($v) => $v->toArray())->values()->all(),
+
+            /*
+             * ⚠️ LOS HUECOS CUENTAN COMO INCIDENCIA, Y ESTE TOTAL EXISTE POR ESO.
+             *
+             * El indicador de la cabecera contaba solo turnos que incumplen. En una semana
+             * VACÍA no incumple nadie —no hay a quién— así que decía "Sin incidencias" en
+             * verde sobre un cuadrante sin un solo turno colocado: el peor cuadrante posible,
+             * anunciado como el mejor. Un cuadrante sin problemas y un cuadrante sin nada
+             * daban el mismo número.
+             */
+            'totals' => [
+                'gaps' => $report->gaps()->count(),
+                'excess' => $report->excesses()->count(),
+            ],
         ];
     }
 

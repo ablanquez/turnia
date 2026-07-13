@@ -4,11 +4,13 @@ namespace Tests\Feature\Schedule;
 
 use App\Enums\AbsenceScope;
 use App\Enums\Computation;
+use App\Enums\Recurrence;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Concerns\BuildsSchedulingWorld;
+use Tests\Concerns\RequestsDeferredProps;
 use Tests\TestCase;
 
 /**
@@ -25,6 +27,7 @@ class SchedulePrivacyTest extends TestCase
 {
     use BuildsSchedulingWorld;
     use RefreshDatabase;
+    use RequestsDeferredProps;
 
     private function world(): array
     {
@@ -196,5 +199,47 @@ class SchedulePrivacyTest extends TestCase
         $this->actingAs($intruso)
             ->get($this->url($world))
             ->assertForbidden();
+    }
+
+    #[Test]
+    public function el_hueco_de_un_puesto_es_el_mismo_lo_mire_quien_lo_mire(): void
+    {
+        /*
+         * ⚠️ LA RAZÓN DE QUE LA COBERTURA SE CALCULE EN EL SERVIDOR Y NO EN LA VISTA.
+         *
+         * Al empleado se le mandan las violaciones de SUS turnos y no las de sus compañeros
+         * —eso es privacidad y está bien—. Pero la cobertura DEPENDE de las violaciones: un
+         * turno imposible no cubre el puesto.
+         *
+         * Si el navegador dedujera el déficit a partir de lo que ha recibido, el empleado no
+         * vería que el turno de Sara es imposible y contaría a Sara como cubriendo. Resultado:
+         * el encargado vería "falta 1" y el empleado vería "cubierto", MIRANDO LA MISMA CELDA.
+         *
+         * El hueco de un puesto es un hecho del cuadrante, no una opinión del espectador. Son
+         * números, no llevan ningún dato personal, y son los mismos para todos.
+         */
+        $world = $this->world();
+
+        // Sara se solapa consigo misma el martes: sus dos turnos son IMPOSIBLES.
+        $saraEmp = $world['sara']->employments()->first();
+        $position = $world['company']->positions()->first();
+        $calendar = $world['calendar'];
+
+        $this->assign($saraEmp, $position, '2026-07-07', '12:00', '20:00', calendar: $calendar);
+        $this->makeRequirement($calendar, $position, Recurrence::Weekly, '09:00', '17:00', 1, dayOfWeek: 2);
+
+        $comoEncargado = $this->getDeferred($world['manager'], $this->url($world), 'Schedule/Week', 'coverage')
+            ->json('props.coverage.segments');
+
+        $comoEmpleada = $this->getDeferred($world['anaUser'], $this->url($world), 'Schedule/Week', 'coverage')
+            ->json('props.coverage.segments');
+
+        $this->assertEquals($comoEncargado, $comoEmpleada, 'Dos personas, la misma celda, DOS déficits distintos.');
+
+        // Y que no sea igual por estar los dos vacíos: el martes falta gente de verdad.
+        $martes = collect($comoEmpleada)->firstWhere('workDate', '2026-07-07');
+
+        $this->assertSame(1, $martes['missing'], 'Sara no puede estar ahí: no cubre nadie.');
+        $this->assertSame(0, $martes['covered']);
     }
 }

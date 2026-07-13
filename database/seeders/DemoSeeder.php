@@ -453,8 +453,14 @@ class DemoSeeder extends Seeder
      * UN IMPOSIBLE. Tomás, el martes: dos turnos de caja que se pisan.
      *
      * No puede estar en dos sitios a la vez, y sin embargo ahí está: alguien lo colocó. La
-     * parrilla tiene que GRITARLO, y la cobertura de esa celda desaparece — con alguien que
-     * no puede estar ahí, el número contaría a quien no puede cubrir.
+     * parrilla tiene que GRITARLO.
+     *
+     * ⚠️ Y LA COBERTURA DE ESA CELDA SE PINTA, con el hueco que Tomás deja al no poder estar.
+     *
+     * Estuvo escondida, y el razonamiento parecía bueno: "contando a quien no puede cubrir, el
+     * número es una ficción". Lo era — pero esconderla dejaba la celda MUDA sobre un puesto
+     * DESCUBIERTO, que es un silencio falso, y de los caros. La ficción se arregló donde
+     * nacía: el motor ya no cuenta como cobertura un turno imposible.
      */
     private function solapeImposible(): void
     {

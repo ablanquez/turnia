@@ -52,6 +52,75 @@ class CoverageCalculatorTest extends TestCase
         $this->assign($employment, $position, $date, $de, $a, endDate: $endDate, calendar: $calendar);
     }
 
+    // ─────────── UN TURNO IMPOSIBLE NO CUBRE ───────────
+
+    #[Test]
+    public function un_turno_excluido_no_cuenta_como_cobertura(): void
+    {
+        /*
+         * ⚠️ EL SILENCIO FALSO MÁS CARO DE LA TANDA.
+         *
+         * Tomás está en Caja de 10 a 18 y de 14 a 20 a la vez. No puede estar en los dos, así
+         * que a las 15:00 en Caja NO HAY NADIE. Y sin embargo la cobertura contaba dos
+         * personas, el tramo salía en verde, y la parrilla decía que un puesto descubierto
+         * estaba resuelto.
+         *
+         * Quién es imposible lo decide EL MOTOR DE REGLAS, no esta clase: llega de fuera, como
+         * una lista de ids. Duplicar aquí el criterio sería una segunda fuente de verdad.
+         */
+        ['company' => $company, 'calendar' => $calendar, 'barra' => $barra] = $this->mundo();
+
+        $this->makeRequirement($calendar, $barra, Recurrence::Daily, '10:00', '20:00', 1);
+
+        $employment = $this->makeEmployment($company, $this->makePerson($company->owner));
+        $employment->positions()->attach($barra);
+
+        $uno = $this->assign($employment, $barra, '2026-07-06', '10:00', '18:00', calendar: $calendar);
+        $dos = $this->assign($employment, $barra, '2026-07-06', '14:00', '20:00', calendar: $calendar);
+
+        // Sin excluir nada: los dos turnos cuentan y el puesto parece cubierto (y de sobra).
+        $ingenuo = app(CoverageCalculator::class)->forCalendar($calendar, $this->un('2026-07-06'));
+
+        $this->assertTrue($ingenuo->gaps()->isEmpty(), 'Contando a quien no puede estar, no falta nadie.');
+
+        // Excluyendo los dos imposibles: no cubre NADIE, y falta uno durante las diez horas.
+        $real = app(CoverageCalculator::class)
+            ->forCalendar($calendar, $this->un('2026-07-06'), [$uno->id, $dos->id]);
+
+        $huecos = $real->gaps();
+
+        $this->assertCount(1, $huecos, 'El hueco es UNO, de punta a punta: los tramos contiguos se unen.');
+        $this->assertSame(0, $huecos[0]->covered, 'Cero personas válidas.');
+        $this->assertSame(1, $huecos[0]->missing());
+
+        // Y el turno excluido SIGUE partiendo el día: el hueco empieza a las 10, no antes.
+        $this->assertSame('10:00', $huecos[0]->startsAt->setTimezone($company->timezone)->format('H:i'));
+        $this->assertSame('20:00', $huecos[0]->endsAt->setTimezone($company->timezone)->format('H:i'));
+    }
+
+    #[Test]
+    public function un_imposible_en_un_puesto_sin_requisito_no_inventa_ningun_hueco(): void
+    {
+        /*
+         * Si no se pide gente en ese puesto, que Tomás no pueda estar ahí NO deja ningún
+         * hueco. Pintarle un déficit sería un aviso falso — y el imposible ya se grita por
+         * su cuenta, que es donde toca.
+         */
+        ['company' => $company, 'calendar' => $calendar, 'barra' => $barra] = $this->mundo();
+
+        $employment = $this->makeEmployment($company, $this->makePerson($company->owner));
+        $employment->positions()->attach($barra);
+
+        $uno = $this->assign($employment, $barra, '2026-07-06', '10:00', '18:00', calendar: $calendar);
+        $dos = $this->assign($employment, $barra, '2026-07-06', '14:00', '20:00', calendar: $calendar);
+
+        // Ni un requisito en todo el calendario.
+        $report = app(CoverageCalculator::class)
+            ->forCalendar($calendar, $this->un('2026-07-06'), [$uno->id, $dos->id]);
+
+        $this->assertTrue($report->segments->isEmpty(), 'Sin demanda no hay tramo, y sin tramo no hay hueco.');
+    }
+
     // ─────────── VIGENCIA ───────────
 
     #[Test]
