@@ -143,11 +143,21 @@ const muestraStyle = (block) => ({
     flexShrink: 0,
 });
 
-/** Una línea por bloque. El "◷" delante distingue el concepto horario del turno. */
+/**
+ * Una línea por bloque, Y EL CONCEPTO DICE SU NOMBRE.
+ *
+ * ⚠️ UN SÍMBOLO QUE HAY QUE DEDUCIR NO COMUNICA NADA.
+ *
+ * La muestra del concepto —un rectángulo con borde discontinuo— iba sola, con un reloj y una
+ * hora, y no había manera de saber qué era: había que deducirlo de una nota que estaba tres
+ * líneas más abajo. Ahora lleva su etiqueta al lado ("Hora médica · 09:00–11:00") y se
+ * entiende sin salir de la línea. El cuadradito ya no es un jeroglífico: es la muestra de
+ * SU barra, y al lado pone lo que es.
+ */
 const rotulos = computed(() => repartidos.value.bloques.map((b) => ({
     key: `${b.kind}-${b.id}`,
     block: b,
-    text: b.kind === 'concept' ? `◷ ${b.label}` : b.label,
+    text: b.kind === 'concept' ? `◷ ${b.name} · ${b.label}` : b.label,
 })));
 
 /**
@@ -168,13 +178,17 @@ const notes = computed(() => {
     };
 
     for (const block of props.blocks) {
+        // El nombre ya está en su rótulo, con su hora. Aquí solo queda lo que el rótulo no
+        // puede decir: que ocupa a la persona pero NO cubre el puesto.
         if (block.kind === 'concept') {
-            añadir(`${block.name} · no cubre puesto`, BRAND_DARK);
+            añadir('◷ no cubre puesto', BRAND_DARK);
             continue;
         }
 
+        // ⚠️ EL AVISO LLEVA SU HORA. Se me quedó "cruza medianoche" a secas —el aviso sin el
+        // dato— y en un carril con dos turnos no se sabría de CUÁL de los dos habla.
         if (block.crossesMidnight) {
-            añadir('☾ cruza medianoche', BRAND_DARK);
+            añadir(`☾ ${block.label} · cruza medianoche`, BRAND_DARK);
         }
 
         const rotas = violationsOf(block);
@@ -261,10 +275,15 @@ const title = computed(() => {
             v-for="rotulo in rotulos"
             :key="rotulo.key"
             data-t="rotulo"
-            class="tabular ml-[22px] mt-[3px] flex items-center gap-[5px] whitespace-nowrap text-[10px] leading-tight text-[#8A8896]"
+            class="tabular ml-[22px] mt-[3px] flex items-start gap-[5px] text-[10px] leading-tight text-[#8A8896]"
         >
-            <span :style="muestraStyle(rotulo.block)" />
-            {{ rotulo.text }}
+            <!--
+                ENVUELVE, no trunca. "Hora médica · 09:00–11:00" no cabe en una columna de
+                160 px, y la salida NO es recortarlo: es bajar de línea. Una hora suelta
+                ("12:00–20:00") no tiene espacios, así que nunca se parte.
+            -->
+            <span class="mt-[2px]" :style="muestraStyle(rotulo.block)" />
+            <span class="min-w-0 break-words">{{ rotulo.text }}</span>
         </div>
 
         <!--

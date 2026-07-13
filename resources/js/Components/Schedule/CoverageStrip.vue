@@ -27,30 +27,40 @@ const props = defineProps({
 });
 
 /**
- * EL RAYADO GRIS DICE "NO HAY A QUIÉN PONER". EL NÚMERO DICE CUÁNTOS FALTAN.
+ * EL DÉFICIT ES ROJO. EL RAYADO SE PONE ENCIMA. LOS DOS, A LA VEZ.
  *
- * Son dos informaciones distintas y una se estaba comiendo a la otra: el tramo del sumiller
- * ponía "sin…" —truncado, ilegible— y el déficit no aparecía por ningún lado. Que nadie
- * pueda cubrirlo no hace que falte menos gente.
+ * ⚠️ SEGUNDO INTENTO, Y EL PRIMERO SEGUÍA ANULANDO UN DATO CON EL OTRO.
  *
- * Ahora el hueco lleva su número como cualquier otro hueco, y el "no hay candidato" se dice
- * donde ya se decía: con el rayado, con la etiqueta de la celda y con la banda de arriba.
+ * "Faltan 2" y "no hay a quién poner" son DOS informaciones, y el rayado gris se comía a la
+ * primera dos veces seguidas: antes con un "sin…" truncado, y después —ya con su número—
+ * pintando gris sobre gris, con lo que en la pantalla NO SE VEÍA que faltara nadie. El
+ * número estaba en el DOM y el hueco no estaba en el ojo.
+ *
+ * Ahora el tramo del sumiller es UN HUECO ROJO, como cualquier otro hueco, y las rayas van
+ * SUPERPUESTAS encima: el rojo dice cuánta gente falta, la textura dice que el problema no
+ * se arregla colocando a nadie. Ninguna de las dos tapa a la otra.
  */
+const RAYAS = 'repeating-linear-gradient(45deg, rgba(60,56,84,.30) 0 4px, transparent 4px 9px)';
+
 const ESTILO = {
     covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: '#0F5C2C' },
     missing: { bg: 'var(--color-missing-fill)', border: 'var(--color-missing)', color: '#9E1616' },
     excess: { bg: 'var(--color-excess-fill)', border: 'var(--color-brand-300)', color: 'var(--color-brand-600)' },
-    // Rayado, NO rojo. Un hueco rojo dice "ponle a alguien", y aquí no hay a quién poner:
-    // el problema no está en el cuadrante, está en el catálogo.
-    uncoverable: {
-        bg: 'repeating-linear-gradient(45deg, var(--color-void-fill) 0 5px, #EFEDF5 5px 10px)',
-        border: '#8A8699',
-        color: '#57536A',
-    },
 };
 
-/** Un hueco que nadie del catálogo puede tapar sigue siendo un hueco: cambia el color, no el número. */
-const estiloDe = (s) => ESTILO[s.uncoverable && s.state === 'missing' ? 'uncoverable' : s.state];
+/**
+ * Un hueco que nadie del catálogo puede tapar SIGUE SIENDO UN HUECO ROJO. Lo que cambia es
+ * que además lleva rayas. No cambia ni el color, ni el borde, ni el número.
+ */
+const estiloDe = (s) => {
+    const base = ESTILO[s.state];
+
+    if (! s.uncoverable || s.state !== 'missing') {
+        return base;
+    }
+
+    return { ...base, bg: `${RAYAS}, ${base.bg}`, rayado: true };
+};
 
 const style = (s) => ({
     position: 'absolute',

@@ -216,8 +216,12 @@ const CASOS = {
         const rayado = r.tramos.find((t) => t.imagen.includes('repeating-linear'));
 
         return [
-            ['El hueco incubrible se pinta RAYADO, no rojo', rayados(r) === 7, `${rayados(r)} rayados`],
-            ['Y NO se pinta como un hueco rojo normal', !!rayado && !esRojo(rgb(rayado.fondo)), `fondo ${rayado?.fondo}`],
+            // ⚠️ ROJO **Y** RAYADO. Las rayas se ponen ENCIMA del hueco, no en su lugar: que
+            // nadie pueda cubrirlo no hace que falte menos gente. Cuando el rayado sustituía
+            // al rojo, el déficit del sumiller quedaba en gris sobre gris y NO SE VEÍA.
+            ['El hueco incubrible lleva RAYAS', rayados(r) === 7, `${rayados(r)} rayados`],
+            ['Y SIGUE SIENDO UN HUECO ROJO (las rayas no lo sustituyen)',
+                !!rayado && esRojo(rgb(rayado.fondo)), `fondo ${rayado?.fondo}`],
 
             // ⚠️ EL DATO QUE SE RECORTABA. Ponía "sin…" y el número no aparecía en ningún sitio.
             ['El DÉFICIT sale con su número', r.rotulosDeTramo.some((x) => /\d/.test(x.texto)),

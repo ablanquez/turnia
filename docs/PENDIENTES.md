@@ -17,6 +17,27 @@ entidad).
 **Es un cambio de modelo**, no un ajuste: hay que decidir si el centro es una entidad nueva o
 si la zona baja a `calendars`. Se decide cuando montemos la creación de calendarios.
 
+### EL INICIO DEL EJE DEL DÍA, también por calendario
+
+Hoy está **cableado en el código**: `TimeAxis::DEFAULT_FROM = 6.0` → el día de negocio va de
+06:00 a 06:00. Funciona para un bar, y **no debería ser una constante**.
+
+Una panadería que entra a las 03:00 no encaja en un eje que empieza a las 06:00 — su día de
+negocio arranca de madrugada. Una discoteca querría otro. Hoy el eje *se ensancha* para que
+la barra quepa (nunca recorta), pero eso es un parche: lo correcto es que el negocio diga
+dónde empieza su día.
+
+**Es exactamente el mismo tipo de parámetro que la zona horaria: una decisión del CALENDARIO,
+no del código.** Y va con ella.
+
+⚠️ **Siempre en tramos de 24 h** (00:00→00:00, 06:00→06:00, 03:00→03:00…). No es "elige tu
+rango": es **"elige dónde empieza tu día"**. Un eje que no cubra 24 h partiría turnos en dos.
+
+Y no es un detalle estético: **con el eje en 00:00→00:00, el nocturno de 22:00 a 06:00 se
+partiría en DOS barras** —una al final de un día y otra al principio del siguiente— cuando es
+UN solo turno. Que el eje empiece a las 06:00 es justo lo que lo mantiene entero. Ahí está el
+motivo de que este parámetro importe.
+
 ### El seeder deja Cocina, Sala y Caja vacías el sábado y el domingo
 
 En hostelería el fin de semana es el **pico de carga**, y la demo hace parecer que el bar
@@ -28,9 +49,10 @@ cierra la cocina. Se arregla cuando montemos el año entero de cuadrantes.
 
 ### El indicador de la cabecera no lleva a ningún sitio
 
-Dice "4 turnos con incidencias · 4 tramos sin cubrir · 1 aviso de catálogo" y ahí se acaba.
-Informa, pero no es accionable. Falta decidir qué es: ¿un botón? ¿filtra la parrilla? ¿abre
-una lista con los sitios donde están? **Se decidirá**, no se improvisa.
+Dice "4 turnos con incidencias · 4 tramos sin cubrir · 1 aviso de catálogo" y ahí se acaba:
+**informa, pero no es accionable**. Está bien de momento, pero más adelante **tendrá que
+llevar a algún sitio** — un panel, un modal, un filtro que salte a las celdas afectadas.
+Falta decidir cuál. **Se decidirá**, no se improvisa.
 
 ### Páginas de error propias (400 / 403 / 404 / 500)
 

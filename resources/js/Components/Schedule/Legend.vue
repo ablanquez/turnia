@@ -58,12 +58,18 @@ const rango = computed(() => `${reloj(props.axis.from)} → ${reloj(props.axis.t
                 Exceso
             </span>
 
+            <!--
+                SIN CANDIDATO = UN HUECO (rojo) + RAYAS. Las rayas no sustituyen al rojo: se
+                le ponen encima. Que nadie de la plantilla pueda cubrirlo no hace que falte
+                menos gente — solo cambia dónde está el problema (en el catálogo, no en el
+                cuadrante).
+            -->
             <span class="flex items-center gap-1.5 text-[#41404E]">
                 <span
-                    class="h-3.5 w-3.5 rounded-sm border border-[#8A8A99]"
-                    style="background: repeating-linear-gradient(45deg, #DEDEE6 0 4px, #F1F1F5 4px 8px)"
+                    class="h-3.5 w-3.5 rounded-sm border-t-[3px] border-missing"
+                    style="background: repeating-linear-gradient(45deg, rgba(60,56,84,.30) 0 4px, transparent 4px 9px), rgba(220,38,38,.24)"
                 />
-                Sin candidato
+                Falta · sin candidato
             </span>
         </div>
 
