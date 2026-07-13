@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { TRAMA_TIRA, tramaDe } from '../../composables/useMatrizVisual.js';
 
 /**
  * LA LEYENDA ENSEÑA EL SISTEMA, NO UNA LISTA DE COLORES.
@@ -33,8 +34,22 @@ const reloj = (h) => String(Math.floor(((h % 24) + 24) % 24)).padStart(2, '0') +
 
 const rango = computed(() => `${reloj(props.axis.from)} → ${reloj(props.axis.to)}`);
 
-const TRAMA = 'repeating-linear-gradient(45deg, rgba(44,38,67,.30) 0 3px, transparent 3px 7px)';
-const P = '#7F77DD';
+/**
+ * ⚠️ LA LEYENDA TENÍA SU PROPIA COPIA DE LA TRAMA. Y ESO ES LA LEY 13, ROTA EN EL PEOR SITIO.
+ *
+ * `const TRAMA = 'repeating-linear-gradient(45deg, rgba(44,38,67,.30) 0 3px…')` vivía aquí, calcada
+ * de useMatrizVisual. El día que la parrilla cambiara de trama —y cambió— la leyenda seguiría
+ * enseñando la vieja: el manual contando una cosa y la página pintando otra. Una leyenda que miente
+ * es peor que no tener leyenda, porque enseña a leer mal.
+ *
+ * Ahora se importa. Una sola definición, y la muestra se pinta con la MISMA función que la barra.
+ *
+ * `MUESTRA` es un color de la paleta de verdad —el primero—, no un índigo de marca inventado: la
+ * trama es la SOMBRA DE SU COLOR, así que enseñarla sobre un color que no es de nadie enseñaría una
+ * sombra que no es de nadie.
+ */
+const MUESTRA = '#70D0CC';
+const TRAMA = tramaDe(MUESTRA);
 </script>
 
 <template>
@@ -104,17 +119,17 @@ const P = '#7F77DD';
                 <span class="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Cuenta</span>
 
                 <span class="flex items-center gap-1.5 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm" :style="{ background: P }" />
+                    <span class="h-3.5 w-5 rounded-sm" :style="{ background: MUESTRA }" />
                     Cubre el puesto
                 </span>
 
                 <span class="flex items-center gap-1.5 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm" :style="{ background: `${TRAMA}, ${P}` }" />
+                    <span class="h-3.5 w-5 rounded-sm" :style="{ background: `${TRAMA}, ${MUESTRA}` }" />
                     No cubre, pero cuenta horas
                 </span>
 
                 <span class="flex items-center gap-1.5 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm border-[1.5px] border-dashed" :style="{ borderColor: P }" />
+                    <span class="h-3.5 w-5 rounded-sm border-[1.5px] border-dashed" :style="{ borderColor: MUESTRA }" />
                     Ni cubre ni cuenta
                 </span>
             </div>
@@ -132,17 +147,17 @@ const P = '#7F77DD';
                 <span class="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Gravedad</span>
 
                 <span class="flex items-center gap-2 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-4px_0_0_var(--color-impossible),0_4px_0_0_var(--color-impossible)]" :style="{ background: `${TRAMA}, ${P}` }" />
+                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-4px_0_0_var(--color-impossible),0_4px_0_0_var(--color-impossible)]" :style="{ background: `${TRAMA}, ${MUESTRA}` }" />
                     Imposible
                 </span>
 
                 <span class="flex items-center gap-2 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-3px_0_0_var(--color-breach),0_3px_0_0_var(--color-breach)]" :style="{ background: P }" />
+                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-3px_0_0_var(--color-breach),0_3px_0_0_var(--color-breach)]" :style="{ background: MUESTRA }" />
                     Incumple
                 </span>
 
                 <span class="flex items-center gap-2 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-2px_0_0_var(--color-notice),0_2px_0_0_var(--color-notice)]" :style="{ background: P }" />
+                    <span class="h-3.5 w-5 rounded-sm shadow-[0_-2px_0_0_var(--color-notice),0_2px_0_0_var(--color-notice)]" :style="{ background: MUESTRA }" />
                     Aviso
                 </span>
             </div>
@@ -161,14 +176,14 @@ const P = '#7F77DD';
                 <span class="text-[10px] font-bold uppercase tracking-wider text-ink-faint">Marcas</span>
 
                 <span class="flex items-center gap-1.5 text-[#41404E]">
-                    <span class="relative h-3.5 w-5 rounded-sm" :style="{ background: P }">
+                    <span class="relative h-3.5 w-5 rounded-sm" :style="{ background: MUESTRA }">
                         <span class="absolute left-0 top-0 h-0 w-0 border-l-[6px] border-t-[6px] border-l-white border-t-transparent" />
                     </span>
                     Forzado
                 </span>
 
                 <span class="flex items-center gap-1.5 text-[#41404E]">
-                    <span class="relative h-3.5 w-5 rounded-sm" :style="{ background: P }">
+                    <span class="relative h-3.5 w-5 rounded-sm" :style="{ background: MUESTRA }">
                         <span class="absolute right-0 top-0 h-full w-[3px] rounded-r-sm bg-ink" />
                     </span>
                     Cruza medianoche
@@ -198,7 +213,7 @@ const P = '#7F77DD';
                 <span class="flex items-center gap-1.5 text-[#41404E]">
                     <span
                         class="h-3.5 w-5 rounded-sm border-t-[3px] border-missing"
-                        style="background: repeating-linear-gradient(45deg, rgba(60,56,84,.20) 0 4px, transparent 4px 9px), var(--color-missing-fill)"
+                        :style="{ background: `${TRAMA_TIRA}, var(--color-missing-fill)` }"
                     />
                     Falta · sin candidato
                 </span>

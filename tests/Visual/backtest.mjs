@@ -109,8 +109,15 @@ const radiografia = () => {
         tramos: [...c.querySelectorAll('[data-t=tramo]')].map(tramo),
         rotulos: [...c.querySelectorAll('[data-t=tramo-rotulo]')].map((r) => r.textContent.trim()),
         tieneTira: !!c.querySelector('[data-t=tira]'),
-        imposible: !!c.querySelector('[data-t=imposible]'),
-        sinCandidato: !!c.querySelector('[data-t=sin-candidato]'),
+        // ⚠️ LOS SELECTORES SE QUEDARON ATRÁS, Y ESO NO ES UN DETALLE.
+        //
+        // El aviso de celda dejó de ser `[data-t=imposible]` / `[data-t=sin-candidato]` y pasó a ser
+        // UN SOLO canal —el CARTEL— con su gravedad en `data-severidad` (ley 14). Este instrumento
+        // siguió buscando los nombres viejos y contestaba "no hay badge" sobre una celda que SÍ
+        // grita. Un instrumento que no se actualiza con la app no da un falso verde: da un falso
+        // ROJO, y eso enseña a no mirarlo — que acaba siendo lo mismo.
+        imposible: !!c.querySelector('[data-t=cartel][data-severidad=impossible]'),
+        sinCandidato: !!c.querySelector('[data-t=cartel][data-severidad=catalog]'),
         carriles: [...c.querySelectorAll('[data-t=carril]')].map(carril),
     }));
 
@@ -126,8 +133,8 @@ const radiografia = () => {
         rotulosDeTramo,
         carriles: [...document.querySelectorAll('[data-t=carril]')].map(carril),
         celdas,
-        imposibles: [...document.querySelectorAll('[data-t=imposible]')].map((e) => e.textContent.trim()),
-        sinCandidato: document.querySelectorAll('[data-t=sin-candidato]').length,
+        imposibles: [...document.querySelectorAll('[data-t=cartel][data-severidad=impossible]')].map((e) => e.textContent.trim()),
+        sinCandidato: document.querySelectorAll('[data-t=cartel][data-severidad=catalog]').length,
         catalogo: !!document.querySelector('[data-t=catalogo]'),
         paginaDesborda: document.documentElement.scrollWidth > window.innerWidth,
     };

@@ -212,13 +212,50 @@ gravedad.
 > lección, la misma las cuatro veces: **dos preguntas peleándose por el mismo sitio se arreglan
 > dándoles más sitio.**
 
-### Ley 4 — LA TRAMA DICE «ESTO NO CUBRE EL PUESTO»
+### Ley 4 — LA TRAMA DICE «ESTO NO CUBRE EL PUESTO», Y SE PINTA CON **LA SOMBRA DE LA PROPIA PERSONA**
 
 El mismo significado en **las tres capas**, y por eso el rayado es reconocible sin aprenderlo:
 
 - barra **imposible** → rayada *(un turno imposible no cubre: el motor no lo cuenta)*
-- **concepto** → hueco *(ocupa a la persona, no cubre el puesto)*
+- **concepto que computa** → rayado *(ocupa a la persona y suma horas, pero no cubre el puesto)*
+- **concepto que no computa** → hueco *(ni cubre ni cuenta)*
 - tramo **incubrible** → rayado *(falta gente y no hay a quién poner)*
+
+> ⚠️ **Y LA TINTA DE LA RAYA ES LA DEL RELLENO, NO UNA CONSTANTE. Es la ley 0, en el canal de la
+> densidad.**
+>
+> La trama se pintaba con `rgba(44,38,67,.30)` — un índigo oscuro. Ese número se eligió cuando la
+> paleta era **toda índigo**, así que se fundía con el relleno y no molestaba a nadie. Pero la
+> paleta de hoy va del azul al rosa y al turquesa, y sobre esos colores **un índigo fijo es un color
+> ajeno**. Medido sobre la imagen:
+>
+> | la barra tramada de… | su raya salía | y eso es… |
+> |---|---|---|
+> | Iker (rosa) | `#AA589F` | **el color de Bea**, a ΔE 5 |
+> | Bea | `#804892` | **el color de Marco**, a ΔE 7 |
+> | Nuria | `#8087BC` | **el color de Diego**, a ΔE 7 |
+> | Leo | `#4987BC` | **el color de Ana**, a ΔE 6 |
+>
+> O sea: **la trama pintaba, DENTRO de la barra de una persona, el color de otra.** El canal de la
+> DENSIDAD estaba escribiendo en el canal de la IDENTIDAD.
+>
+> Y había un segundo daño, del signo contrario: sobre Marco (`#623884`, oscuro) la raya quedaba a
+> **ΔE 4,4 de su propio relleno — invisible**. Su barra imposible parecía **sólida**, o sea *«cubre
+> el puesto»*, que es exactamente lo contrario de lo que es. La misma constante producía a la vez un
+> **aviso falso** y un **silencio falso**, según a quién le tocara.
+>
+> Ahora la raya es **la sombra de la persona**: su color con `L* − 22`, mismo tono, mismo croma.
+> **El canal de densidad no puede meter un color que la identidad no haya puesto, porque no tiene
+> ninguno propio que meter.** Se arregla por construcción, no eligiendo mejor tinta.
+>
+> Y la raya baja de 3 px cada 7 a **2 px cada 8**: el área rayada pasa del 43 % al 25 %, así que la
+> barra se aleja **menos** de su color (ΔE 5,4 en vez de 5,6) mientras la raya **se ve más**
+> (ΔE ≥ 16,3 contra su relleno, en las doce; antes, en Marco, 4,4).
+>
+> **La regla general, que es lo que hay que llevarse:** *una tinta fija solo vale si el fondo también
+> es fijo.* La trama de la **tira** (`TRAMA_TIRA`) y la de la **banda** (`TRAMA_BANDA`) sí pueden
+> tener tinta propia — se pintan siempre sobre el mismo fondo. La de la **barra** no, porque su fondo
+> son doce colores distintos.
 
 ### Ley 5 — LA FORMA DICE LA NATURALEZA
 
@@ -340,6 +377,63 @@ los carteles:
 
 El **eje** (`el día va de 06:00 → 06:00`) **no se pliega**, y por el mismo motivo por el que
 existe: sin él nadie entiende por qué un nocturno de 22:00 a 06:00 cabe entero dentro de su día.
+
+### Ley 15 — **LA DEMO CONTIENE EL PEOR CASO GEOMÉTRICO DE CADA DIMENSIÓN**
+
+Toda la demo —y los 96 casos del cuadrante— usaban turnos de **4 a 8 horas**. La barra más estrecha
+que la app había pintado nunca medía 29 px. Y ahí, escondido, vivía un fallo real: el anillo de
+gravedad rodeaba la barra por los cuatro lados, así que **su peso dependía del ancho** — 35 % en un
+turno de ocho horas, **67 % en uno de una hora**. Un aviso ámbar sobre una barra de 1 h **se veía
+marrón**, a ΔE 5,8 de una gravedad que no era la suya.
+
+**El peor caso geométrico de la aplicación no estaba sembrado en ninguna parte.** No es que el test
+fallara: es que **no había nada que medir**.
+
+> **Arreglar un fallo no es sembrarlo.** Si el caso extremo no está en la demo, lo único que sujeta
+> el arreglo es un test — y un test que nadie mira es un test que un día se pone en verde sin que
+> nadie se entere. **La demo es lo que se mira.**
+
+Así que cada dimensión del bloque tiene que llegar a su extremo **en la demo**, no solo en un
+seeder de laboratorio:
+
+| dimensión | el extremo | dónde vive en la demo |
+|---|---|---|
+| **ancho** (duración) | 1 hora | Marco (mié) · Tomás y Nuria (dom) |
+| **ancho** + gravedad | 1 h con aviso · 1 h imposible · 2 h incumplimiento | los tres, el domingo y el miércoles |
+| **solape** | dos turnos de 1 h que se pisan | Tomás, Caja, domingo |
+| **alto** | el anillo más gordo (4 px) sobre 16 | el imposible, en todas partes |
+
+Y el caso que lo demuestra de un vistazo: **Marco lleva el MISMO aviso ámbar en una barra de 8 h y
+en una de 1 h, el mismo día, en la misma celda.** Misma persona, mismo color, misma gravedad, dos
+anchos. Si el anillo volviera a depender del ancho, **se vería sin medir nada**.
+
+> Y el corto **limpio** (Nuria, domingo) está ahí por el mismo motivo por el que un experimento
+> lleva grupo de control: sin una barra corta **sana** al lado, *«la barra corta con aviso se ve
+> rara»* no tiene contra qué medirse.
+
+### Ley 16 — **UNA CONSTANTE QUE SOLO ES CIERTA EN UN CASO NO ES UNA CONSTANTE: ES UN BUG DORMIDO**
+
+La paleta llevaba **un ancho de barra de 50 px metido dentro del modelo** — el de un turno de ocho
+horas— como si fuera *«el ancho»*. La paleta **solo era cierta a ese ancho exacto**, y nadie lo
+sabía porque nadie lo había declarado.
+
+Al buscar a conciencia aparecieron **cuatro más**, todas de la misma forma:
+
+| la constante | solo era cierta… | el daño |
+|---|---|---|
+| la tinta de la trama (`rgba(44,38,67,.30)`) | cuando la paleta era **toda índigo** | la raya de uno llevaba **el color de otro** (ley 4) |
+| la paleta de gravedad de `ScheduleHeader` | nunca — era una **copia a mano** | escribía el texto con el color de **relleno**: contraste **3,16** (el mínimo es 4,5) |
+| la trama de `Legend.vue` | era una **copia literal** de la de la matriz | el día que la parrilla cambiara de trama, **el manual seguiría enseñando la vieja** |
+| `HUECO = 9` y `AIRE = 4` en `PersonLane` | **para un anillo de 4 px** | si el anillo engorda: la alarma **se recorta** y dos barras que se pisan **se funden en una** |
+
+Las cuatro daban verde. Ninguna estaba mal *hoy*.
+
+> **La prueba:** si al cambiar un número **en otro sitio** este deja de ser cierto **y nadie se
+> entera**, no es una constante: es un acoplamiento sin declarar. **O se deriva, o se mide, o se
+> declara en voz alta.**
+
+Lo que **sí** puede llevar tinta fija: la trama de la **tira** y la de la **banda**, porque se
+pintan siempre sobre el mismo fondo. **Una tinta fija solo vale si el fondo también es fijo.**
 
 ---
 

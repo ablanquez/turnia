@@ -39,11 +39,29 @@ const esVerde = ([r, g, b]) => g > r + 20 && g > b + 10;
 const esRojo = ([r, g, b]) => r > g + 40 && r > b + 40;
 const esLila = ([r, g, b]) => b > r + 15 && b > g + 20;
 
+/**
+ * ⚠️ EL CUARTO ESTADO, Y ESTE INSTRUMENTO SOLO CONOCÍA TRES.
+ *
+ * `unrequested` —"aquí no se pide a nadie"— existe desde que se descubrió que el tercero MENTÍA:
+ * un turno de 10 a 18 contra una demanda declarada solo de 12 a 16 pintaba "+1" en los bordes,
+ * igual que un exceso real. Se le dio un color neutro y su sitio en la matriz.
+ *
+ * Y este cotejo se quedó con la tabla vieja: mapeaba TODO lo que no fuera rojo ni lila a "verde".
+ * O sea que a un tramo GRIS —"no se pide nadie"— lo llamaba VERDE —"cobertura correcta"—, que son
+ * dos hechos distintos y uno de ellos es justo el que se añadió para no confundirlos.
+ *
+ * No lo cazó nadie porque hasta hoy NINGÚN tramo gris caía en una celda que este cotejo mire. El
+ * turno corto de Marco (21:00–22:00, fuera de toda demanda) lo hizo aparecer. Otra vez lo mismo:
+ * el instrumento no estaba mal escrito — estaba SIN PROBAR, porque el caso no se sembraba.
+ */
+const esNeutro = ([r, g, b]) => Math.abs(r - g) < 14 && Math.abs(g - b) < 20 && r > 200;
+
 const colorDe = (fondo) => {
     const c = rgb(fondo);
 
     if (esVerde(c)) return 'verde';
     if (esRojo(c)) return 'rojo';
+    if (esNeutro(c)) return 'neutro';
     if (esLila(c)) return 'lila';
 
     return `¿${fondo}?`;
@@ -551,7 +569,11 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
             // ── Y LA TIRA DE COBERTURA DE ESTA CELDA ──
             if (tramos.length || visto?.tramos.length) {
                 const esperado = tramos.map((s) => {
-                    const color = s.state === 'missing' ? 'rojo' : s.state === 'excess' ? 'lila' : 'verde';
+                    // Los CUATRO estados. `unrequested` no es "verde": es "aquí no se pide a nadie",
+                    // que es otro hecho — y el que existe precisamente para no confundirse con él.
+                    const color = s.state === 'missing' ? 'rojo'
+                        : s.state === 'excess' ? 'lila'
+                            : s.state === 'unrequested' ? 'neutro' : 'verde';
                     const num = s.state === 'missing' ? `-${s.missing}` : s.state === 'excess' ? `+${s.excess}` : '';
 
                     return `${color}${s.uncoverable ? '+rayas' : ''}${num ? ' ' + num : ''}`;

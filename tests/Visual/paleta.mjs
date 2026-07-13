@@ -1,4 +1,30 @@
-// Genera una paleta de personas con separación perceptual REAL. Ver docs/COTEJO-VISUAL.md.
+/**
+ * GENERA LA PALETA DE PERSONAS. Y la garantía que da NO ES "los colores son distintos": es que
+ * NINGUNA BARRA, PÍNTESE COMO SE PINTE, SE PARECERÁ MÁS A OTRA PERSONA QUE A LA SUYA.
+ *
+ * ⚠️ ESA ES LA DIFERENCIA ENTRE ESTA VERSIÓN Y LAS CUATRO ANTERIORES, Y ES TODA LA DIFERENCIA.
+ *
+ * Antes se elegían doce colores separados entre sí y se daba por hecho que las barras heredarían
+ * esa separación. Y no la heredan: una barra NUNCA es su color pelado. Lleva encima una trama,
+ * pegado un anillo de gravedad, y en el zoom Día un alfa. Cada uno de esos canales MUEVE el color,
+ * y con doce colores a ΔE 13,8 unos de otros bastaba un empujón de 7 para que una barra cayese más
+ * cerca de otra persona que de sí misma.
+ *
+ * Así que la paleta se diseña con una desigualdad triangular, y no con un gusto:
+ *
+ *     Si dos personas cualesquiera distan D, y CADA FORMA de pintar a una persona se queda dentro
+ *     de un radio R de su propio color, entonces la barra pintada está a ≥ D − R de cualquier otra
+ *     persona y a R de la suya. Gana la suya SI Y SOLO SI:
+ *
+ *                                    R  <  D / 2
+ *
+ * Se maximiza D. Se acota R. Y entonces la ley 2 no se cumple por suerte: se cumple por
+ * construcción, para toda barra que exista y para las que todavía no.
+ *
+ *   node tests/Visual/paleta.mjs
+ *
+ * Ver docs/COTEJO-VISUAL.md y docs/MATRIZ-VISUAL.md.
+ */
 const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
 const lab = ([r,g,b]) => { const [R,G,B]=[lin(r),lin(g),lin(b)];
   const X=(R*0.4124+G*0.3576+B*0.1805)/0.95047, Y=(R*0.2126+G*0.7152+B*0.0722), Z=(R*0.0193+G*0.1192+B*0.9505)/1.08883;
@@ -19,6 +45,15 @@ const dE=(c1,c2)=>{const[L1,a1,b1]=lab(c1),[L2,a2,b2]=lab(c2);const rad=Math.PI/
   const Sl=1+(0.015*(Lm-50)**2)/Math.sqrt(20+(Lm-50)**2),Sc=1+0.045*Cpm,Sh=1+0.015*Cpm*T;
   const Rt=-Math.sin(2*dT*rad)*Rc;
   return Math.sqrt((dL/Sl)**2+(dC/Sc)**2+(dH/Sh)**2+Rt*(dC/Sc)*(dH/Sh));};
+
+// Lab → sRGB. Hace falta para OSCURECER un color sin cambiarle el tono (ver SOMBRA, abajo).
+const inv=(t)=>t**3>0.008856?t**3:(t-16/116)/7.787;
+const gam=(v)=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055;
+const crudo=([L,A,B])=>{const fy=(L+16)/116,fx=fy+A/500,fz=fy-B/200;
+  const X=inv(fx)*0.95047,Y=inv(fy),Z=inv(fz)*1.08883;
+  return [3.2406*X-1.5372*Y-0.4986*Z, -0.9689*X+1.8758*Y+0.0415*Z, 0.0557*X-0.2040*Y+1.0570*Z];};
+const cabe=(l)=>crudo(l).every(v=>v>=-0.0005&&v<=1.0005);
+const rgbDeLab=(l)=>crudo(l).map(v=>Math.max(0,Math.min(255,gam(v)*255)));
 
 /**
  * Los colores del ESTADO, AGRUPADOS POR FAMILIA. Y agruparlos importa.
@@ -44,11 +79,16 @@ const ESTADO = Object.values(FAMILIA).flat();
 const ajenos = (mia) => Object.entries(FAMILIA).filter(([k]) => k !== mia).flatMap(([, v]) => v);
 
 /*
- * LA GEOMETRÍA REAL DE LA BARRA (ver PersonLane.vue). Aquí van CUATRO errores de modelo, y cada
- * uno costó una pasada: el que venga detrás no tiene por qué repetirlos.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LA GEOMETRÍA REAL DE LA BARRA (ver PersonLane.vue y useMatrizVisual.js).
  *
- * ERROR 1 — EL ANILLO SOLO SE PESABA ARRIBA Y ABAJO. El modelo decía 2w/(ALTO+2w). Falso: un
- * `outline` rodea la barra por LOS CUATRO LADOS.
+ * Aquí van SIETE errores de modelo, y cada uno costó una pasada. Todos tenían la misma forma —una
+ * constante metida en el modelo que solo era cierta en el caso en que nació— y todos daban VERDE.
+ * El que venga detrás no tiene por qué repetirlos.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ERROR 1 — EL ANILLO SOLO SE PESABA ARRIBA Y ABAJO. El modelo decía 2w/(ALTO+2w). Falso entonces:
+ * un `outline` rodea la barra por LOS CUATRO LADOS.
  *
  * ERROR 2 — LA TRAMA NO ENTRABA. La barra imposible es TRAMADA: su relleno real lleva la trama
  * encima. Compararla contra el color PURO castigaba a la trama por hacer su trabajo.
@@ -56,29 +96,41 @@ const ajenos = (mia) => Object.entries(FAMILIA).filter(([k]) => k !== mia).flatM
  * ERROR 3 — SE COMPARABA CONTRA SU PROPIA GRAVEDAD. Una barra imposible SE TIENE QUE parecer a un
  * rojo. Ver FAMILIA, arriba.
  *
- * ⚠️ ERROR 4 — Y ESTE ES EL GORDO: EL MODELO USABA UN ANCHO FIJO DE 50 px.
+ * ERROR 4 — EL MODELO USABA UN ANCHO FIJO DE 50 px. Al corregir el error 1, el peso del anillo pasó
+ * a depender del ANCHO, y yo metí el de un turno de 8 h como si fuera "el ancho". La paleta SOLO
+ * ERA CIERTA A ESE ANCHO: en un turno de UNA hora el anillo pesaba el 67 % y el peor color quedaba
+ * a ΔE 5,8 de una gravedad ajena — un aviso ámbar se veía MARRÓN. La solución no fue otra paleta:
+ * fue que EL ANILLO DEJE DE RODEAR (dos franjas, peso 2w/(ALTO+2w), independiente del ancho).
  *
- * Al corregir el error 1, el peso del anillo pasó a depender del ANCHO de la barra. Y yo metí el
- * ancho de un turno de 8 horas (50 px) como si fuera "el ancho". Resultado: LA PALETA SOLO
- * FUNCIONABA A ESE ANCHO EXACTO. Medido sobre la imagen, con el anillo rodeando:
+ * ⚠️ ERROR 5 — LA TRAMA ERA UNA TINTA FIJA, Y ESO ES EL ERROR 4 OTRA VEZ, EN OTRO CANAL.
  *
- *     barra de  5 px (1 h) → el anillo pesa 67 %  → el peor color queda a ΔE  5,8   ❌
- *     barra de 29 px (6 h) → pesa 40 %            → ΔE 17,5                         ❌
- *     barra de 50 px (8 h) → pesa 35 %            → ΔE 20,1                         ✅
- *     barra de 80 px       → pesa 32 %            → ΔE 19,9                         ❌
+ * La trama se pintaba con `rgba(44,38,67,.30)` — un índigo oscuro. Ese número se eligió cuando la
+ * paleta era TODA índigo, así que se fundía con el relleno. Pero la paleta de hoy va del azul al
+ * rosa y al turquesa, y sobre esos colores un índigo fijo ES UN COLOR AJENO. Medido:
  *
- * Un turno de una hora con un aviso ámbar se veía MARRÓN. El bug de Marco, reencarnado — y esta
- * vez la causa no era el color: era que EL ANILLO CAMBIA DE PESO CON LA GEOMETRÍA, y un canal que
- * cambia de significado según lo ancha que sea la barra no es un canal: es una lotería.
+ *     la raya de Iker (rosa)  salía #AA589F  →  el color de BEA,   a ΔE 5
+ *     la raya de Bea          salía #804892  →  el color de MARCO, a ΔE 7
+ *     la raya de Nuria        salía #8087BC  →  el color de DIEGO, a ΔE 7
+ *     la raya de Leo          salía #4987BC  →  el color de ANA,   a ΔE 6
  *
- * ⚠️ LA SOLUCIÓN NO ES OTRA PALETA: ES QUE EL ANILLO NO RODEE.
+ * O sea: LA TRAMA PINTABA, DENTRO DE LA BARRA DE UNA PERSONA, EL COLOR DE OTRA. El canal de la
+ * DENSIDAD estaba escribiendo en el canal de la IDENTIDAD — la ley 0, rota en el sitio donde nadie
+ * miraba. Y en Marco, además, la raya quedaba a ΔE 4,4 de su propio relleno: INVISIBLE. Su barra
+ * imposible parecía sólida, o sea "cubre el puesto", que es justo lo contrario de lo que es.
  *
- * Dos franjas, arriba y abajo, POR FUERA de la barra (box-shadow, que no come relleno). Su peso es
- * 2w/(ALTO+2w) y NO DEPENDE DEL ANCHO — 20 % / 27 % / 33 %, siempre. El problema del turno corto
- * desaparece POR CONSTRUCCIÓN, no por ajuste. Y de paso contamina MENOS que el anillo que rodeaba,
- * incluso en las barras anchas.
+ * Ahora la trama es LA SOMBRA DE LA PROPIA PERSONA: su color con L* − 22, mismo tono y mismo croma.
+ * El canal de densidad ya no puede meter un color que la identidad no haya puesto — POR
+ * CONSTRUCCIÓN, no por elegir bien la tinta.
  *
- * El alto de la barra sigue siendo el parámetro que reparte el sitio: 8 → 10 → 12 → 16.
+ * ⚠️ ERROR 6 — LA TRAMA SOLO ENTRABA EN EL MODELO PARA EL IMPOSIBLE. Y un CONCEPTO que computa
+ * también va tramado (la hora extra de Iker). Su identidad no se medía en ningún sitio: pixeles.mjs
+ * excluía las barras tramadas de la comparación entre personas "porque ya se miden en la ley 0" —
+ * y la ley 0 pregunta por GRAVEDADES, no por PERSONAS. Un descarte con coartada sigue siendo un
+ * descarte.
+ *
+ * ⚠️ ERROR 7 — LA PISTA NO ESTABA EN EL MODELO. Una barra se pinta SOBRE su pista (#E7E5F0), y
+ * nadie comprobaba que se distinguiera de ella. Los dos colores más claros de la paleta anterior
+ * quedaban a ΔE 20 del fondo sobre el que se pintan.
  */
 const ALTO = 16;
 const ANILLOS = [['notice', [194,135,10], 2], ['breach', [232,89,12], 3], ['impossible', [200,30,30], 4]];
@@ -86,11 +138,41 @@ const ANILLOS = [['notice', [194,135,10], 2], ['breach', [232,89,12], 3], ['impo
 // EL ANILLO SON DOS FRANJAS, ARRIBA Y ABAJO. No rodea, así que su peso NO depende del ancho.
 const peso = (w) => (2*w) / (ALTO + 2*w);
 
-// La trama del imposible: rgba(44,38,67,.30) con 3 px de raya cada 7.
-const TRAMA = [44,38,67];
-const PESO_TRAMA = 0.30 * 3/7;
-
 const mezcla = (c, ring, f) => c.map((v,i) => v*(1-f) + ring[i]*f);
+
+/**
+ * LA SOMBRA: el color de la persona con L* − 22. MISMO TONO.
+ *
+ * ⚠️ Y SI NO CABE EN sRGB, SE LE BAJA EL CROMA — NO SE RECORTA. Recortar los canales a 0 MUEVE EL
+ * TONO, que es justo lo que la trama no puede hacer. Lo cazó pixeles.mjs sobre la implementación
+ * real: la raya de un teal oscuro se desviaba 16° de su relleno. Escalar a y b conserva el ángulo.
+ *
+ * El generador tiene que modelar ESTO, y no la versión ingenua: si el modelo y la página no hacen
+ * la misma cuenta, la paleta está calculada para una app que no existe.
+ */
+const BAJADA = 22;
+
+const sombra = (c) => {
+  const [L, A, B] = lab(c);
+  const objetivo = Math.max(0, L - BAJADA);
+
+  if (cabe([objetivo, A, B])) return rgbDeLab([objetivo, A, B]);
+
+  let dentro = 0, fuera = 1;
+  for (let i = 0; i < 20; i++) {
+    const k = (dentro + fuera) / 2;
+    if (cabe([objetivo, A*k, B*k])) dentro = k; else fuera = k;
+  }
+
+  return rgbDeLab([objetivo, A*dentro, B*dentro]);
+};
+
+// La trama: 2 px de raya cada 8. El área rayada es 2/8 del relleno.
+const AREA_TRAMA = 2/8;
+const tramada = (c) => mezcla(c, sombra(c), AREA_TRAMA);
+
+/** El fondo sobre el que se pinta toda barra: --color-sunken. */
+const PISTA = [231, 229, 240];
 
 /**
  * ⚠️ LA PRUEBA QUE ANTES NO SE HACÍA, Y ES LA ÚNICA QUE IMPORTA.
@@ -109,61 +191,87 @@ const mezcla = (c, ring, f) => c.map((v,i) => v*(1-f) + ring[i]*f);
  * ΔE 29,6 del naranja —lejísimos, no se confunde con nada— pero también lejos del teal, así que el
  * margen salía negativo. El umbral absoluto caza los tres casos reales (el marrón de Marco a
  * ΔE 11, el verde de Iker a 10,2, el magenta que se vuelve rojo a 17,2) y no acusa al que no.
- */
-/*
- * ⚠️ Y EL GENERADOR EXIGE 24, NO 20. Porque un mínimo no es un colchón.
  *
- * El umbral REAL de la ley 0 es 20 (lo comprueba pixeles.mjs sobre la imagen). Pero el modelo no
- * es exacto: no sabe de esquinas redondeadas, ni de antialiasing, ni del subpíxel. Cuando el
- * generador daba justo 20,0, la imagen medía 19,1 y la ley se rompía.
- *
- * Un generador que apunta al aprobado suspende. Se le pide 24 para que la imagen dé ≥ 20.
+ * ⚠️ Y EL GENERADOR EXIGE 24, NO 20. Porque un mínimo no es un colchón: el modelo no sabe de
+ * esquinas redondeadas, ni de antialiasing, ni del subpíxel. Cuando el generador daba justo 20,0,
+ * la imagen medía 19,1 y la ley se rompía. Un generador que apunta al aprobado suspende.
  */
 const UMBRAL = 24;
 
 const sonarA = (c) => Math.min(...ANILLOS.map(([g, ring, w]) => {
-  const base = g === 'impossible' ? mezcla(c, TRAMA, PESO_TRAMA) : c;
+  // La barra imposible es TRAMADA; las otras dos, lisas. Se mide cada una como se pinta.
+  const base = g === 'impossible' ? tramada(c) : c;
 
   return Math.min(...ajenos(g).map((e) => dE(mezcla(base, ring, peso(w)), e)));
 }));
 
-// Candidatos: toda la zona FRÍA (azul → cian → índigo → violeta → ciruela), con luminosidad y
-// croma variados. Nada de rojo/naranja/ámbar/verde: eso es del estado, y el estado no se toca.
+/**
+ * EL RADIO DE UNA PERSONA: lo MÁS que se aleja su barra de su propio color, pintándose como se
+ * pinte. Hoy la única forma que mueve el relleno es la trama; el anillo va POR FUERA y no lo toca.
+ *
+ * Si mañana aparece otra —un alfa, un degradado, un patrón— ENTRA AQUÍ. Y si no entra, la garantía
+ * R < D/2 deja de valer sin que nadie se entere, que es exactamente cómo llegamos hasta aquí.
+ */
+const radio = (c) => dE(tramada(c), c);
+
+/*
+ * LOS CANDIDATOS: toda la zona FRÍA (azul → cian → índigo → violeta → ciruela).
+ *
+ * Nada de rojo, naranja, ámbar ni verde: eso es del ESTADO, y el estado no se toca. La caja de tono
+ * (186–350) es tosca a propósito y NO es la que vigila —quien vigila es sonarA(), que mide lo que
+ * de verdad se ve—; está para que ninguna persona pueda salir de un color RESERVADO, que es una
+ * regla del producto y no una consecuencia de un número.
+ */
 const cand = [];
-for (let r = 20; r <= 230; r += 6)
-for (let g = 20; g <= 230; g += 6)
-for (let b = 60; b <= 245; b += 6) {
+for (let r = 8; r <= 248; r += 4)
+for (let g = 8; g <= 248; g += 4)
+for (let b = 40; b <= 252; b += 4) {
   const [L, A, B] = lab([r,g,b]);
   const C = Math.hypot(A,B);
   let h = Math.atan2(B,A) * 180/Math.PI; if (h < 0) h += 360;
-  if (L < 32 || L > 74) continue;
 
-  // ⚠️ EL CROMA MÍNIMO SUBE DE 20 A 30. Con C ≥ 20 entraban #5C4460 (ciruela apagado, C 22) y
-  // #927496 (gris violeta, C 20): colores SIN COLOR PROPIO. Un color de croma bajo no se
-  // defiende — adopta el del vecino, y con un anillo ámbar al lado se vuelve marrón.
-  if (C < 30 || C > 62) continue;
+  // La luminosidad es la señal que MÁS sobrevive a una barra de 16 px, así que se le da todo el
+  // recorrido que el resto de las reglas permita.
+  if (L < 30 || L > 78) continue;
 
-  // ⚠️ LA CAJA DE TONO SE ABRE, Y NO ES UNA RENDICIÓN: ES QUE YA NO HACE FALTA.
-  //
-  // Estaba en 222–346 (azul → magenta) como forma TOSCA de decir "no te acerques al rojo ni al
-  // verde". Pero un recorte por tono no sabe nada de luminosidad ni de croma: dejaba entrar
-  // ciruelas apagados que sí se confunden, y dejaba fuera cianes y verdeazules que no. Y encima
-  // apretaba tanto la zona que los doce colores no cabían con holgura (ΔE mínimo 13,7, a un pelo
-  // del umbral de "indistinguible").
-  //
-  // Ahora quien vigila es el MARGEN, que mide lo que de verdad pasa —la barra con su anillo— en
-  // vez de dónde cae el tono. Con un policía que sabe medir, la caja puede ser grande.
+  // ⚠️ EL CROMA MÍNIMO ES 30. Con C ≥ 20 entraban #5C4460 (ciruela apagado, C 22) y #927496 (gris
+  // violeta, C 20): colores SIN COLOR PROPIO. Un color de croma bajo no se defiende — adopta el
+  // del vecino, y con un anillo ámbar al lado se vuelve marrón.
+  if (C < 30 || C > 75) continue;
+
   if (h < 186 || h > 350) continue;
+
+  // Ni el color pelado ni la barra vista pueden sonar a un estado.
   if (Math.min(...ESTADO.map((e) => dE([r,g,b], e))) < 28) continue;
   if (sonarA([r,g,b]) < UMBRAL) continue;
+
+  // ⚠️ Y LA BARRA SE PINTA SOBRE LA PISTA. Un lavanda pálido sobre un fondo lavanda pálido es una
+  // barra que no está.
+  if (dE([r,g,b], PISTA) < 26) continue;
+
+  // ⚠️ Y LA RAYA DE LA TRAMA TIENE QUE VERSE SOBRE SU PROPIO RELLENO. Si no, la trama no dice nada
+  // y un bloque que NO CUBRE EL PUESTO se lee como sólido — un silencio falso. El umbral de la
+  // imagen es 10; aquí se pide 14, porque un generador que apunta al aprobado suspende.
+  if (dE(sombra([r,g,b]), [r,g,b]) < 14) continue;
+
   cand.push([r,g,b]);
 }
 
-// Punto más lejano, con MUCHAS semillas: el voraz depende de por dónde empiece, así que se
-// arranca desde muchos candidatos y se queda la mejor paleta. La métrica es el ΔE MÍNIMO: una
-// paleta vale exactamente lo que valga su par más parecido.
+/* ── Maximizar D (el ΔE mínimo entre dos personas cualesquiera) ─────────────────── */
+
 const N = 12;
 
+const minimoDe = (el) => {
+  let m = Infinity, par = null;
+  for (let i = 0; i < el.length; i++) for (let j = i+1; j < el.length; j++) {
+    const d = dE(el[i], el[j]);
+    if (d < m) { m = d; par = [i, j]; }
+  }
+  return { m, par };
+};
+
+// Punto más lejano, con MUCHAS semillas: el voraz depende de por dónde empiece. La métrica es el
+// ΔE MÍNIMO — una paleta vale exactamente lo que valga su par más parecido.
 const construir = (semilla) => {
   const el = [semilla];
   while (el.length < N) {
@@ -174,13 +282,11 @@ const construir = (semilla) => {
     }
     el.push(mejor);
   }
-  let m = Infinity;
-  for (let i=0;i<el.length;i++) for (let j=i+1;j<el.length;j++) m = Math.min(m, dE(el[i], el[j]));
-  return { el, m };
+  return { el, m: minimoDe(el).m };
 };
 
 let best = null;
-for (let i = 0; i < cand.length; i += 89) {
+for (let i = 0; i < cand.length; i += Math.max(1, Math.floor(cand.length / 60))) {
   const r = construir(cand[i]);
   if (!best || r.m > best.m) best = r;
 }
@@ -188,22 +294,10 @@ for (let i = 0; i < cand.length; i += 89) {
 /**
  * ⚠️ Y AHORA SE MEJORA A MANO, PORQUE EL VORAZ NO ES ÓPTIMO.
  *
- * El punto-más-lejano elige bien los primeros y se queda sin sitio para los últimos: daba un ΔE
- * mínimo de 13,4 y el umbral de "indistinguible" está en 12. Un margen de 1,4 no es un margen.
- *
- * Búsqueda local: se coge el color que participa en el PAR PEOR y se prueba a cambiarlo por cada
- * candidato. Si alguno sube el mínimo, se cambia. Se repite hasta que ninguno lo suba. Es la
- * métrica correcta —una paleta vale lo que valga su par más parecido— optimizada de verdad.
+ * El punto-más-lejano elige bien los primeros y se queda sin sitio para los últimos. Búsqueda
+ * local: se coge el color que participa en el PAR PEOR y se prueba a cambiarlo por cada candidato.
+ * Si alguno sube el mínimo, se cambia. Se repite hasta que ninguno lo suba.
  */
-const minimoDe = (el) => {
-  let m = Infinity, par = null;
-  for (let i = 0; i < el.length; i++) for (let j = i+1; j < el.length; j++) {
-    const d = dE(el[i], el[j]);
-    if (d < m) { m = d; par = [i, j]; }
-  }
-  return { m, par };
-};
-
 let el = best.el.slice();
 let { m: peor, par } = minimoDe(el);
 
@@ -216,11 +310,7 @@ for (let vuelta = 0; vuelta < 400; vuelta++) {
       prueba[idx] = c;
       const { m } = minimoDe(prueba);
 
-      if (m > peor + 1e-9) {
-        el = prueba;
-        peor = m;
-        mejoro = true;
-      }
+      if (m > peor + 1e-9) { el = prueba; peor = m; mejoro = true; }
     }
   }
 
@@ -228,19 +318,53 @@ for (let vuelta = 0; vuelta < 400; vuelta++) {
   if (!mejoro) break;
 }
 
-const elegidos = el;
+// Orden estable: por tono. El reparto es por id, así que dos personas seguidas cogen colores
+// vecinos en el círculo — y son los que más se parecen. Se BARAJA en zigzag para separarlos.
+const porTono = el.slice().sort((a, b) => {
+  const t = (c) => { const [, A, B] = lab(c); let h = Math.atan2(B, A) * 180 / Math.PI; return h < 0 ? h + 360 : h; };
+  return t(a) - t(b);
+});
 
-const hex = ([r,g,b]) => '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase();
-// Luminancia relativa, para decidir si la inicial va en blanco o en negro.
+const elegidos = [];
+for (let i = 0; i < N; i += 2) elegidos.push(porTono[i]);
+for (let i = 1; i < N; i += 2) elegidos.push(porTono[i]);
+
+/* ── El veredicto ──────────────────────────────────────────────────────────────── */
+
+const hex = ([r,g,b]) => '#' + [r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase();
 const lum = ([r,g,b]) => 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);
 const contra = (c, w) => { const a=lum(c), b= w? 1 : 0.0148; const [x,y]=[Math.max(a,b),Math.min(a,b)]; return (x+0.05)/(y+0.05); };
 
+const D = peor;
+const R = Math.max(...elegidos.map(radio));
 const peorSonido = Math.min(...elegidos.map(sonarA));
+const peorPista = Math.min(...elegidos.map((c) => dE(c, PISTA)));
+const peorRaya = Math.min(...elegidos.map((c) => dE(sombra(c), c)));
 
-console.log('candidatos:', cand.length, '· ΔE mínimo entre personas:', peor.toFixed(1),
-  '· lo más cerca que queda una barra de una gravedad AJENA:', peorSonido.toFixed(1));
 console.log();
+console.log(`candidatos: ${cand.length}`);
+console.log();
+console.log(`  D = ${D.toFixed(1)}   ΔE mínimo entre dos personas`);
+console.log(`  R = ${R.toFixed(1)}   lo más que una barra se aleja de su propio color (hoy: la trama)`);
+console.log();
+console.log(`  ¿R < D/2?  ${R.toFixed(1)} < ${(D/2).toFixed(1)}  →  ${R < D/2 ? '✅ SÍ' : '❌ NO'}`);
+console.log('     Si se cumple, NINGUNA barra —lisa o tramada— puede parecerse más a otra persona');
+console.log('     que a la suya. No por suerte: por desigualdad triangular.');
+console.log();
+console.log(`  lo más cerca que queda una barra de una gravedad AJENA: ${peorSonido.toFixed(1)}  (umbral ${UMBRAL})`);
+console.log(`  lo más cerca que queda un color de su PISTA (#E7E5F0):  ${peorPista.toFixed(1)}`);
+console.log(`  la raya de la trama MENOS visible sobre su relleno:     ${peorRaya.toFixed(1)}`);
+console.log();
+
 for (const c of elegidos) {
   const blanco = contra(c, true), negro = contra(c, false);
-  console.log(`'${hex(c)}',  // L*${lab(c)[0].toFixed(0).padStart(2)}  C${Math.hypot(lab(c)[1],lab(c)[2]).toFixed(0).padStart(2)}  ajena ${sonarA(c).toFixed(0).padStart(2)}  → inicial en ${blanco >= negro ? 'BLANCO' : 'TINTA'}`);
+  console.log(`'${hex(c)}',  // L*${lab(c)[0].toFixed(0).padStart(2)}  C${Math.hypot(lab(c)[1],lab(c)[2]).toFixed(0).padStart(2)}  ajena ${sonarA(c).toFixed(0).padStart(2)}  R ${radio(c).toFixed(1)}  → inicial en ${blanco >= negro ? 'BLANCO' : 'TINTA'}`);
+}
+
+console.log();
+
+if (R >= D/2) {
+  console.log('❌ LA GARANTÍA NO SE CUMPLE. Con este R, hay barras que se parecen más a otra persona');
+  console.log('   que a la suya. O sube D, o baja R (menos área de trama, o una sombra más suave).');
+  process.exit(1);
 }

@@ -1,6 +1,7 @@
 <script setup>
 import { Deferred, Link, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { severityChip } from '../../composables/useSeverity.js';
 import ZoomTabs from './ZoomTabs.vue';
 
 const props = defineProps({
@@ -56,18 +57,34 @@ const partes = computed(() => [
     catalogo.value ? plural(catalogo.value, 'aviso de catálogo', 'avisos de catálogo') : null,
 ].filter(Boolean));
 
-// El hueco manda: un puesto descubierto es más grave que un aviso de configuración, y en un
-// cuadrante vacío es LO ÚNICO que pasa. Sin él, el cartel se pintaría de gris.
+/**
+ * EL HUECO MANDA: un puesto descubierto es más grave que un aviso de configuración, y en un
+ * cuadrante vacío es LO ÚNICO que pasa. Sin él, el cartel se pintaría de gris.
+ *
+ * ⚠️ Y ESTOS TRES COLORES ESTABAN CABLEADOS AQUÍ, CON SU PROPIA TABLA. Es la ley 13 rota en el sitio
+ * más caro de la pantalla — y no era solo duplicación: era un FALLO DE LECTURA.
+ *
+ * La tabla de aquí escribía el texto con el color de RELLENO (#E8590C), y useSeverity.js dice en
+ * mayúsculas que el relleno es ILEGIBLE como texto. Medido sobre el fondo real del chip:
+ *
+ *     "5 turnos con incidencias"  #E8590C  → contraste 3,16   ❌   (el mínimo es 4,5)
+ *     "1 aviso de catálogo"       #B07908  → contraste 3,34   ❌
+ *     "Sin incidencias"           #15803D  → contraste 4,27   ❌
+ *
+ * O sea: EL DATO MÁS IMPORTANTE DE LA PANTALLA —el que dice si el cuadrante tiene problemas— se
+ * pintaba en un color que cuesta leer. Y la tinta buena ya existía, a un import de distancia
+ * (5,42 · 5,82 · 6,05). Nadie la usó porque había una copia a mano.
+ */
 const tono = computed(() => {
     if (huecos.value) {
-        return { background: 'rgba(220,38,38,.1)', color: '#B91C1C' };
+        return severityChip('impossible');
     }
 
     if (turnos.value) {
-        return { background: 'rgba(232,89,12,.1)', color: '#E8590C' };
+        return severityChip('breach');
     }
 
-    return { background: 'rgba(194,135,10,.12)', color: '#B07908' };
+    return severityChip('notice');
 });
 
 const logout = () => router.post('/logout');
@@ -138,7 +155,7 @@ const logout = () => router.post('/logout');
             v-else
             data-t="indicador"
             class="tabular rounded-lg px-3 py-1.5 text-[11px] font-semibold"
-            style="background: rgba(21,128,61,.12); color: #15803D"
+            :style="severityChip('ok')"
         >Sin incidencias</span>
     </Deferred>
 

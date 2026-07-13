@@ -92,6 +92,105 @@ class DemoSeeder extends Seeder
         $this->bajaSinTurnos($people, $catalogue);
         $this->conceptosHorarios($catalogue);
         $this->dobleEmpresa($owner, $people['marco']);
+
+        // Y el peor caso GEOMÉTRICO, que no estaba sembrado en ninguna parte.
+        $this->turnosCortos();
+    }
+
+    /**
+     * ⚠️ LOS TURNOS CORTOS. Y ESTO NO ES UN CASO MÁS: ES EL PEOR CASO GEOMÉTRICO DE LA APP.
+     *
+     * Toda la demo —y los 96 casos del cuadrante de la matriz— usaban turnos de 4 a 8 horas. O sea
+     * que la barra más estrecha que se había pintado nunca medía 29 px, y la app se estaba probando
+     * únicamente donde es fácil.
+     *
+     * Y ahí se escondía un fallo real: el anillo de gravedad era un `outline` que rodeaba la barra
+     * por los cuatro lados, así que su peso —lo que el ojo integra— es
+     * 1 − (ancho×alto)/((ancho+2w)(alto+2w)) y DEPENDE DEL ANCHO. En un turno de ocho horas pesaba
+     * el 35 %; en uno de UNA HORA, el 67 %. Un aviso ámbar sobre una barra de 1 h se veía MARRÓN, a
+     * ΔE 5,8 de una gravedad que no era la suya.
+     *
+     * Se arregló (el anillo ya no rodea: son dos franjas, y su peso no depende del ancho). Pero
+     * ARREGLAR UN FALLO NO ES SEMBRARLO: si mañana vuelve, la demo tiene que enseñarlo. Y la demo
+     * es lo que se mira.
+     *
+     * ⚠️ LA DEMO CONTIENE EL PEOR CASO GEOMÉTRICO DE CADA DIMENSIÓN. (Ley 15.)
+     *
+     * Si el caso extremo no está sembrado, lo único que lo sujeta es un test — y un test que nadie
+     * mira es un test que un día se pone en verde sin que nadie se entere.
+     *
+     * Y son REFUERZOS DE PUNTA, que es lo que de verdad se hace en hostelería: una hora suelta en el
+     * pico del mediodía, dos horas para cerrar la caja. No es un caso de laboratorio metido con
+     * calzador: es el turno más corriente que existe, y no estaba.
+     *
+     * ═════════════════════════════════════════════════════════════════════════════════════
+     * LO QUE ESTO PONE EN PANTALLA, Y POR QUÉ CADA UNO:
+     *
+     *   MARCO · miércoles · 1 h con AVISO (ámbar)   ← EL CASO EXACTO QUE SE VEÍA MARRÓN
+     *   ⚠️ Y ese día Marco YA tiene un turno de 8 h CON EL MISMO AVISO. Misma persona, mismo
+     *      color, misma gravedad, DOS ANCHOS. De un vistazo se comprueba que el anillo pesa lo
+     *      mismo en una barra de 6 px que en una de 50. Esa comparación es el objeto del caso.
+     *
+     *   TOMÁS · domingo · dos turnos de 1 h QUE SE PISAN → IMPOSIBLE (rojo)
+     *   ANA   · domingo · 2 h en un puesto que no sabe cubrir → INCUMPLIMIENTO (naranja)
+     *   NURIA · domingo · 1 h LIMPIO → la barra corta sin nada, para comparar
+     * ═════════════════════════════════════════════════════════════════════════════════════
+     *
+     * ⚠️ Y NINGUNO CASCADEA, que es lo que hace que la demo siga siendo legible.
+     *
+     * El tope semanal es una regla que, si salta, salta en TODOS los turnos de esa semana y pone la
+     * fila entera en naranja — el "cuadrante en llamas". Así que las horas están contadas:
+     *
+     *   · Marco:  24 h + 1 h = 25 de 25.  ⚠️ VA EXACTAMENTE A TOPE. El motor compara con <=, así
+     *     que no salta. Pero si alguien le añade un minuto más, se le encienden los CUATRO turnos.
+     *   · Tomás:  14 h + 2 h = 16 de 20.
+     *   · Ana:    32 h + 2 h = 34 de 40.
+     *   · Nuria:  18 h + 1 h = 19 de 40.
+     *
+     * Y el descanso mínimo tampoco: es una regla ENTRE JORNADAS (work_date distinto), así que dos
+     * turnos el mismo día no se exigen descanso — que es justo lo que permite una jornada partida.
+     */
+    private function turnosCortos(): void
+    {
+        /*
+         * EL AVISO (ámbar), EN UNA HORA. Marco, el miércoles, cerrando la barra de 21 a 22.
+         *
+         * El ámbar no se lo pone este turno: se lo pone que ESE DÍA Marco también trabaja en el Bar
+         * Central (ver dobleEmpresa). La regla salta en todos sus turnos de ese work_date — y por eso
+         * el de 8 h y el de 1 h llevan EL MISMO AVISO. Que es exactamente lo que hay que comparar.
+         */
+        $this->shift('marco', 'barra', 3, '21:00', '22:00');
+
+        /*
+         * EL IMPOSIBLE (rojo), EN UNA HORA. Tomás, el domingo: dos refuerzos de caja que se pisan.
+         *
+         * Media hora de solape sobre dos barras de una hora. En el zoom Semana eso son dos barras de
+         * 6 px encimadas, cada una con el anillo MÁS GORDO que existe (4 px). Es el sitio donde el
+         * anillo tiene más papeletas de comerse el relleno, y no había ni un caso así.
+         */
+        $this->shift('tomas', 'caja', 7, '10:00', '11:00');
+        $this->shift('tomas', 'caja', 7, '10:30', '11:30');
+
+        /*
+         * EL INCUMPLIMIENTO (naranja), EN DOS HORAS. Ana, el domingo, cerrando la caja.
+         *
+         * Ana está cualificada para Barra y Sala, NO para Caja. Alguien la puso ahí igualmente: es
+         * un incumplimiento, no un imposible — se puede hacer, pero hay que decidir si se fuerza o
+         * se arregla. Y como NO está forzado, levanta su cartel naranja (ley 14).
+         *
+         * A las 21:00, después de su turno de barra: el mismo work_date, así que el descanso mínimo
+         * no se exige entre los dos (es una jornada partida, no dos jornadas).
+         */
+        $this->shift('ana', 'caja', 7, '21:00', '23:00');
+
+        /*
+         * Y EL CORTO LIMPIO. Nuria, el domingo: una hora de sala antes de entrar en barra.
+         *
+         * Sin anillo, sin trama, sin muesca. Está aquí PARA COMPARAR: sin una barra corta sana al
+         * lado, "la barra corta con aviso se ve rara" no tiene contra qué medirse. Un caso de
+         * control no es relleno de demo: es la mitad del experimento.
+         */
+        $this->shift('nuria', 'sala', 7, '09:00', '10:00');
     }
 
     private function owner(): User

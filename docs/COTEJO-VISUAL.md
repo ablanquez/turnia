@@ -348,3 +348,215 @@ ninguna persona se confunde con otra.
   lo puso un ojo, no un test.
 - **El daltonismo:** la ley 6 está probada (toda gravedad lleva su palabra), pero **la paleta no se
   ha medido en escala de grises**.
+
+---
+
+## 11. La trama pintaba, dentro de la barra de una persona, el color de OTRA
+
+El usuario lo vio así: *«la hora extra de Iker no lleva su color»*. Y era peor de lo que él vio.
+
+La trama se pintaba con `rgba(44,38,67,.30)` — un índigo oscuro. Ese número **se eligió cuando la
+paleta era toda índigo**, así que se fundía con el relleno y no molestaba a nadie. Pero la paleta de
+entonces iba del azul al rosa y al turquesa, y sobre esos colores **un índigo fijo es un color
+ajeno**. Medido sobre la imagen:
+
+| la barra tramada de… | su raya salía | y eso es… |
+|---|---|---|
+| Iker (rosa) | `#AA589F` | **el color de Bea**, a ΔE 5 |
+| Bea | `#804892` | **el color de Marco**, a ΔE 7 |
+| Nuria | `#8087BC` | **el color de Diego**, a ΔE 7 |
+| Leo | `#4987BC` | **el color de Ana**, a ΔE 6 |
+
+**El canal de la DENSIDAD estaba escribiendo en el canal de la IDENTIDAD.** Y había un segundo daño,
+del signo contrario: sobre Marco (`#623884`, oscuro) la raya quedaba a **ΔE 4,4 de su propio
+relleno — invisible**. Su barra imposible parecía **sólida**, o sea *«cubre el puesto»*, que es lo
+contrario de lo que es. **La misma constante producía un aviso falso y un silencio falso**, según a
+quién le tocara.
+
+### Y ningún instrumento podía verlo, por una exclusión CON COARTADA
+
+`pixeles.mjs` excluía las barras tramadas de la comparación entre personas, y lo decía en el propio
+código:
+
+> *«se excluyen de ESTA comparación — y de ninguna otra: siguen midiéndose en la ley 0»*
+
+**Y era mentira.** La ley 0 pregunta *«¿esta barra suena a una GRAVEDAD ajena?»*. No pregunta *«¿esta
+barra sigue siendo de SU PERSONA?»*. La identidad de una barra tramada **no se medía en ninguna
+parte**. Un descarte con coartada sigue siendo un descarte.
+
+---
+
+## 12. La solución: la trama es LA SOMBRA DE LA PROPIA PERSONA
+
+Su color con `L* − 22`. Mismo tono, mismo croma. **El canal de densidad no puede meter un color que
+la identidad no haya puesto, porque no tiene ninguno propio que meter.** Y la raya baja de 3 px cada
+7 a **2 px cada 8**: el área rayada pasa del 43 % al 25 %.
+
+| | tinta fija (antes) | la sombra propia (ahora) |
+|---|---|---|
+| lo que la barra se aleja de su color | ΔE 5,6 | **ΔE 5,4** |
+| la raya menos visible (Marco) | ΔE **4,4** ❌ invisible | **ΔE 16,3** ✅ |
+| el tono que mete la raya | hasta **70°** de desvío | **0–2°** |
+
+Mejor en las dos cosas a la vez, y **por construcción**, no por elegir mejor tinta.
+
+### El instrumento cazó a mi propia implementación, a la primera pasada
+
+La primera versión bajaba `L*` y **recortaba** los canales que se salían del gamut sRGB. Y recortar
+**mueve el tono**: la raya de Iker se desviaba **16°** de su relleno; la de Bea, **18°**. O sea que
+la trama volvía a cambiar el tono — el fallo exacto que esa función existe para no cometer. Ahora,
+si el color no cabe, **se le baja el croma** (escalar `a` y `b` no toca el ángulo de tono).
+
+### Y al arreglarlo, me quedé SIN NADA QUE SUJETARA EL ARREGLO
+
+Metí el fallo viejo a propósito, a ver si el instrumento nuevo lo cazaba. **No lo cazó.** Con la
+paleta nueva hay tanto sitio (D = 16,1) que la tinta índigo tampoco llega a mover **la media** hasta
+otra persona: **el tono ajeno se diluye al promediar, y la mentira sobrevive al promedio.**
+
+Un instrumento que mide **el resultado** y no **la causa** da verde sobre el bug que acabas de
+quitar. Así que se miden las dos preguntas que una trama tiene que contestar:
+
+1. **¿SE VE?** — la raya contra su fondo, **ΔE ≥ 10**. Si no, un bloque que no cubre se lee sólido.
+2. **¿ES SUYA?** — el **tono** de la raya contra el del fondo, **≤ 15°**.
+
+---
+
+## 13. La garantía cambia: **R < D/2**
+
+Hasta aquí la promesa de la paleta era *«los doce colores están separados entre sí»*. **Y no es la
+promesa que hace falta**, porque una barra **nunca es su color pelado**: lleva encima una trama,
+pegado un anillo, y en el zoom Día un alfa. Cada canal **mueve** el color.
+
+- **D** = el ΔE mínimo entre dos personas cualesquiera.
+- **R** = lo **más** que una barra se aleja de su propio color, pintándose como se pinte.
+
+> Si **R < D/2**, la barra pintada está a ≥ D − R de cualquier otra persona y a R de la suya:
+> **gana la suya. Siempre.** Por desigualdad triangular, no por suerte.
+
+| | antes | ahora |
+|---|---|---|
+| **D** (ΔE mínimo entre personas) | 13,8 | **16,1** |
+| **R** (lo que un canal mueve la barra) | 5,6 | **5,4** |
+| ¿R < D/2? | 5,6 < 6,9 — **por los pelos** | **5,4 < 8,0** ✅ |
+
+Y el generador aprendió **tres errores de modelo más** (van siete): la trama era una tinta fija; la
+trama solo se modelaba para el imposible (un **concepto** que computa también va tramado); y **la
+pista no estaba en el modelo** — nadie comprobaba que una barra se distinguiera del fondo sobre el
+que se pinta (los dos colores más claros de la paleta anterior quedaban a ΔE 20 de él).
+
+### 16,1 es EL TECHO. No una media tinta.
+
+El usuario señaló que Marco y Diego se parecían. **Y tenía razón**: cada una de las nueve personas
+tenía al menos otra con la que *«cuesta»* (Marco/Diego 19,8 · Marco/Bea 16,2 · Bea/Iker 14,0), y
+ninguna llegaba a ✅. Al medir el techo:
+
+| nº de colores | D máximo | ¿llega a 20? |
+|---|---|---|
+| 8 | 19,6 | ❌ |
+| 10 | 16,5 | ❌ |
+| **12** | **16,1** | ❌ |
+| 14 | 13,9 | ❌ |
+
+En la zona fría —sin rojo, naranja, ámbar ni verde, que son del estado— **no existen doce colores a
+ΔE 20 unos de otros. Ni ocho.** O sea que **«todas las parejas holgadas» es imposible con el color
+como único canal**, y no por falta de intentarlo. Lo que sí se podía hacer era **subir el suelo**:
+de 13,8 a 16,1, que es el máximo alcanzable.
+
+El aviso `⚠️ cuesta` **va a estar siempre encendido**, y por eso el instrumento **dice el techo en
+voz alta**: un aviso sin contexto se lee como un descuido, y un aviso que se ignora no existe.
+
+Por eso la identidad **nunca cuelga solo del relleno**: cada carril lleva su avatar con iniciales,
+su nombre escrito y una línea vertical de su color.
+
+---
+
+## 14. Retina: el agujero que yo mismo señalé, cerrado
+
+`tests/Visual/densidad.mjs` mide la matriz entera en **siete densidades**: DPR 1, 2 y 3, y el zoom
+del navegador al 80 / 125 / 150 %, más Retina + zoom a la vez. Sobre **tres páginas** (la demo, el
+cuadrante de 96 casos y la rampa de anchos), **recorriéndolas a saltos** para no perder ni una barra
+— a DPR 3 la captura de 27.000 px no cabe en un canvas de Chromium, y la salida fácil (bajar el alto
+y medir lo que quepa) habría sido **un aprobado por omisión**.
+
+| | DPR 1 | **DPR 2 (Retina)** | DPR 3 |
+|---|---|---|---|
+| barras medidas | 268 | **268** | 268 |
+| ley 2 (margen) | 5,0 | **4,6** | 5,3 |
+| ley 0 (gravedad ajena) | 22,7 | **22,9** | 22,7 |
+| la raya se ve | 16,3 | **16,3** | 16,3 |
+
+**Ningún número se mueve más de ±1,5 ΔE.** El antialiasing no rompe la matriz.
+
+> A **zoom 125 %** la ventana efectiva baja a 1093 px CSS, **por debajo del mínimo de 1240**: la
+> parrilla se desplaza y el aviso honesto aparece. Se miden menos barras porque **hay menos a la
+> vista**, y eso es correcto — el zoom del navegador es una resolución más pequeña con otro nombre.
+
+---
+
+## 15. Las constantes escondidas
+
+La paleta llevaba **un ancho de barra de 50 px metido dentro del modelo**. Al buscar a conciencia
+aparecieron **cuatro más**, todas de la misma forma: un número que **solo era cierto en el caso en
+que nació**, y que **daba verde**.
+
+| la constante | solo era cierta… | el daño |
+|---|---|---|
+| la tinta de la trama | cuando la paleta era **toda índigo** | la raya de uno llevaba **el color de otro** |
+| la paleta de gravedad de `ScheduleHeader` | nunca — era una **copia a mano** | escribía el texto con el color de **relleno**: contraste **3,16** (el mínimo es 4,5) |
+| la trama de `Legend.vue` | era una **copia literal** | el día que la parrilla cambiara de trama, **el manual seguiría enseñando la vieja** |
+| `HUECO = 9` y `AIRE = 4` (`PersonLane`) | **para un anillo de 4 px** | si el anillo engorda: la alarma **se recorta** y dos barras que se pisan **se funden en una** |
+
+La segunda es un bug de verdad, y en el peor sitio: **el indicador de la cabecera** —el dato que dice
+si el cuadrante tiene problemas— fallaba el contraste en **tres de sus cuatro estados**
+(3,16 · 3,34 · 4,27), y la tinta buena **ya existía**, a un `import` de distancia
+(5,42 · 5,82 · 6,05). Nadie la usó porque había una copia a mano.
+
+> **La prueba:** si al cambiar un número **en otro sitio** este deja de ser cierto **y nadie se
+> entera**, no es una constante: es un acoplamiento sin declarar. **O se deriva, o se mide, o se
+> declara en voz alta.**
+>
+> Y la regla que las separa: **una tinta fija solo vale si el fondo también es fijo.** La trama de la
+> tira y la de la banda sí pueden tenerla — se pintan siempre sobre el mismo fondo. La de la barra
+> no, porque su fondo son **doce colores distintos**.
+
+---
+
+## 16. La contraprueba: 18 bugs reintroducidos, 18 cazados
+
+| # | el bug | quién lo caza |
+|---|---|---|
+| 1–11 | los once de las tandas anteriores | `matriz.mjs` |
+| 12 | la gravedad vuelve DENTRO de la barra | `pixeles.mjs` |
+| 12b | el anillo del incumplimiento se queda fino | `matriz.mjs` |
+| 12c | el anillo vuelve a **rodear** | **solo `anchos.mjs`** |
+| 13 | la paleta de croma bajo | `pixeles.mjs` |
+| 14 | el color se sortea y colisiona | `pixeles.mjs` |
+| **15** | **la trama vuelve a la tinta fija** | `pixeles.mjs` (el tono de la raya) |
+| **16** | **la sombra se recorta** (y el recorte mueve el tono) | `pixeles.mjs` |
+| **17** | **la trama se apaga** (la raya deja de verse) | `pixeles.mjs` |
+
+**18 cazados · 0 escapados.**
+
+La **12c** sigue siendo la más instructiva: con el anillo rodeando otra vez, `matriz.mjs`,
+`pixeles.mjs`, `cotejo.mjs` y `resoluciones.mjs` **pasan todos**. Solo lo ve `anchos.mjs`, porque es
+el único que mira una barra de una hora. **El peor caso geométrico hay que sembrarlo** (ley 15).
+
+---
+
+## 17. Y dos instrumentos estaban dando un ROJO FALSO, que enseña a no mirarlos
+
+Al sembrar los turnos cortos aparecieron dos casos que ningún instrumento había visto nunca — no
+porque estuvieran mal escritos, sino porque **el caso no se sembraba**:
+
+- **`cotejo.mjs` comparaba con una tabla de TRES estados**, y la tira tiene **cuatro** desde hace
+  tandas. Llamaba **«verde»** (*cobertura correcta*) al **gris** de *«aquí no se pide a nadie»* — que
+  es justo el estado que se añadió **para no confundir esos dos hechos**. Nadie lo cazó porque hasta
+  hoy **ningún tramo gris caía en una celda que el cotejo mire**. El refuerzo de Marco (21:00–22:00,
+  fuera de toda demanda) lo hizo aparecer.
+
+- **`backtest.mjs` buscaba `[data-t=imposible]` y `[data-t=sin-candidato]`**, que dejaron de existir
+  cuando los avisos de celda se unificaron en **el cartel** (ley 14). Contestaba *«no hay badge»*
+  sobre una celda que **sí grita**.
+
+> Un instrumento que no se actualiza con la app **no da un falso verde: da un falso ROJO**. Y eso
+> **enseña a no mirarlo** — que acaba siendo exactamente lo mismo.

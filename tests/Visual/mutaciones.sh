@@ -87,7 +87,7 @@ echo "CONTRAPRUEBA — los diez bugs, reintroducidos a propósito"
 echo "──────────────────────────────────────────────────────────────────────────────"
 
 # 1. El nocturno le roba el relleno a la persona.
-perl -0pi -e "s/(const color = escala === 'dia' \? \`\\\$\{person\.color\}6E\` : person\.color;)/const color = block.crossesMidnight ? '#534AB7' : (escala === 'dia' ? \`\\\$\{person.color\}6E\` : person.color);/" $MATRIZ
+sed -i "s|    const color = \`\${person.color}\${alfa}\`;|    const color = block.crossesMidnight ? '#534AB7' : \`\${person.color}\${alfa}\`;|" $MATRIZ
 verificar $MATRIZ "1. el nocturno le roba el relleno a la persona" && probar "1. el nocturno le roba el relleno a la persona"
 
 # 2. El forzado pierde su canal y vuelve a compartir el naranja del incumplimiento.
@@ -176,13 +176,41 @@ verificar $MATRIZ "12b. el anillo del incumplimiento se queda fino (2 px)" && pr
 
 # 13. La paleta de croma bajo: ciruelas y grises que no tienen color propio y adoptan el del
 #     anillo. Con el borde arreglado siguen fallando — los dos arreglos hacen falta.
-sed -i "s/^        '#1480B4'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
-sed -i "/^        '#E06EC6'/d; /^        '#623884'/d; /^        '#A4B0F0'/d; /^        '#56C2D2'/d; /^        '#7474A8'/d; /^        '#1A5096'/d; /^        '#A456B4'/d; /^        '#56B0F0'/d; /^        '#AA80EA'/d; /^        '#6286F0'/d; /^        '#C8A4D8'/d" $PALETA
+sed -i "s/^        '#70D0CC'.*$/        '#14748A', '#E662AE', '#5C4460', '#9EB0F0', '#14C2E4', '#6E68C6', '#1492DE', '#CEAAC6', '#AA328A', '#1A5084', '#927496', '#BC86EA',/" $PALETA
+sed -i "/^        '#0880A8'/d; /^        '#38A0FC'/d; /^        '#989CFC'/d; /^        '#5844BC'/d; /^        '#840884'/d; /^        '#40CCFC'/d; /^        '#08507C'/d; /^        '#4470F0'/d; /^        '#8074A8'/d; /^        '#F890F8'/d; /^        '#C844B8'/d" $PALETA
 verificar $PALETA "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" && probar "13. la paleta de croma bajo (el ciruela de Marco, que se vuelve marrón)" pixeles
 
 # 14. El color se SORTEA en vez de repartirse: dos personas de la misma empresa, el mismo color.
 perl -0pi -e "s/        \\\$ids = Employment::query\(\)/        return Employment::query()->where('company_id', \\\$company->id)->distinct()->pluck('person_id')\n            ->mapWithKeys(fn (int \\\$id) => [\\\$id => self::COLORS[crc32((string) \\\$id) % 3]])->all();\n\n        \\\$ids = Employment::query()/" $PALETA
 verificar $PALETA "14. el color se sortea (hash) y colisiona dentro de la empresa" && probar "14. el color se sortea (hash) y colisiona dentro de la empresa" pixeles
+
+# ── LA TRAMA. Y ESTAS DOS EXISTEN PORQUE PROBÉ LA 15 Y NO LA CAZABA NADIE ──────
+#
+# ⚠️ Arreglé la trama y ME QUEDÉ SIN NADA QUE SUJETARA EL ARREGLO. Metí el fallo viejo a propósito
+# y el instrumento —el mismo que acababa de escribir— lo dejó PASAR: con la paleta nueva hay tanto
+# sitio (D = 16,1) que la tinta índigo tampoco llega a mover la MEDIA hasta otra persona. El tono
+# ajeno SE DILUYE AL PROMEDIAR, y la mentira sobrevive al promedio.
+#
+# Un instrumento que mide el resultado y no la causa da verde sobre el bug que acabas de quitar.
+
+# 15. LA TRAMA VUELVE A LA TINTA FIJA. El canal de la DENSIDAD mete un TONO que la IDENTIDAD no ha
+#     puesto: la raya de Iker (teal) sale índigo, y la de Bea salía del color de MARCO. Medido: la
+#     raya se desvía 40–70° del tono de su relleno.
+sed -i "s|^export const tramaDe = (color, alfa = '') => .*$|export const tramaDe = (color, alfa = '') => 'repeating-linear-gradient(45deg, rgba(44,38,67,.30) 0 3px, transparent 3px 7px)';|" $MATRIZ
+verificar $MATRIZ "15. la trama vuelve a la TINTA FIJA (la raya de uno lleva el color de otro)" && probar "15. la trama vuelve a la TINTA FIJA (la raya de uno lleva el color de otro)" pixeles
+
+# 16. LA SOMBRA SE RECORTA EN VEZ DE BAJARLE EL CROMA. Bajar L* en un azul oscuro lo saca del gamut
+#     sRGB; recortar el canal a 0 MUEVE EL TONO. Es la misma mentira que la 15, pero silenciosa: el
+#     código dice "mismo tono" y el espacio de color dice otra cosa. La cazó pixeles.mjs sobre mi
+#     propia implementación, a la primera pasada.
+sed -i "s|^    if (cabe(\[objetivo, A, B\])) {$|    if (true) {|" $MATRIZ
+verificar $MATRIZ "16. la sombra se RECORTA (y el recorte mueve el tono de la raya)" && probar "16. la sombra se RECORTA (y el recorte mueve el tono de la raya)" pixeles
+
+# 17. LA TRAMA SE APAGA: la sombra baja solo 6 de L*. La raya deja de verse, y un bloque que NO
+#     CUBRE EL PUESTO se lee como SÓLIDO — o sea, como si lo cubriera. Silencio falso, y del caro:
+#     el turno imposible de Tomás parecería estar cubriendo la caja.
+sed -i "s/^const BAJADA = 22;$/const BAJADA = 6;/" $MATRIZ
+verificar $MATRIZ "17. la trama se apaga (la raya deja de verse: un bloque que no cubre parece sólido)" && probar "17. la trama se apaga (la raya deja de verse: un bloque que no cubre parece sólido)" pixeles
 
 echo "──────────────────────────────────────────────────────────────────────────────"
 echo "  CAZADOS: $cazados    ESCAPADOS: $escapados    NO PROBADAS: $rotas"

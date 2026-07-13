@@ -148,8 +148,60 @@ export const SUENA = 20;
 /** ΔE por debajo del cual dos personas son INDISTINGUIBLES de un vistazo. */
 export const INDISTINGUIBLE = 12;
 
-/** ΔE en el que dos personas se distinguen, pero CUESTA. Se avisa, no se suspende. */
+/**
+ * ΔE en el que dos personas se distinguen, pero CUESTA. Se avisa, no se suspende.
+ *
+ * ⚠️ Y ESTE AVISO VA A ESTAR SIEMPRE ENCENDIDO. NO ES PEREZA: ES EL TECHO.
+ *
+ * Medido (tests/Visual/paleta.mjs): en la zona FRÍA —sin rojo, naranja, ámbar ni verde, que están
+ * reservados al estado— NO EXISTEN doce colores separados ΔE 20 unos de otros. Ni ocho: el máximo
+ * para ocho es 19,6, y para doce es 16,1. O sea que "todas las parejas holgadas" es IMPOSIBLE con
+ * el color como único canal, y no por falta de intentarlo.
+ *
+ * Por eso la identidad NUNCA cuelga solo del relleno: cada carril lleva su avatar con las
+ * iniciales, su nombre escrito y una línea vertical de su color. El relleno es el canal que se lee
+ * DE UN VISTAZO; no es el único que hay.
+ *
+ * Se deja el aviso porque es verdad. Se dice el techo para que no se lea como un descuido — un
+ * aviso sin contexto se ignora, y un aviso ignorado no existe.
+ */
 export const CUESTA = 20;
+
+/** El máximo ΔE mínimo alcanzable con doce colores en la zona fría. Medido, no supuesto. */
+export const TECHO = 16.1;
+
+/**
+ * LA TRAMA TIENE QUE VERSE. Si la raya no se distingue del fondo, la trama no dice nada — y un
+ * bloque que NO CUBRE EL PUESTO se lee como sólido, o sea como si lo cubriera. Silencio falso.
+ */
+export const RAYA_SE_VE = 10;
+
+/**
+ * ⚠️ Y LA TRAMA NO PUEDE CAMBIAR EL TONO. ES LA LEY 0, EN EL CANAL DE LA DENSIDAD.
+ *
+ * El tono es donde vive la identidad. Si la raya llega con un tono propio, el canal que contesta
+ * "¿cuánto cuenta?" está contestando también "¿de quién es?" — y contestándolo mal: con la tinta
+ * fija (un índigo), la raya de Iker (rosa) salía del color de BEA.
+ *
+ * La raya tiene que ser LA SOMBRA de su relleno: el mismo tono, otra luminosidad. Se mide el ángulo
+ * de tono en Lab; 15° es el margen que deja pasar el antialiasing y no una tinta ajena (la índigo
+ * sobre un teal desviaba 40–70°).
+ */
+export const TONO_DE_LA_RAYA = 15;
+
+/** El ángulo de tono (LCh) de un color. Y la distancia angular entre dos, que es circular. */
+export const tono = (rgb) => {
+    const [, A, B] = lab(rgb);
+    const h = Math.atan2(B, A) * 180 / Math.PI;
+
+    return h < 0 ? h + 360 : h;
+};
+
+export const distanciaDeTono = (a, b) => {
+    const d = Math.abs(tono(a) - tono(b)) % 360;
+
+    return d > 180 ? 360 - d : d;
+};
 
 /* ── Localizar las piezas EN LA PÁGINA (se ejecuta dentro del navegador) ──────── */
 
@@ -308,6 +360,8 @@ export const localizar = () => {
                 left: r.left, top: r.top - anillo,
                 right: r.right, bottom: r.bottom + anillo,
             },
+            // La barra SIN el anillo: el relleno y nada más. Es donde vive la identidad.
+            rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
             // Lo que hay DENTRO de la barra no es la barra: el nombre, la hora, la muesca y el filo
             // se descuentan. Promediar letras no dice a qué suena la barra: dice a qué suena la
             // tipografía, que es la misma para todo el mundo.
@@ -400,47 +454,141 @@ export const muestrear = (page, png, piezas) => page.evaluate(async ({ dataUrl, 
             return v[Math.floor(v.length / 2)];
         });
 
+        /**
+         * LA MEDIA DE UNA CAJA, descontando lo que hay ENCIMA de la barra (el nombre, la hora, la
+         * muesca, el filo). Promediar letras no dice a qué suena la barra: dice a qué suena la
+         * tipografía, que es la misma para todo el mundo.
+         */
+        const mediaDe = (caja) => {
+            if (!caja) {
+                return null;
+            }
+
+            const x0 = Math.round(caja.left * escala);
+            const y0 = Math.round(caja.top * escala);
+            const w = Math.round((caja.right - caja.left) * escala);
+            const h = Math.round((caja.bottom - caja.top) * escala);
+
+            if (!(w > 0 && h > 0 && x0 >= 0 && y0 >= 0 && x0 + w <= c.width && y0 + h <= c.height)) {
+                return null;
+            }
+
+            const d = ctx.getImageData(x0, y0, w, h).data;
+            const suma = [0, 0, 0];
+            let n = 0;
+
+            for (let py = 0; py < h; py++) {
+                for (let px = 0; px < w; px++) {
+                    const cx = (x0 + px) / escala;
+                    const cy = (y0 + py) / escala;
+
+                    if (p.hijos?.some((k) => cx >= k.left - 1 && cx <= k.right + 1 && cy >= k.top - 1 && cy <= k.bottom + 1)) {
+                        continue;
+                    }
+
+                    const o = (py * w + px) * 4;
+                    suma[0] += d[o];
+                    suma[1] += d[o + 1];
+                    suma[2] += d[o + 2];
+                    n++;
+                }
+            }
+
+            return n > 0 ? suma.map((s) => Math.round(s / n)) : null;
+        };
+
         /*
          * LA BARRA ENTERA, CON SU ANILLO PEGADO. Es lo que el ojo integra de un vistazo, y lo
          * único que responde a "¿esta barra suena a una gravedad que no es la suya?".
          */
-        let integrada = null;
+        const integrada = p.anillo > 0 ? mediaDe(p.caja) : null;
 
-        if (p.caja && p.anillo > 0) {
-            const x0 = Math.round(p.caja.left * escala);
-            const y0 = Math.round(p.caja.top * escala);
-            const w = Math.round((p.caja.right - p.caja.left) * escala);
-            const h = Math.round((p.caja.bottom - p.caja.top) * escala);
+        /**
+         * ⚠️ EL RELLENO PROMEDIADO. Y ESTO ES LA MENTIRA NÚMERO DIECIOCHO, QUE CAZÓ ESTE MISMO
+         * INSTRUMENTO EN SU PRIMERA PASADA — sobre una página que estaba BIEN.
+         *
+         * `pixel` es la mediana de un vecindario de 3×3 en UN punto. Sobre una barra lisa eso es
+         * exacto. Sobre una barra TRAMADA es basura: las rayas miden 2 px, así que el vecindario
+         * entero puede caer DENTRO de una raya, y entonces lo que sale es la SOMBRA de la persona
+         * y no su color. La barra tramada de Iker daba #004A6F —su sombra— y el instrumento cantó
+         * «se parece más a Bea que a sí misma».
+         *
+         * Y la barra está perfecta. Lo que estaba mal era la pregunta: NADIE LEE UNA RAYA DE 2 px
+         * COMO EL COLOR DE UNA BARRA. El ojo INTEGRA la textura — por eso una trama es una trama y
+         * no doce barritas. Así que en una barra tramada, la identidad la lleva la MEDIA del
+         * relleno, no un punto de él.
+         *
+         * ⚠️ Esto NO es aflojar el test para que pase. El test seguía siendo exigible; el
+         * ESTADÍSTICO era el equivocado. La prueba de que no es una excusa: la media SIGUE
+         * cazando el fallo viejo (la trama de tinta fija movía la media 5,6 con D = 13,8; ahora la
+         * mueve 5,4 con D = 16,1, y la garantía R < D/2 se comprueba EN LA IMAGEN, no en el
+         * modelo).
+         */
+        const relleno = mediaDe(p.rect);
 
-            if (w > 0 && h > 0 && x0 >= 0 && y0 >= 0 && x0 + w <= c.width && y0 + h <= c.height) {
+        /**
+         * ⚠️ LA TRAMA, VISTA: LA RAYA Y EL FONDO, SEPARADOS. Y ESTO NO ES UN LUJO.
+         *
+         * La media del relleno contesta «¿de quién es la barra?» y NO CONTESTA otras dos preguntas
+         * que también tiene que contestar una trama, y que estuvieron sin medir desde el principio:
+         *
+         *   1. ¿LA RAYA SE VE? Si la raya y el fondo son casi el mismo color, la trama no comunica y
+         *      un bloque que NO CUBRE EL PUESTO se lee como sólido — o sea, como si lo cubriera. Es
+         *      un silencio falso, y con la tinta fija le pasaba a Marco: su raya quedaba a ΔE 4,4
+         *      de su propio relleno. INVISIBLE.
+         *
+         *   2. ¿LA RAYA ES DE LA PERSONA? Con una tinta FIJA, la raya de Iker (rosa) salía #AA589F,
+         *      que es el color de BEA. El canal de la DENSIDAD estaba metiendo un TONO que la
+         *      identidad no había puesto. Y la media no lo caza: al promediar, el tono ajeno se
+         *      diluye y la barra sigue "pareciéndose a la suya". La mentira sobrevive al promedio.
+         *
+         * Así que se separan por LUMINOSIDAD: el 10 % más oscuro de los píxeles del relleno es el
+         * núcleo de la raya; el 40 % más claro es el fondo. Con rayas de 2 px cada 8 (25 % del
+         * área) y el antialiasing comiéndose los bordes, esos dos cuantiles caen limpios.
+         */
+        let trama = null;
+
+        if (p.tramada && p.rect) {
+            const x0 = Math.round(p.rect.left * escala);
+            const y0 = Math.round(p.rect.top * escala);
+            const w = Math.round((p.rect.right - p.rect.left) * escala);
+            const h = Math.round((p.rect.bottom - p.rect.top) * escala);
+
+            if (w > 2 && h > 2 && x0 >= 0 && y0 >= 0 && x0 + w <= c.width && y0 + h <= c.height) {
                 const d = ctx.getImageData(x0, y0, w, h).data;
-                const suma = [0, 0, 0];
-                let n = 0;
+                const px = [];
 
-                for (let py = 0; py < h; py++) {
-                    for (let px = 0; px < w; px++) {
-                        const cx = (x0 + px) / escala;
+                // ⚠️ Un píxel DE DENTRO: se descuenta un anillo de 2 px de borde, o el antialiasing
+                // del redondeo y el color del borde entrarían como si fueran raya.
+                for (let py = 2; py < h - 2; py++) {
+                    for (let pxi = 2; pxi < w - 2; pxi++) {
+                        const cx = (x0 + pxi) / escala;
                         const cy = (y0 + py) / escala;
 
-                        if (p.hijos.some((k) => cx >= k.left - 1 && cx <= k.right + 1 && cy >= k.top - 1 && cy <= k.bottom + 1)) {
+                        if (p.hijos?.some((k) => cx >= k.left - 1 && cx <= k.right + 1 && cy >= k.top - 1 && cy <= k.bottom + 1)) {
                             continue;
                         }
 
-                        const o = (py * w + px) * 4;
-                        suma[0] += d[o];
-                        suma[1] += d[o + 1];
-                        suma[2] += d[o + 2];
-                        n++;
+                        const o = (py * w + pxi) * 4;
+                        px.push([d[o], d[o + 1], d[o + 2]]);
                     }
                 }
 
-                if (n > 0) {
-                    integrada = suma.map((s) => Math.round(s / n));
+                if (px.length >= 20) {
+                    const luz = (q) => 0.2126 * q[0] + 0.7152 * q[1] + 0.0722 * q[2];
+                    const orden = px.slice().sort((a, b) => luz(a) - luz(b));
+
+                    const media = (lista) => [0, 1, 2].map((i) => Math.round(lista.reduce((s, q) => s + q[i], 0) / lista.length));
+
+                    trama = {
+                        raya: media(orden.slice(0, Math.max(1, Math.round(orden.length * 0.10)))),
+                        fondo: media(orden.slice(Math.round(orden.length * 0.60))),
+                    };
                 }
             }
         }
 
-        return { ...p, pixel: mediana, integrada };
+        return { ...p, pixel: mediana, integrada, relleno, trama };
     });
 }, { dataUrl: `data:image/png;base64,${png.toString('base64')}`, piezas });
 

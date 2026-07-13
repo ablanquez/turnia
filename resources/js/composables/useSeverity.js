@@ -35,6 +35,31 @@ const SEVERITY = {
 };
 
 /**
+ * EL VERDE NO ES UNA GRAVEDAD —no hay nada que arreglar— pero necesita LAS DOS FORMAS igual.
+ *
+ * Y estaba en tres sitios a la vez: ScheduleHeader escribía en #15803D (contraste 4,27: no llega),
+ * useMatrizVisual tenía su propio #0F5C2C para el tramo cubierto, y app.css un tercero. Tres copias
+ * del mismo hecho, y la que escribía texto era la única mala.
+ */
+export const OK_FILL = '#15803D';
+export const OK_TEXT = '#0F5C2C';
+
+/**
+ * ⚠️ EL TINTE DE FONDO DE UN CHIP: el relleno de su gravedad, muy diluido.
+ *
+ * Estaba escrito a mano en ScheduleHeader —`rgba(232,89,12,.1)`, `rgba(194,135,10,.12)`…— con
+ * alfas distintos y sin relación con nada. Un chip es un relleno lavado: se DERIVA, no se copia.
+ */
+export function severityChip(severity) {
+    const fill = severity === 'ok' ? OK_FILL : severityFill(severity);
+    const text = severity === 'ok' ? OK_TEXT : severityColor(severity);
+
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(fill.slice(i, i + 2), 16));
+
+    return { background: `rgba(${r},${g},${b},.12)`, color: text };
+}
+
+/**
  * LA FORMA CORTA DE CADA REGLA.
  *
  * En la celda cabe una línea. El mensaje completo del motor —"Se pasa del tope semanal:

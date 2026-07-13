@@ -42,8 +42,8 @@ final class PersonPalette
      * espacio Lab, maximizando el ΔE00 MÍNIMO entre cualquier par — que es la métrica que
      * importa, porque una paleta vale lo que valga su par más parecido.
      *
-     *   · ΔE00 mínimo: 16,5   (antes: 4,0)
-     *   · Luminosidad: L* 32 → 74   (antes: L* 52 → 60)
+     *   · ΔE00 mínimo: 16,1   (antes: 4,0)
+     *   · Luminosidad: L* 31 → 78   (antes: L* 52 → 60)
      *
      * Y ese segundo número es el que de verdad arregla la semana: a 10 px, la DIFERENCIA DE
      * LUMINOSIDAD es la única señal que el ojo conserva. Doce tonos igual de oscuros son un solo
@@ -95,32 +95,62 @@ final class PersonPalette
      * La solución no fue otra paleta: fue que EL ANILLO DEJE DE RODEAR. Dos franjas, arriba y
      * abajo, cuyo peso es 2w/(alto+2w) y NO DEPENDE DEL ANCHO. Ver useMatrizVisual.js.
      *
-     *   · ΔE00 mínimo entre personas:            13,8
-     *   · Croma mínimo:                          30    (antes: 20)
-     *   · Lo más cerca de una gravedad AJENA:    24,1  a CUALQUIER ancho de barra
+     * ═══════════════════════════════════════════════════════════════════════════════════════
+     * ⚠️ Y ESTA QUINTA VERSIÓN CAMBIA LA GARANTÍA, QUE ES MÁS IMPORTANTE QUE CAMBIAR LOS COLORES.
+     * ═══════════════════════════════════════════════════════════════════════════════════════
+     *
+     * Hasta aquí, la promesa era "los doce colores están separados entre sí". Y NO ES LA PROMESA
+     * QUE HACE FALTA, porque una barra NUNCA es su color pelado: lleva encima una trama, pegado un
+     * anillo, y en el zoom Día un alfa. Cada canal MUEVE el color. Con los doce a ΔE 13,8 unos de
+     * otros, bastaba un empujón de 7 para que una barra cayera más cerca de OTRA PERSONA que de sí
+     * misma — y la trama daba justo ese empujón.
+     *
+     * Ahora la paleta se calcula con una desigualdad triangular:
+     *
+     *     D = el ΔE mínimo entre dos personas cualesquiera.
+     *     R = lo MÁS que una barra se aleja de su propio color, pintándose como se pinte.
+     *
+     *     Si R < D/2, la barra pintada está a ≥ D − R de cualquier otra persona y a R de la suya:
+     *     GANA LA SUYA. Siempre. Para toda barra que exista y para las que todavía no.
+     *
+     *   · D = 16,1   (antes: 13,8)
+     *   · R =  5,4   → 5,4 < 8,0 ✅  la ley 2 se cumple POR CONSTRUCCIÓN, no por suerte
+     *   · Lo más cerca de una gravedad AJENA:  24,1   a CUALQUIER ancho de barra
+     *   · Lo más cerca de la PISTA (#E7E5F0):  26,1   una barra tiene que verse sobre su fondo
+     *   · Croma mínimo: 30 — por debajo, un color no tiene identidad y adopta la del vecino
+     *
+     * ⚠️ Y 16,1 ES EL TECHO, NO UNA MEDIA TINTA. Medido: en la zona fría —sin rojo, naranja, ámbar
+     * ni verde, que son del estado— NO EXISTEN doce colores a ΔE 20 unos de otros. Ni ocho: el
+     * máximo para ocho es 19,6. O sea que "todas las parejas holgadas" es IMPOSIBLE con el color
+     * como único canal, y no por falta de esfuerzo.
+     *
+     * Por eso la identidad NUNCA cuelga solo del relleno: cada carril lleva su avatar con las
+     * iniciales, su nombre escrito y una línea vertical de su color. El relleno es el canal que se
+     * lee de un vistazo; no es el único que hay.
      *
      * ⚠️ ESTOS DOCE COLORES DEPENDEN DE LA GEOMETRÍA DE LA BARRA. No es una lista que se pueda
      * copiar y pegar: salen de un cálculo que TIENE DENTRO el alto (16 px), el grosor de cada
-     * franja (2/3/4) y hasta la trama del imposible. El día que cambie cualquiera de esos números,
-     * la paleta hay que VOLVER A GENERARLA — parchear un color a mano rompe la garantía, y la
-     * garantía es lo único que impide que una barra vuelva a mentir.
+     * franja (2/3/4), la trama (2 px cada 8, en la sombra del propio color) y el fondo de la pista.
+     * El día que cambie cualquiera de esos números, la paleta hay que VOLVER A GENERARLA
+     * (`node tests/Visual/paleta.mjs`) — parchear un color a mano rompe la garantía, y la garantía
+     * es lo único que impide que una barra vuelva a mentir.
      *
-     * Y son DOCE: por encima, el ΔE mínimo cae en picado. Doce que se distinguen valen más que
+     * Y son DOCE: por encima, D cae (13 → 15,3 · 14 → 13,9). Doce que se distinguen valen más que
      * quince que no.
      */
     private const COLORS = [
-        '#1480B4', // azul
-        '#E06EC6', // rosa
-        '#623884', // púrpura oscuro
-        '#A4B0F0', // azul claro
-        '#56C2D2', // turquesa
-        '#7474A8', // añil grisáceo
-        '#1A5096', // azul marino
-        '#A456B4', // orquídea
-        '#56B0F0', // azul cielo
-        '#AA80EA', // violeta
-        '#6286F0', // añil
-        '#C8A4D8', // lavanda
+        '#70D0CC', // turquesa claro
+        '#0880A8', // teal
+        '#38A0FC', // azul cielo
+        '#989CFC', // periwinkle
+        '#5844BC', // índigo
+        '#840884', // magenta oscuro
+        '#40CCFC', // cian
+        '#08507C', // azul marino
+        '#4470F0', // azul
+        '#8074A8', // malva
+        '#F890F8', // rosa claro
+        '#C844B8', // magenta
     ];
 
     /**

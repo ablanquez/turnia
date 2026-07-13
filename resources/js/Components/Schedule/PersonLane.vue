@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { BRAND_DARK, severityColor, severityIcon, worst } from '../../composables/useSeverity.js';
-import { pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
+import { ANILLO_MAX, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
@@ -54,11 +54,22 @@ const props = defineProps({
  *     barra de 14 px, anillos 2/3/3  →  ΔE mínimo 14,4  ✅ pero el imposible pierde su gradación
  *     barra de 16 px, anillos 2/3/4  →  ΔE mínimo 15,8  ✅ y el imposible sigue siendo el más gordo
  *
- * El HUECO entre sub-carriles es 9 porque el anillo del imposible mide 4: sin ese aire, los
- * anillos de dos barras que se pisan se tocarían y parecerían uno solo.
  */
 const ALTO = 16;
-const HUECO = 9;
+
+/**
+ * ⚠️ EL HUECO Y EL AIRE SE DERIVAN DEL ANILLO. NO SE ESCRIBEN.
+ *
+ * Estaban a 9 y a 4, que son los valores correctos… PARA UN ANILLO DE 4 px. Y eso los convierte en
+ * constantes escondidas: números que solo son ciertos en el caso en que nacieron. El día que el
+ * imposible engordase a 5, el aire se quedaría corto (la pista lleva overflow-hidden y le
+ * RECORTARÍA la alarma por arriba y por abajo) y el hueco también (los anillos de dos barras que se
+ * pisan se TOCARÍAN, y el solape dejaría de verse como solape). Los dos fallos, en silencio.
+ *
+ *   AIRE  = el anillo más gordo → el anillo cabe entero, justo.
+ *   HUECO = dos anillos + 1 px  → entre dos barras encimadas siempre queda una raya de pista.
+ */
+const HUECO = 2 * ANILLO_MAX + 1;
 
 /**
  * EL REPARTO EN SUB-CARRILES ES GEOMÉTRICO Y NO JUZGA NADA:
@@ -97,7 +108,7 @@ const repartidos = computed(() => {
  * Y el `padding` no sirve aquí: un hijo posicionado en absoluto se coloca contra la caja de
  * relleno, así que el padding NO lo desplaza. Hay que sumarlo al `top` a mano.
  */
-const AIRE = 4;
+const AIRE = ANILLO_MAX;
 
 const altoPista = computed(() => {
     const n = repartidos.value.subcarriles;

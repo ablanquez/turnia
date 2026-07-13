@@ -36,8 +36,8 @@
 import { chromium } from 'playwright';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import {
-    CUESTA, FAMILIA_DE_ANILLO, INDISTINGUIBLE, SUENA,
-    conRelleno, deltaE00, entrar, hex, localizar, lunesDe, muestrear, rgbDe, sueneA,
+    CUESTA, FAMILIA_DE_ANILLO, INDISTINGUIBLE, RAYA_SE_VE, SUENA, TECHO, TONO_DE_LA_RAYA,
+    conRelleno, deltaE00, distanciaDeTono, entrar, hex, localizar, lunesDe, muestrear, rgbDe, sueneA,
 } from './pixel.mjs';
 
 const BASE = 'http://turnia.test';
@@ -262,6 +262,14 @@ for (const [clave, { vista, piezas }] of Object.entries(resultado)) {
     di();
     di(`  ${pares.length} pares comparados · ${malos.length} INDISTINGUIBLES (ΔE < ${INDISTINGUIBLE}) · ${justos.length} justos (< ${CUESTA})`);
 
+    // ⚠️ El "⚠️ cuesta" va a salir SIEMPRE, y hay que decir por qué: ΔE 20 entre doce colores fríos
+    // NO EXISTE. El techo medido es 16,1. Callarlo haría leer el aviso como un descuido.
+    if (justos.length) {
+        di(`     (el techo de la zona fría con doce colores es ΔE ${TECHO} — medido, no supuesto: ΔE 20 entre doce`);
+        di('      colores sin rojo, naranja, ámbar ni verde NO EXISTE. Por eso la identidad no cuelga solo del');
+        di('      relleno: cada carril lleva además su avatar, su nombre y su línea de color.)');
+    }
+
     for (const p of malos) {
         fallos.push(`${vista.nombre}: «${p.a.persona}» y «${p.b.persona}» son INDISTINGUIBLES en el ${vista.portador} — ΔE00 ${p.d.toFixed(1)} (${hex(p.a.pixel)} vs ${hex(p.b.pixel)})`);
         di(`    ❌ ${p.a.persona} ≡ ${p.b.persona} — ΔE ${p.d.toFixed(1)}`);
@@ -422,6 +430,184 @@ di('  a su persona que a una gravedad ajena", y eso ACUSABA A UN INOCENTE: una b
 di('  rojo queda a ΔE 29,6 del naranja —lejísimos, no se confunde con nada— pero también lejos del');
 di('  teal, así que el margen salía negativo. Lo que importa no es de qué se aleja: es de qué se');
 di('  ACERCA.');
+
+/* ── LEY 2, LA PREGUNTA DE VERDAD: ¿DE QUIÉN PARECE ESTA BARRA? ── */
+
+/**
+ * ⚠️ ESTA COMPROBACIÓN NO EXISTÍA, Y ES LA MENTIRA NÚMERO DIECISIETE — LA MÁS EDUCADA DE TODAS.
+ *
+ * Arriba, la comparación entre personas EXCLUYE las barras tramadas, con esta coartada escrita en
+ * el propio código: «se excluyen de ESTA comparación — y de ninguna otra: siguen midiéndose en la
+ * ley 0». Y era mentira. La ley 0 pregunta «¿esta barra suena a una GRAVEDAD ajena?». No pregunta
+ * «¿esta barra sigue siendo de SU PERSONA?».
+ *
+ * Así que la identidad de una barra tramada —la hora extra de Iker, el turno imposible de Tomás—
+ * NO SE MEDÍA EN NINGUNA PARTE. Un descarte con coartada sigue siendo un descarte, y un descarte
+ * silencioso es un aprobado por omisión. Lo cazó el usuario mirando: «la hora extra de Iker no
+ * lleva su color». Y tenía razón, y era peor de lo que él vio — la raya salía #AA589F, que es el
+ * color de BEA a ΔE 5.
+ *
+ * LA PREGUNTA CORRECTA, Y VALE PARA TODA BARRA, LISA O TRAMADA:
+ *
+ *     Tapa el nombre. Mira el píxel. ¿A qué persona de la paleta se parece MÁS?
+ *     Si no es la suya, la barra miente.
+ *
+ * Y se exige margen: no basta con ganar por poco. Con D = 16,1 entre personas y un radio R = 5,4,
+ * la barra tiene que quedar a ≥ 2× de la segunda para que la garantía R < D/2 se vea CUMPLIDA en
+ * la imagen y no solo en el modelo.
+ */
+di();
+di('▓ LEY 2 · TAPA EL NOMBRE: ¿DE QUIÉN PARECE ESTA BARRA?');
+di('─'.repeat(122));
+di();
+di('  Cada barra (LISA Y TRAMADA) contra los doce colores de la paleta. La más parecida debe ser la SUYA.');
+di();
+
+// La paleta que el servidor manda, tal cual sale en el CSS. No una copia: lo que se está pintando.
+const PALETA = [...new Map(
+    todasLasBarras
+        .filter((p) => conRelleno(p))
+        .map((p) => [hex(declaradoDe(p)), declaradoDe(p)]),
+).entries()].map(([c, rgb]) => ({ c, rgb }));
+
+di(`  La paleta que aparece en pantalla: ${PALETA.length} colores · ${PALETA.map((p) => p.c).join(' ')}`);
+di();
+di('  ⚠️ EN UNA BARRA TRAMADA, LA IDENTIDAD LA LLEVA LA MEDIA DEL RELLENO, NO UN PUNTO DE ÉL.');
+di('     Las rayas miden 2 px: un punto puede caer DENTRO de una, y lo que sale es la SOMBRA de la');
+di('     persona, no su color. Nadie lee una raya de 2 px como el color de una barra — el ojo INTEGRA');
+di('     la textura. Se enseñan las dos medidas para que el estadístico no pueda esconder nada.');
+di();
+di(`     ${pad('PERSONA', 16)} ${pad('SU COLOR', 10)} ${pad('DENSIDAD', 9)} ${pad('UN PUNTO', 10)} ${pad('LA MEDIA', 10)} ${pad('SE PARECE MÁS A', 20)} MARGEN`);
+di('     ' + '─'.repeat(104));
+
+const identidad = new Map();
+
+for (const p of todasLasBarras.filter((x) => x.pixel && conRelleno(x))) {
+    const suyo = hex(declaradoDe(p));
+
+    // Una sola fila por (color, densidad): lo que se prueba es la FORMA de pintar, no la persona.
+    const k = `${suyo}|${p.tramada ? 'tramada' : 'lisa'}`;
+    if (!identidad.has(k)) identidad.set(k, p);
+}
+
+let peorMargen = Infinity;
+
+for (const [k, p] of [...identidad.entries()].sort()) {
+    const [suyo, densidad] = k.split('|');
+
+    // La lisa se juzga por el punto (es exacto, y caza si estoy midiendo letras). La tramada, por
+    // la media (es lo que el ojo integra). Si la media no se pudo calcular, NO se inventa: se dice.
+    const visto = p.tramada ? p.relleno : p.pixel;
+
+    if (!visto) {
+        fallos.push(`INSTRUMENTO: la barra ${densidad} de «${p.persona}» no ha dado media de relleno. No se puede juzgar, y callarlo sería aprobarla.`);
+        continue;
+    }
+
+    const orden = PALETA
+        .map(({ c, rgb }) => ({ c, d: deltaE00(visto, rgb) }))
+        .sort((a, b) => a.d - b.d);
+
+    const gana = orden[0];
+    const segundo = orden.find((o) => o.c !== suyo);
+    const propio = orden.find((o) => o.c === suyo);
+
+    // Margen: cuánto MÁS lejos está el segundo que el suyo. Negativo = la barra parece de otro.
+    const margen = segundo && propio ? segundo.d - propio.d : Infinity;
+
+    peorMargen = Math.min(peorMargen, margen);
+
+    const ok = gana.c === suyo;
+
+    di(
+        `     ${pad(p.persona, 16)} ${pad(suyo, 10)} ${pad(densidad, 9)} ${pad(hex(p.pixel), 10)} `
+        + `${pad(p.relleno ? hex(p.relleno) : '—', 10)} `
+        + `${pad(gana.c === suyo ? 'la SUYA' : `❌ ${gana.c}`, 20)} ${ok ? '✅' : '❌'} ${margen.toFixed(1)}`,
+    );
+
+    if (!ok) {
+        fallos.push(
+            `LEY 2 · una barra ${densidad} de color ${suyo} (la de «${p.persona}») se ve ${hex(visto)}, y eso se parece `
+            + `MÁS a ${gana.c} —OTRA PERSONA— que a su propio color. El relleno ya no dice de quién es.`,
+        );
+    }
+}
+
+di();
+di(`  ${identidad.size} formas de pintar medidas · el margen más justo: ${peorMargen === Infinity ? '—' : peorMargen.toFixed(1)}`);
+
+// ⚠️ Y si NINGUNA barra tramada ha salido, esta comprobación no ha probado lo que dice probar.
+if (![...identidad.keys()].some((k) => k.endsWith('|tramada'))) {
+    fallos.push('LEY 2: no ha salido NI UNA barra TRAMADA. La comprobación que existe para ellas no ha probado nada.');
+}
+
+/* ── LA TRAMA: ¿SE VE? ¿Y ES DE LA PERSONA? ── */
+
+/**
+ * ⚠️ ESTAS DOS COMPROBACIONES EXISTEN PORQUE LA DE ARRIBA NO BASTA, Y LO SÉ PORQUE LA PROBÉ.
+ *
+ * Arreglé la trama (de una tinta fija a la sombra de la propia persona) y después metí el fallo
+ * viejo a propósito, a ver si el instrumento lo cazaba. NO LO CAZÓ. Con la paleta nueva hay tanto
+ * sitio (D = 16,1) que la tinta índigo tampoco llega a mover la MEDIA hasta otra persona: el tono
+ * ajeno se DILUYE al promediar, y la mentira sobrevive al promedio.
+ *
+ * O sea: yo había arreglado un fallo y NO HABÍA DEJADO NADA QUE LO SUJETARA. El arreglo estaba
+ * solo. Eso es exactamente lo que pasa cuando un instrumento mide "el resultado" y no "la causa".
+ *
+ * Así que se mide la causa, que son las dos preguntas que una trama tiene que contestar:
+ *
+ *   1. ¿SE VE?      la raya contra su fondo, ΔE ≥ 10. Si no, un bloque que NO CUBRE se lee sólido.
+ *   2. ¿ES SUYA?    el TONO de la raya contra el del fondo, ≤ 15°. El tono es donde vive la
+ *                   identidad: una raya con tono propio es el canal de densidad escribiendo en el
+ *                   canal de identidad, y eso es la ley 0.
+ */
+di();
+di('▓ LA TRAMA · ¿SE VE? ¿Y ES DE LA PERSONA?');
+di('─'.repeat(122));
+di();
+di(`     ${pad('PERSONA', 16)} ${pad('FONDO', 9)} ${pad('RAYA', 9)} ${pad('¿SE VE? (ΔE)', 14)} ¿ES SUYA? (desvío de tono)`);
+di('     ' + '─'.repeat(80));
+
+const conTrama = new Map();
+
+for (const p of todasLasBarras.filter((x) => x.trama && conRelleno(x))) {
+    const k = hex(declaradoDe(p));
+    if (!conTrama.has(k)) conTrama.set(k, p);
+}
+
+for (const [color, p] of [...conTrama.entries()].sort()) {
+    const visible = deltaE00(p.trama.raya, p.trama.fondo);
+    const desvio = distanciaDeTono(p.trama.raya, p.trama.fondo);
+
+    const seVe = visible >= RAYA_SE_VE;
+    const esSuya = desvio <= TONO_DE_LA_RAYA;
+
+    di(
+        `     ${pad(p.persona, 16)} ${pad(hex(p.trama.fondo), 9)} ${pad(hex(p.trama.raya), 9)} `
+        + `${pad(`${seVe ? '✅' : '❌'} ${visible.toFixed(1)}`, 14)} ${esSuya ? '✅' : '❌'} ${desvio.toFixed(0)}°`,
+    );
+
+    if (!seVe) {
+        fallos.push(
+            `LA TRAMA NO SE VE · la raya de «${p.persona}» (${color}) queda a ΔE ${visible.toFixed(1)} de su propio `
+            + 'relleno. Un bloque que NO CUBRE EL PUESTO se está leyendo como sólido — o sea, como si lo cubriera.',
+        );
+    }
+
+    if (!esSuya) {
+        fallos.push(
+            `LA TRAMA CAMBIA EL TONO · la raya de «${p.persona}» (${color}) se desvía ${desvio.toFixed(0)}° del tono de su `
+            + 'relleno. El canal de la DENSIDAD está metiendo un color que la IDENTIDAD no ha puesto (ley 0).',
+        );
+    }
+}
+
+di();
+di(`     ${conTrama.size} tramas medidas · umbrales: se ve ≥ ΔE ${RAYA_SE_VE} · desvío de tono ≤ ${TONO_DE_LA_RAYA}°`);
+
+if (!conTrama.size) {
+    fallos.push('LA TRAMA: no se ha podido medir NI UNA. La comprobación no ha probado nada, y callarlo sería aprobarla.');
+}
 
 /* ── ¿Se cumple la ley 2 IGUAL en las dos vistas? ── */
 

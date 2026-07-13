@@ -38,10 +38,30 @@ partiría en DOS barras** —una al final de un día y otra al principio del sig
 UN solo turno. Que el eje empiece a las 06:00 es justo lo que lo mantiene entero. Ahí está el
 motivo de que este parámetro importe.
 
-### El seeder deja Cocina, Sala y Caja vacías el sábado y el domingo
+### El seeder deja Cocina y Sala casi vacías el fin de semana
 
 En hostelería el fin de semana es el **pico de carga**, y la demo hace parecer que el bar
-cierra la cocina. Se arregla cuando montemos el año entero de cuadrantes.
+cierra la cocina. El domingo ya tiene los refuerzos de punta (ley 15), pero la rota de fin de
+semana sigue siendo pobre. Se arregla cuando montemos el año entero de cuadrantes.
+
+### ⚠️ MARCO VA EXACTAMENTE A TOPE: 25 h DE 25
+
+Con el refuerzo de punta del miércoles, Marco queda en **25 de 25 horas semanales**. El motor
+compara con `<=`, así que no salta. **Pero si alguien le añade un minuto más, el tope semanal
+salta en sus CUATRO turnos y la fila entera se pone naranja** — el "cuadrante en llamas" que
+`DemoSeeder` existe para evitar. Está a propósito (la demo enseña el borde), y está escrito aquí
+para que nadie lo descubra a base de sustos.
+
+### Los tres seeders se reparten los ids de empresa POR ORDEN, y nada lo enforce
+
+`DemoSeeder` (1–2) → `BacktestSeeder` (3–15) → `MatrizSeeder` (16–17). Cada uno escribe en su JSON
+(`escenarios.json`, `matriz.json`) los ids que le TOCARON. Si se ejecutan en otro orden, o falta
+uno, los JSON apuntan a empresas que ya son de otro y **los instrumentos miden la página
+equivocada** — sin decirlo. Ya pasó: `backtest.mjs` estuvo dando 13 fallos sobre un cuadrante que
+no era el suyo.
+
+El orden correcto está en el README, y debería estar **en un comando** (`artisan turnia:sembrar`)
+en vez de en la memoria de quien lo ejecute.
 
 ---
 
@@ -81,21 +101,27 @@ Ver `BACKTEST-COMBINATORIO.md` §8. En resumen, lo que **no** está probado y so
 producción:
 
 - **⚠️ LA PALETA DEPENDE DE LA GEOMETRÍA DE LA BARRA.** Los doce colores salen de un cálculo que
-  tiene DENTRO el alto (16 px), el grosor de cada franja de gravedad (2/3/4) y hasta la trama del
-  imposible. **Si cambia cualquiera de esos números, la paleta hay que VOLVER A GENERARLA**
-  (`tests/Visual/paleta.mjs`), no parchear un color a mano. Ya pasó una vez: el modelo metía "el
-  ancho de una barra" como si fuera uno solo (50 px, un turno de 8 h) y la paleta **solo era cierta
-  a ese ancho** — un turno de una hora se veía marrón. Ver `docs/RESPONSIVE.md` §4.
-- **⚠️ SOLO SE HA PROBADO EN CHROMIUM, Y A `deviceScaleFactor: 1`.** Una pantalla Retina (DPR 2)
-  renderiza el antialiasing distinto, y **el antialiasing es exactamente lo que separa el modelo de
-  la imagen** en toda esta matriz. Es el hueco más grande que queda. Firefox y Safari tampoco se han
-  abierto.
-- **⚠️ PLANTILLAS DE MÁS DE DOCE PERSONAS.** La paleta tiene doce colores con separación
-  perceptual verificada (ΔE00 mínimo 16,5), y se REPARTEN por orden de id — sin colisiones hasta
-  el doce. A partir de ahí **se repiten**, y dos personas de la misma empresa vuelven a tener la
-  misma barra. No hay doce mil colores que se distingan en la zona fría, así que la salida no es
-  «más colores»: habrá que decidir otra cosa (¿un segundo canal? ¿el color solo para quien está
-  en la celda?). `tests/Visual/pixeles.mjs` lo denunciará en cuanto ocurra.
+  tiene DENTRO el alto (16 px), el grosor de cada franja de gravedad (2/3/4), la trama (2 px cada 8,
+  en la sombra del propio color) y el fondo de la pista. **Si cambia cualquiera de esos números, la
+  paleta hay que VOLVER A GENERARLA** (`tests/Visual/paleta.mjs`), no parchear un color a mano. Ya
+  pasó: el modelo metía "el ancho de una barra" como si fuera uno solo (50 px, un turno de 8 h) y la
+  paleta **solo era cierta a ese ancho** — un turno de una hora se veía marrón. Ver `RESPONSIVE.md`
+  §4 y la **ley 16** de la matriz.
+- **⚠️ EL COLOR NO PUEDE SER EL ÚNICO CANAL DE IDENTIDAD, Y ESO ES UN TECHO, NO UNA TAREA.**
+  Medido: en la zona fría —sin rojo, naranja, ámbar ni verde, que están reservados al estado— **no
+  existen doce colores separados ΔE 20 unos de otros. Ni ocho** (el máximo para ocho es 19,6; para
+  doce, 16,1). O sea que el aviso «⚠️ cuesta» de `pixeles.mjs` **va a estar siempre encendido**, y
+  no por pereza. Hoy lo compensan el avatar con iniciales, el nombre escrito y la línea vertical de
+  color: la identidad nunca cuelga solo del relleno. **Si algún día hace falta más, la salida no es
+  «más colores»: es otro canal** (¿una forma? ¿un patrón?). Decisión aparcada, no olvidada.
+- **⚠️ PLANTILLAS DE MÁS DE DOCE PERSONAS.** La paleta tiene doce colores con separación perceptual
+  verificada (D = 16,1) y se REPARTEN por orden de id — sin colisiones hasta el doce. A partir de
+  ahí **se repiten**, y dos personas de la misma empresa vuelven a tener la misma barra.
+  `tests/Visual/pixeles.mjs` lo denunciará en cuanto ocurra. Es el mismo techo del punto anterior.
+- **⚠️ FIREFOX Y SAFARI NO SE HAN ABIERTO.** Chromium sí, y a **siete densidades** —DPR 1, 2 y 3, y
+  zoom del navegador al 80/125/150 %— con la matriz entera medida en cada una
+  (`tests/Visual/densidad.mjs`): la ley 2, la ley 0 y la trama aguantan, y ningún número se mueve
+  más de ±1,5 ΔE. **Retina ya no es un agujero.** Los otros dos motores sí.
 - **Más de tres personas por celda.** Los seeders llegan a tres. Con seis, el aire entre bloques
   podría dejar de decir la verdad sobre quién va con quién.
 - **El daltonismo.** La ley 6 (ningún color va solo) está probada: toda gravedad lleva su

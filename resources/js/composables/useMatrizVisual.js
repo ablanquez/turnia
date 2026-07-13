@@ -68,16 +68,133 @@
  * dos capas, y por eso no hay que aprenderla dos veces.
  */
 
-import { BRAND_DARK, severityColor, severityFill, severityIcon, shortText, worst } from './useSeverity.js';
+import { BRAND_DARK, OK_TEXT, severityColor, severityFill, severityIcon, shortText, worst } from './useSeverity.js';
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * COLOR: LO MÍNIMO PARA PODER OSCURECER SIN CAMBIAR DE TONO
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+const canalLineal = (v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const canalGamma = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+
+const aLab = ([r, g, b]) => {
+    const [R, G, B] = [canalLineal(r / 255), canalLineal(g / 255), canalLineal(b / 255)];
+
+    const X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047;
+    const Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+    const Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+
+    const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+
+    return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+};
+
+/** Lab → sRGB lineal, SIN recortar. El crudo hace falta para saber si el color CABE. */
+const crudoDeLab = ([L, A, B]) => {
+    const inv = (t) => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+
+    const fy = (L + 16) / 116;
+    const [X, Y, Z] = [inv(fy + A / 500) * 0.95047, inv(fy), inv(fy - B / 200) * 1.08883];
+
+    return [
+        3.2406 * X - 1.5372 * Y - 0.4986 * Z,
+        -0.9689 * X + 1.8758 * Y + 0.0415 * Z,
+        0.0557 * X - 0.2040 * Y + 1.0570 * Z,
+    ];
+};
+
+const cabe = (lab) => crudoDeLab(lab).every((v) => v >= -0.0005 && v <= 1.0005);
+
+const deLab = (lab) => crudoDeLab(lab)
+    .map((v) => Math.min(255, Math.max(0, Math.round(canalGamma(v) * 255))));
+
+const aRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const aHex = (rgb) => '#' + rgb.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
 
 /**
- * LA TRAMA. Una sola, y siempre la misma.
+ * LA SOMBRA DE UN COLOR: el mismo tono, más oscuro.
  *
- * Suave a propósito: tiene que VERSE sin comerse lo que lleva encima. Con el rayado al 30 % el
- * "-1" del sumiller competía con las rayas; con un velo detrás del número, el velo se comía las
- * rayas. Ni una cosa ni la otra.
+ * ⚠️ SE BAJA L*, Y NO SE MULTIPLICA POR UN FACTOR. Y LA DIFERENCIA IMPORTA.
+ *
+ * Multiplicar los canales (o mezclar con negro) oscurece MUCHO los colores claros y CASI NADA los
+ * oscuros: la raya se vería en Nuria y desaparecería en Bea. Bajar L* en Lab da una diferencia
+ * perceptual parecida en los doce, que es lo que hace falta para que una misma trama signifique lo
+ * mismo lleve el color que lleve.
+ *
+ * ⚠️ Y SE BAJA EL CROMA SI HACE FALTA, PORQUE SI NO EL TONO SE MUEVE. Esto lo cazó el instrumento
+ * nuevo (pixeles.mjs) sobre mi propia implementación, a la primera:
+ *
+ *     la raya de Iker (#0880A8, teal oscuro) se desviaba 16° de su relleno
+ *     la raya de Bea  (#08507C, azul marino) se desviaba 18°
+ *
+ * ¿Por qué? Porque bajar L* en un azul ya oscuro SACA EL COLOR DEL GAMUT sRGB —el canal rojo se va
+ * por debajo de cero— y al RECORTARLO a 0 el tono se desplaza. O sea: la trama volvía a cambiar el
+ * tono, que es exactamente el fallo que esta función existe para no cometer. El recorte a ciegas es
+ * una mentira silenciosa del espacio de color.
+ *
+ * Así que, si el color no cabe, se le BAJA EL CROMA hasta que quepa. Escalar a y b no toca el
+ * ángulo de tono (es la misma dirección, más corta): la raya sale un poco menos saturada y sigue
+ * siendo EXACTAMENTE del tono de su persona.
  */
-export const TRAMA = 'repeating-linear-gradient(45deg, rgba(44,38,67,.30) 0 3px, transparent 3px 7px)';
+function oscurecer(hex, bajada) {
+    const [L, A, B] = aLab(aRgb(hex));
+    const objetivo = Math.max(0, L - bajada);
+
+    if (cabe([objetivo, A, B])) {
+        return aHex(deLab([objetivo, A, B]));
+    }
+
+    // El croma más alto que cabe, por bisección. 20 vueltas dan precisión de sobra.
+    let dentro = 0;
+    let fuera = 1;
+
+    for (let i = 0; i < 20; i++) {
+        const k = (dentro + fuera) / 2;
+
+        if (cabe([objetivo, A * k, B * k])) {
+            dentro = k;
+        } else {
+            fuera = k;
+        }
+    }
+
+    return aHex(deLab([objetivo, A * dentro, B * dentro]));
+}
+
+/**
+ * ⚠️ LA TRAMA SE PINTA CON LA SOMBRA DE LA PROPIA PERSONA. Y ESO NO ES UN GUSTO: ES LA LEY 0.
+ *
+ * Era una TINTA FIJA —`rgba(44,38,67,.30)`, un índigo oscuro— y ese número se eligió cuando la
+ * paleta era TODA índigo, así que se fundía con el relleno. La paleta de hoy va del azul al rosa y
+ * al turquesa, y sobre esos colores un índigo fijo ES UN COLOR AJENO. Medido sobre la imagen:
+ *
+ *     la raya de Iker (rosa) salía #AA589F  →  el color de BEA,   a ΔE 5
+ *     la raya de Bea         salía #804892  →  el color de MARCO, a ΔE 7
+ *     la raya de Nuria       salía #8087BC  →  el color de DIEGO, a ΔE 7
+ *     la raya de Leo         salía #4987BC  →  el color de ANA,   a ΔE 6
+ *
+ * O sea: LA TRAMA PINTABA, DENTRO DE LA BARRA DE UNA PERSONA, EL COLOR DE OTRA. El canal de la
+ * DENSIDAD estaba escribiendo en el de la IDENTIDAD — un canal con dos preguntas, que es lo único
+ * que la ley 0 prohíbe. Y la hora extra de Iker, que es un bloque tramado, se leía como "de otro".
+ *
+ * Y había un segundo daño, del lado contrario: sobre Marco (#623884, oscuro) la raya quedaba a
+ * ΔE 4,4 de su propio relleno, o sea INVISIBLE. Su barra imposible parecía SÓLIDA — "cubre el
+ * puesto" — que es exactamente lo contrario de lo que es. La misma constante producía a la vez un
+ * aviso falso y un silencio falso, según a quién le tocara.
+ *
+ * Ahora la tinta es LA SOMBRA DE LA PERSONA: su color con L* − 22. Mismo tono, mismo croma, otra
+ * luminosidad. El canal de densidad NO PUEDE meter un color que la identidad no haya puesto,
+ * porque no tiene ninguno propio que meter. Se arregla por construcción, no eligiendo mejor tinta.
+ *
+ * Y la raya baja de 3 px cada 7 a 2 px cada 8: el área rayada pasa del 43 % al 25 %, así que la
+ * barra se aleja MENOS de su color (ΔE 5,4 en vez de 5,6) mientras la raya se ve MÁS (ΔE ≥ 12,9
+ * contra su relleno, en las doce; antes, en Marco, 4,4).
+ */
+const BAJADA = 22;
+
+export const sombraDe = (hex) => oscurecer(hex, BAJADA);
+
+export const tramaDe = (color, alfa = '') => `repeating-linear-gradient(45deg, ${sombraDe(color)}${alfa} 0 2px, transparent 2px 8px)`;
 
 /** La trama de la tira: más suave, porque debajo lleva un rojo fuerte y encima un número. */
 export const TRAMA_TIRA = 'repeating-linear-gradient(45deg, rgba(60,56,84,.20) 0 4px, transparent 4px 9px)';
@@ -168,12 +285,14 @@ function rellenoDe(block, person, severidad, escala) {
      * 0x6E (43 %) es lo que hace falta para que el relleno identifique Y el nombre siga
      * leyéndose dentro de la barra. No es un número elegido: es el que pasa el instrumento.
      */
-    const color = escala === 'dia' ? `${person.color}6E` : person.color;
+    const alfa = escala === 'dia' ? '6E' : '';
+    const color = `${person.color}${alfa}`;
 
     if (densidad === DENSIDAD.tramado) {
-        // La trama va ENCIMA del color de la persona, no en vez de él: el bloque sigue
-        // diciendo de quién es. Tapa los nombres de la celda y todavía puedes reconstruirlo.
-        return `${TRAMA}, ${color}`;
+        // La trama va ENCIMA del color de la persona, y ES DE LA PERSONA: su propia sombra. El
+        // bloque sigue diciendo de quién es incluso en las rayas. Tapa los nombres de la celda y
+        // todavía puedes reconstruirlo.
+        return `${tramaDe(person.color, alfa)}, ${color}`;
     }
 
     return color;
@@ -214,6 +333,28 @@ function bordeDe(block, person) {
  * colores están calculados CON esta geometría dentro, y sin ella la garantía no vale.
  */
 const ANILLO = { notice: '2px', breach: '3px', impossible: '4px' };
+
+/**
+ * EL ANILLO MÁS GORDO QUE PUEDE LLEVAR UNA BARRA. Se EXPORTA, y no es contabilidad.
+ *
+ * PersonLane necesita este número para dos cosas, y las dos las tenía CABLEADAS A MANO:
+ *
+ *   · EL AIRE de la pista. La pista lleva overflow-hidden; si el aire es menor que el anillo, el
+ *     anillo rojo del imposible SE RECORTA justo por donde más se ve. La barra saldría con media
+ *     alarma.
+ *
+ *   · EL HUECO entre sub-carriles. Dos barras que se PISAN van una encima de otra, y si sus anillos
+ *     se tocan se leen como UNO SOLO — o sea, el solape deja de verse como solape.
+ *
+ * Estaban puestos a 4 y a 9, que son los valores correctos PARA UN ANILLO DE 4. El día que el
+ * imposible engorde a 5, los dos se quedan cortos y NADIE SE ENTERA: la alarma se recorta y el
+ * solape se funde, en silencio, sin que ningún test lo diga. Es la misma clase de fallo que la
+ * paleta con el ancho de 50 px metido dentro: un número que solo es cierto en el caso en que nació
+ * (ley 16).
+ *
+ * Se deriva. Deja de ser una constante escondida y pasa a ser una consecuencia.
+ */
+export const ANILLO_MAX = Math.max(...Object.values(ANILLO).map(parseFloat));
 
 /**
  * ⚠️ EL ANILLO NO RODEA: SON DOS FRANJAS, ARRIBA Y ABAJO. Y ESO NO ES ESTÉTICA: ES LA LEY 0.
@@ -551,7 +692,7 @@ export function gritadasDe(carteles) {
  * que dar. Y se distingue de los otros tres, que es lo único que se le pide.
  */
 const ESTADO = {
-    covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: '#0F5C2C' },
+    covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: OK_TEXT },
     missing: { bg: 'var(--color-missing-fill)', border: 'var(--color-missing)', color: '#9E1616' },
     excess: { bg: 'var(--color-excess-fill)', border: 'var(--color-brand-300)', color: 'var(--color-brand-600)' },
     unrequested: { bg: '#EFEEF4', border: '#C9C6D6', color: 'transparent' },
