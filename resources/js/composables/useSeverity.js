@@ -12,10 +12,26 @@
 export const BRAND = '#7F77DD';
 export const BRAND_DARK = '#534AB7';
 
+/**
+ * ⚠️ EL COLOR QUE RELLENA Y EL COLOR QUE ESCRIBE NO PUEDEN SER EL MISMO.
+ *
+ * El naranja de incumplimiento (#E8590C) es perfecto para una barra —vibrante, se ve de un
+ * vistazo— y es ILEGIBLE como texto: sobre blanco da un contraste de 3,4, por debajo del
+ * mínimo de 4,5 que hace falta para leer sin esfuerzo. Lo mismo el ámbar del aviso.
+ *
+ * Es la trampa de siempre en este proyecto: el color estaba "puesto" y no estaba "visto". Así
+ * que van dos:
+ *
+ *   · fill → el relleno de la barra, de la muestra, del chip. Manda el vistazo.
+ *   · text → la tinta de los avisos. Manda la lectura. Siempre ≥ 4,5 sobre el fondo de celda.
+ *
+ * Y no es un capricho de accesibilidad: un aviso que cuesta leer es un aviso que se ignora, y
+ * un aviso ignorado no existe.
+ */
 const SEVERITY = {
-    impossible: { rank: 3, color: '#C81E1E', label: 'Imposible' },
-    breach: { rank: 2, color: '#E8590C', label: 'Incumplimiento' },
-    notice: { rank: 1, color: '#C2870A', label: 'Aviso' },
+    impossible: { rank: 3, fill: '#C81E1E', text: '#B01414', label: 'Imposible' },
+    breach: { rank: 2, fill: '#E8590C', text: '#A8410A', label: 'Incumplimiento' },
+    notice: { rank: 1, fill: '#C2870A', text: '#7D5606', label: 'Aviso' },
 };
 
 /**
@@ -61,8 +77,14 @@ export function worst(violations) {
     }, null);
 }
 
+/** La TINTA de un aviso: la que se lee. Nunca la que rellena. */
 export function severityColor(severity) {
-    return SEVERITY[severity]?.color ?? null;
+    return SEVERITY[severity]?.text ?? null;
+}
+
+/** El RELLENO: barras, muestras, chips. El que se ve de un vistazo. */
+export function severityFill(severity) {
+    return SEVERITY[severity]?.fill ?? null;
 }
 
 /** El icono de estado del carril: dice QUÉ pasa, no solo que pasa algo. */

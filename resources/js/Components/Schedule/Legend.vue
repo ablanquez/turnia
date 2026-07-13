@@ -76,13 +76,29 @@ const rango = computed(() => `${reloj(props.axis.from)} → ${reloj(props.axis.t
         <div class="flex-1" />
 
         <!--
-            El rango del eje se dice AQUÍ, y por eso la semana no lleva regla horaria: así se
-            validó el diseño y así se lee bien. El eje ARRANCA en 06:00, pero se ensancha si
-            algún turno cae fuera (una panadería que entra a las 04:00): recortarlo sería
-            dibujar una mentira.
+            ⚠️ EL EJE SE ANUNCIA. NO SE SUSURRA.
+
+            Esto estaba en gris clarísimo, arriba a la derecha, y es INFORMACIÓN CRÍTICA: sin
+            saber que el día va de 06:00 a 06:00 nadie entiende por qué el nocturno de Diego
+            (22:00→06:00) cabe ENTERO dentro del viernes en vez de partirse en dos.
+
+            El propio usuario se confundió con eso y creyó que la barra estaba mal pintada. Si
+            se confunde quien sabe cómo funciona, quien no lo sabe se confunde seguro.
+
+            (Y el rango no siempre es 06:00→06:00: se ensancha si algún turno cae fuera —una
+            panadería que entra a las 04:00—, así que se lee del eje, no de una constante.)
         -->
-        <span class="tabular text-[10px] text-[#A9A7B6]">
-            cada columna = 1 día · {{ rango }} · pasa el ratón sobre una barra estrecha
+        <span
+            data-t="eje"
+            class="tabular flex items-center gap-2 rounded-lg border border-brand-300 bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-800"
+            title="Cada columna es un día de negocio completo, de 24 horas. Un turno de noche que acaba de madrugada cabe entero dentro de su día, sin partirse en dos."
+        >
+            <span class="text-[9px] font-bold uppercase tracking-wider text-brand-600">El día va de</span>
+            {{ rango }}
+        </span>
+
+        <span class="tabular text-[10px] text-ink-faint">
+            1 columna = 1 día · pasa el ratón por una barra estrecha
         </span>
     </div>
 </template>

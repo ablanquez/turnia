@@ -27,6 +27,15 @@ const props = defineProps({
     axis: { type: Object, required: true },
     // null mientras el informe no ha llegado. NO significa "sin incidencias".
     violationsById: { type: Object, default: null },
+    /**
+     * La CELDA ya grita el imposible en un cartel rojo, arriba.
+     *
+     * ⚠️ Y entonces el carril NO lo repite. El solape de Tomás se decía TRES veces —el cartel
+     * de arriba, y una nota por cada una de sus dos barras— cuando las dos barras rayadas
+     * pisándose YA LO ENSEÑAN. Tres carteles para un solo hecho no es insistir: es ruido, y
+     * el ruido entrena a no leer.
+     */
+    celdaGrita: { type: Boolean, default: false },
 });
 
 const violationsOf = (block) => (
@@ -159,10 +168,19 @@ const muestraStyle = (block) => ({
 const rotulos = computed(() => repartidos.value.bloques.map((b) => ({
     key: `${b.kind}-${b.id}`,
     block: b,
-    text: b.kind === 'concept'
-        ? `◷ ${b.name} · ${b.label} · no cubre puesto`
-        : b.label,
-    color: b.kind === 'concept' ? BRAND_DARK : '#8A8896',
+    // LA HORA MANDA, y va sola en su línea. En una parrilla de turnos "¿a qué hora entra?"
+    // se pregunta tanto como "¿quién es?".
+    hora: b.label,
+    /*
+     * Lo que ES, debajo. Y para un concepto eso incluye la letra pequeña que importa: que
+     * ocupa a la persona pero NO cubre el puesto.
+     *
+     * ⚠️ Los espacios de "no cubre puesto" son DUROS ( ), a propósito. Sin ellos la
+     * frase rompía por donde le daba la gana —"· no" arriba y "cubre puesto" abajo—, y un
+     * "no" suelto al final de un renglón se lee fatal. Así solo puede partirse por el "·",
+     * que es justo donde tiene sentido.
+     */
+    pie: b.kind === 'concept' ? `${b.name} · no cubre puesto` : null,
 })));
 
 /**
@@ -221,6 +239,11 @@ const notes = computed(() => {
         }
 
         for (const v of rotas) {
+            // Lo que la celda ya grita arriba, aquí no se repite.
+            if (v.severity === 'impossible' && props.celdaGrita) {
+                continue;
+            }
+
             añadir(block, severityIcon(v.severity), sinIcono(shortText(v)), severityColor(v.severity), v.severity === 'notice');
         }
     }
@@ -290,21 +313,39 @@ const title = computed(() => {
             class="ml-[7px] mt-[3px] border-l-2 pl-[9px]"
             :style="{ borderColor: person.color }"
         >
+            <!--
+                ⚠️ LA HORA SE LEE. NO SE SUSURRA.
+
+                Estaba en gris claro (#8A8896: contraste 3,4 sobre la celda) debajo de un
+                nombre en negrita oscura, y la celda se emborronaba: una masa de nombres con
+                un murmullo gris debajo. Pero en una parrilla de turnos LA HORA VALE LO MISMO
+                QUE EL NOMBRE — el encargado que escanea la semana se pregunta "¿a qué hora
+                entra?" tanto como "¿quién es?".
+
+                Y lo del concepto era peor: "Hora médica · 09:00–11:00 · no cubre puesto",
+                todo del mismo gris, tres datos apelmazados en una línea que además rompía por
+                donde le daba la gana ("no" arriba, "cubre puesto" abajo).
+
+                Ahora la HORA va sola, en tinta oscura, con peso — igual para todos, turno o
+                concepto. Y lo que ese bloque ES se dice debajo, en su renglón, sin partirse.
+            -->
             <div
                 v-for="rotulo in rotulos"
                 :key="rotulo.key"
                 data-t="rotulo"
-                class="tabular mt-[3px] flex items-start gap-[5px] text-[10px] leading-tight first:mt-0"
-                :style="{ color: rotulo.color }"
+                class="mt-[4px] flex items-start gap-[5px] first:mt-0"
             >
-                <!--
-                    ENVUELVE, no trunca. El rótulo del concepto lo dice todo ("Hora médica ·
-                    09:00–11:00 · no cubre puesto") y no cabe en una columna de 160 px: baja
-                    de línea. Una hora suelta ("12:00–20:00") no tiene espacios, así que nunca
-                    se parte.
-                -->
-                <span class="mt-[2px]" :style="muestraStyle(rotulo.block)" />
-                <span class="min-w-0 break-words">{{ rotulo.text }}</span>
+                <span class="mt-[4px]" :style="muestraStyle(rotulo.block)" />
+
+                <span class="min-w-0 flex-1">
+                    <span class="tabular block text-[10.5px] font-semibold leading-tight text-ink">{{ rotulo.hora }}</span>
+
+                    <span
+                        v-if="rotulo.pie"
+                        class="mt-[1px] block break-words text-[9.5px] font-semibold leading-tight"
+                        :style="{ color: BRAND_DARK }"
+                    >◷ {{ rotulo.pie }}</span>
+                </span>
             </div>
 
             <!--

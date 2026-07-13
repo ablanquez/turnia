@@ -8,8 +8,18 @@ import PersonLane from './PersonLane.vue';
  * LA REJILLA: 7 días × puestos, y EL TIEMPO EN EL EJE X.
  *
  * Medidas tomadas de la referencia renderizada: 118 px + 7×320 px, radio 11 px, celda con
- * padding 10/11/12 y un MÍNIMO de 124 px de alto (sin él, las celdas vacías se encogen y
- * la rejilla pierde el ritmo: deja de parecer una rejilla y parece un listado).
+ * padding 10/11/12 y un MÍNIMO de alto.
+ *
+ * ⚠️ EL MÍNIMO EXISTE, Y NO ES PARA QUE TODAS LAS FILAS MIDAN LO MISMO.
+ *
+ * Sin él, una fila sin nadie colapsa a la altura de su texto y la rejilla deja de parecer una
+ * rejilla: parece un listado. Con él, el ojo conserva el ritmo de las columnas. Pero estaba
+ * en 124 px —generoso para una fila con tres personas, absurdo para el Sumiller, que solo
+ * tiene una etiqueta y una tira— así que baja a 92: lo justo para que la fila siga siendo una
+ * fila.
+ *
+ * Lo que NO se hace es igualar los puestos: cada fila crece con lo que tiene dentro, y Barra
+ * con tres personas es más alta que Caja con una. La uniformidad sería mentir sobre la carga.
  *
  * Este componente NO calcula ninguna regla ni toca una sola fecha. Todo llega ya
  * posicionado del servidor (TimeAxis): convertir zonas horarias en el navegador usaría la
@@ -313,7 +323,7 @@ const esPar = (i) => i % 2 === 0;
                     :key="`${position.id}-${day.date}`"
                     data-t="celda"
                     :data-celda="`${position.name}|${day.date}`"
-                    class="relative flex min-h-[124px] flex-col"
+                    class="relative flex min-h-[92px] flex-col"
                     :class="[
                         i < 6 ? 'border-r border-line' : '',
                         p > 0 ? 'border-t-2 border-t-edge' : '',
@@ -353,7 +363,7 @@ const esPar = (i) => i % 2 === 0;
                         que por cualquier otra cosa, así que la distancia TIENE que decir la
                         verdad sobre quién va con quién.
                     -->
-                    <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-4">
                         <PersonLane
                             v-for="lane in lanesOf(position.id, day.date)"
                             :key="lane.person.id"
@@ -361,6 +371,7 @@ const esPar = (i) => i % 2 === 0;
                             :blocks="lane.blocks"
                             :axis="axis"
                             :violations-by-id="violations?.assignments ?? null"
+                            :celda-grita="!!impossibleIn(position.id, day.date)"
                         />
 
                         <PersonLane

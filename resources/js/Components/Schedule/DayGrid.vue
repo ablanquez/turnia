@@ -141,6 +141,13 @@ const rows = computed(() => props.positions.map((position) => {
         }
 
         for (const v of violationsOf(bar)) {
+            // El cartel rojo de arriba ya lo grita, y las barras rayadas ya lo enseñan. Una
+            // nota más por cada barra serían tres avisos para un solo hecho: eso no es
+            // insistir, es ruido, y el ruido entrena a no leer.
+            if (v.severity === 'impossible' && imposible) {
+                continue;
+            }
+
             const t = shortText(v);
             if (!vistas.has(t)) {
                 vistas.add(t);

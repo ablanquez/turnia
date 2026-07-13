@@ -57,6 +57,72 @@ const loPintado = () => {
     const css = (el, p) => getComputedStyle(el)[p];
     const caja = (el) => el.getBoundingClientRect();
 
+    /*
+     * ⚠️ ¿SE LEE SIN ESFUERZO? EL CONTRASTE, CALCULADO SOBRE EL PÍXEL QUE SALE.
+     *
+     * Es la trampa que ya me ha pillado dos veces: el verde al 18 % sobre gris DABA UN GRIS, y
+     * el "-1" gris sobre rayado gris no se veía. En los dos casos el color estaba PUESTO y no
+     * estaba VISTO.
+     *
+     * Aquí no se mira el color declarado: se COMPONE el fondo real —capa a capa, resolviendo
+     * las transparencias hasta el blanco— y se calcula el contraste WCAG contra la tinta.
+     * Menos de 4,5 es texto que cuesta leer, y un aviso que cuesta leer es un aviso que se
+     * ignora.
+     */
+    const tinta = (c) => {
+        const n = (c.match(/[\d.]+/g) ?? []).map(Number);
+
+        return { r: n[0] ?? 0, g: n[1] ?? 0, b: n[2] ?? 0, a: n.length > 3 ? n[3] : 1 };
+    };
+
+    const sobre = (arriba, abajo) => ({
+        r: arriba.r * arriba.a + abajo.r * (1 - arriba.a),
+        g: arriba.g * arriba.a + abajo.g * (1 - arriba.a),
+        b: arriba.b * arriba.a + abajo.b * (1 - arriba.a),
+        a: 1,
+    });
+
+    // El fondo de verdad: se apilan las capas de los ancestros hasta el blanco de la página.
+    const fondoDe = (el, extra = null) => {
+        const capas = [];
+
+        for (let e = el; e; e = e.parentElement) {
+            const c = tinta(css(e, 'backgroundColor'));
+
+            if (c.a > 0) {
+                capas.push(c);
+            }
+        }
+
+        let bg = { r: 255, g: 255, b: 255, a: 1 };
+
+        for (let i = capas.length - 1; i >= 0; i--) {
+            bg = sobre(capas[i], bg);
+        }
+
+        // Un rótulo de la tira flota SOBRE su tramo, que no es su padre sino su hermano: hay
+        // que meter esa capa a mano o mediríamos el contraste contra un fondo que no está.
+        return extra ? sobre(tinta(extra), bg) : bg;
+    };
+
+    const lum = ({ r, g, b }) => {
+        const f = (v) => {
+            const x = v / 255;
+
+            return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+        };
+
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+
+    const contraste = (el, extra = null) => {
+        const bg = fondoDe(el, extra);
+        const fg = sobre(tinta(css(el, 'color')), bg);
+        const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+
+        return Math.round(((a + 0.05) / (b + 0.05)) * 10) / 10;
+    };
+
     const pintado = {};
 
     for (const celda of document.querySelectorAll('[data-t=celda]')) {
@@ -92,6 +158,11 @@ const loPintado = () => {
                     texto: e.textContent.trim().replace(/\s+/g, ' '),
                     y: caja(e).top,
                     y2: caja(e).bottom,
+                    // ¿SE LEE? El contraste que de verdad sale en pantalla, no el declarado.
+                    // En un rótulo con dos renglones (hora + pie) se mide el PEOR de los dos.
+                    contraste: Math.min(...[e, ...e.querySelectorAll('span, div')]
+                        .filter((x) => x.textContent.trim())
+                        .map((x) => contraste(x))),
                 });
 
                 return {
@@ -102,6 +173,7 @@ const loPintado = () => {
                     filoAncho: grupo ? parseFloat(css(grupo, 'borderLeftWidth')) : 0,
                     yNombre: caja(nombre).top,
                     yNombre2: caja(nombre).bottom,
+                    contrasteNombre: contraste(nombre),
                     pista: { x: pista.left, ancho: pista.width, y: pista.top, y2: pista.bottom },
                     barras: [...l.querySelectorAll('[data-t=barra]')].map((b) => {
                         const c = caja(b);
@@ -131,6 +203,8 @@ const loPintado = () => {
                     fondo: css(t, 'backgroundColor'),
                     rayado: css(t, 'backgroundImage').includes('repeating-linear'),
                     texto: rotulo?.textContent.trim() ?? '',
+                    // El "-1" flota sobre SU tramo, no sobre la tira: hay que meter esa capa.
+                    contraste: rotulo?.textContent.trim() ? contraste(rotulo, css(t, 'backgroundColor')) : null,
                     // Un rótulo que no cabe en su caja es un rótulo recortado.
                     recortado: rotulo ? rotulo.scrollWidth > rotulo.clientWidth + 1 : false,
                 };
@@ -234,8 +308,11 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
 
                 suyos.sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
 
+                // La HORA manda y va sola en su renglón; debajo, lo que ese bloque ES.
+                // (Los dos renglones del rótulo son bloques pegados: textContent no mete
+                // espacio entre ellos, y el esperado tampoco.)
                 const esperados = suyos.map((b) => (b.kind === 'concept'
-                    ? `◷ ${b.name} · ${b.label} · no cubre puesto`
+                    ? `${b.label}◷ ${b.name} · no cubre puesto`
                     : b.label));
 
                 const barrasOk = carril?.barras.length === suyos.length;
@@ -306,11 +383,21 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
 
                 // Cada regla rota del motor tiene que aparecer en alguna nota. Si el motor ve
                 // tres cosas y la celda cuenta dos, una se ha perdido por el camino.
+                // ⚠️ Menos las que el CARTEL de la celda ya grita: repetirlas por barra daba
+                // tres avisos para un solo hecho. Lo que se exige es que se diga UNA vez, no
+                // que se diga en todas partes.
                 const reglas = new Set(suyos.filter((b) => b.kind === 'shift')
-                    .flatMap((b) => (motor.violations.assignments[b.id] ?? []).map((v) => v.code)));
+                    .flatMap((b) => (motor.violations.assignments[b.id] ?? []))
+                    .filter((v) => ! (v.severity === 'impossible' && visto?.imposible))
+                    .map((v) => v.code));
 
                 if (notas.length < reglas.size) {
                     fallosDeNota.push(`${reglas.size} reglas rotas y solo ${notas.length} notas`);
+                }
+
+                // Y al revés: si el cartel lo grita, el carril NO puede repetirlo.
+                if (visto?.imposible && notas.some((n) => n.texto.includes('mposible'))) {
+                    fallosDeNota.push('el imposible se dice DOS veces: en el cartel y en la nota');
                 }
 
                 /*
@@ -387,7 +474,26 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 }
 
                 const dueno = !! carril && ! fallosDeDueno.length;
-                const ok = !! carril && barrasOk && rotulosOk && sitioOk && apiladasOk && ! fallosDeNota.length && dueno;
+
+                /*
+                 * ⚠️ ¿SE LEE SIN ESFUERZO? La columna nueva.
+                 *
+                 * La hora iba en gris claro (#8A8896 → contraste 3,4) debajo de un nombre en
+                 * negrita: se susurraba. Y en una parrilla de turnos la hora vale lo mismo que
+                 * el nombre. 4,5 es el mínimo para leer un texto pequeño sin esforzarse; por
+                 * debajo, el dato está pintado y no está leído.
+                 */
+                const lecturas = [
+                    { que: 'nombre', c: carril?.contrasteNombre ?? 0 },
+                    ...(carril?.rotulos ?? []).map((r) => ({ que: `"${r.texto}"`, c: r.contraste })),
+                    ...notas.map((n) => ({ que: `"${n.texto}"`, c: n.contraste })),
+                ];
+
+                const flojas = lecturas.filter((l) => l.c < 4.5);
+                const peor = Math.min(...lecturas.map((l) => l.c));
+
+                const ok = !! carril && barrasOk && rotulosOk && sitioOk && apiladasOk
+                    && ! fallosDeNota.length && dueno && ! flojas.length;
 
                 if (! ok) {
                     noes++;
@@ -406,6 +512,7 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                         : (notas.map((n) => n.texto).join(' | ') || '—'),
                     sitio: barrasOk ? `±${desvio.toFixed(1)}px` : '—',
                     dueno: fallosDeDueno.length ? '❌ ' + fallosDeDueno[0] : (personasEnCelda > 1 ? 'SÍ (filo propio)' : 'SÍ (única)'),
+                    lee: flojas.length ? `❌ ${flojas[0].que} a ${flojas[0].c}` : `sí · peor ${peor.toFixed(1)}:1`,
                     ok,
                 });
 
@@ -430,6 +537,11 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 const sinNumero = (visto?.tramos ?? []).filter((t, i) => tramos[i]?.missing > 0 && ! t.texto).length;
                 const recortados = (visto?.tramos ?? []).filter((t) => t.recortado).length;
 
+                // Y el número del hueco tiene que LEERSE. El "-1" gris sobre rayado gris estaba
+                // pintado y no se veía: es exactamente este caso.
+                const ilegibles = (visto?.tramos ?? []).filter((t) => t.contraste !== null && t.contraste < 4.5);
+                const peorTira = Math.min(...(visto?.tramos ?? []).map((t) => t.contraste).filter((c) => c !== null), Infinity);
+
                 /*
                  * ⚠️ UN SOLO EJE X PARA TODA LA CELDA. Y esto casi se me escapa.
                  *
@@ -447,7 +559,7 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 ));
 
                 const ok = JSON.stringify(esperado) === JSON.stringify(pintadoTira)
-                    && ! sinNumero && ! recortados && ! desalineadas.length;
+                    && ! sinNumero && ! recortados && ! desalineadas.length && ! ilegibles.length;
 
                 if (! ok) {
                     noes++;
@@ -466,6 +578,9 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                         ? `⚠ ${desalineadas.length} pistas desalineadas del eje`
                         : 'eje alineado con las pistas',
                     dueno: 'SÍ (es de la celda)',
+                    lee: ilegibles.length
+                        ? `❌ "${ilegibles[0].texto}" a ${ilegibles[0].contraste}`
+                        : (peorTira === Infinity ? '— (sin número)' : `sí · peor ${peorTira.toFixed(1)}:1`),
                     ok,
                 });
             }
@@ -486,6 +601,7 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                     dicen: visto?.imposible ?? 'no está',
                     sitio: hayImposible ? 'el motor dice que SÍ' : 'el motor dice que NO',
                     dueno: '—',
+                    lee: '—',
                     ok: false,
                 });
             }
@@ -505,7 +621,8 @@ const COLS = [
     ['dicen', 'RÓTULOS pintados', 40],
     ['sitio', 'Sitio / tira ESPERADA', 30],
     ['notas', 'NOTAS pintadas', 46],
-    ['dueno', '¿SE SABE DE QUIÉN ES CADA COSA?', 34],
+    ['dueno', '¿DE QUIÉN ES CADA COSA?', 30],
+    ['lee', '¿SE LEE SIN ESFUERZO? (contraste)', 34],
 ];
 
 const pad = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));

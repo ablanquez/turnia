@@ -266,6 +266,51 @@ const indicador = await page.evaluate(() => {
     };
 });
 
+/*
+ * ── LO QUE NO VIVE EN UNA CELDA ─────────────────────────────────────────────────────────
+ *
+ * El cotejo mira celda a celda. Estas dos cosas no están en ninguna celda, y por eso se
+ * comprueban aquí: los instrumentos no se sustituyen, se acumulan.
+ */
+const global = await page.evaluate(() => {
+    const css = (el, p) => getComputedStyle(el)[p];
+    const tinta = (c) => (c.match(/[\d.]+/g) ?? []).map(Number);
+
+    const lum = ([r, g, b]) => {
+        const f = (v) => {
+            const x = v / 255;
+
+            return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+        };
+
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+
+    // ⚠️ EL RANGO DEL EJE ES INFORMACIÓN CRÍTICA, y estaba en gris clarísimo arriba a la
+    // derecha. Sin él nadie entiende por qué el nocturno de 22:00→06:00 cabe ENTERO en su día
+    // en vez de partirse en dos. Se confundió incluso quien sabe cómo funciona.
+    const eje = document.querySelector('[data-t=eje]');
+    const fondoEje = tinta(css(eje, 'backgroundColor'));
+    const textoEje = tinta(css(eje, 'color'));
+    const L = [lum(textoEje), lum(fondoEje)].sort((a, b) => b - a);
+
+    // El alto de una FILA lo marca su celda más alta. Sumiller no tiene a nadie: no puede
+    // ocupar lo mismo que Barra, que tiene tres personas.
+    const altoDe = (puesto) => {
+        const celda = document.querySelector(`[data-celda^="${puesto}|"]`);
+
+        return celda ? Math.round(celda.getBoundingClientRect().height) : 0;
+    };
+
+    return {
+        ejeTexto: eje.textContent.trim().replace(/\s+/g, ' '),
+        ejeContraste: Math.round(((L[0] + 0.05) / (L[1] + 0.05)) * 10) / 10,
+        ejePeso: parseInt(css(eje, 'fontWeight'), 10),
+        altoBarra: altoDe('Barra'),
+        altoSumiller: altoDe('Sumiller'),
+    };
+});
+
 const verdes = medida.rellenos.filter((c) => esVerde(rgb(c))).length;
 
 const pruebas = [
@@ -302,6 +347,16 @@ const pruebas = [
 
     ['¿Ningún rótulo de la tira se recorta?', indicador.rotulosRecortados === 0,
         `${indicador.rotulosRecortados} recortados`],
+
+    // Sin esto, el nocturno de Diego parece mal pintado. Se confundió hasta quien lo diseñó.
+    ['¿El RANGO DEL EJE se ve (no se susurra)?',
+        global.ejeContraste >= 4.5 && global.ejePeso >= 600,
+        `"${global.ejeTexto}" · contraste ${global.ejeContraste}:1 · peso ${global.ejePeso}`],
+
+    // Un puesto sin nadie no puede ocupar lo mismo que uno con tres personas.
+    ['¿La fila del SUMILLER (vacía) es más baja que la de BARRA (3 personas)?',
+        global.altoSumiller < global.altoBarra,
+        `Sumiller ${global.altoSumiller}px · Barra ${global.altoBarra}px`],
 
     ['¿Cabe la SEMANA ENTERA con el panel recogido?', layout.cabeLaSemana,
         layout.cabeLaSemana ? 'cabe, sin scroll' : `faltan ${layout.faltan}px`],
