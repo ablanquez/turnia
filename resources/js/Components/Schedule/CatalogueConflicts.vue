@@ -16,6 +16,7 @@ defineProps({
 <template>
     <div
         v-if="conflicts.length"
+        data-t="catalogo"
         class="flex flex-col gap-1 border-b border-line bg-[#FFFBF2] px-6 py-2.5"
     >
         <div

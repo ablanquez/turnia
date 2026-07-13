@@ -22,7 +22,8 @@ const props = defineProps({
     assignments: { type: Array, required: true },
     conceptEntries: { type: Array, required: true },
     absences: { type: Array, required: true },
-    coverage: { type: Object, required: true },
+    // DIFERIDA, con las violaciones: la cobertura depende de ellas. null = todavía no se sabe.
+    coverage: { type: Object, default: null },
     violations: { type: Object, default: null },
 });
 
@@ -126,7 +127,7 @@ const rows = computed(() => props.positions.map((position) => {
 
     const imposible = motivos.length ? `IMPOSIBLE · ${motivos.join(' · ')}` : null;
 
-    const segments = props.coverage.segments.filter(
+    const segments = (props.coverage?.segments ?? []).filter(
         (s) => s.positionId === position.id && s.workDate === props.day.date,
     );
 
@@ -155,10 +156,11 @@ const rows = computed(() => props.positions.map((position) => {
         imposible,
         segments,
         notas,
-        // Con un imposible dentro, la cobertura cuenta a alguien que no puede estar ahí.
-        // Es una ficción, y una ficción con apariencia de dato es lo peor que se puede pintar.
-        muestraCobertura: !imposible,
-        sinCandidato: segments.some((s) => s.state === 'uncoverable'),
+        // LA TIRA SE PINTA TAMBIÉN CON UN IMPOSIBLE DENTRO. La ficción no estaba en pintarla:
+        // estaba en que el motor contaba como cobertura a alguien que no podía estar ahí. Eso
+        // se arregló en el motor, así que el número de aquí ya es el real — y el hueco que
+        // deja Tomás al no poder estar es EXACTAMENTE lo que hay que ver.
+        sinCandidato: segments.some((s) => s.uncoverable),
     };
 }));
 
@@ -364,7 +366,7 @@ const ausentes = computed(() => props.absences.filter(
                             </div>
                         </div>
 
-                        <div v-if="row.muestraCobertura" class="mt-2">
+                        <div v-if="row.segments.length" class="mt-2">
                             <CoverageStrip :segments="row.segments" :axis="axis" wide />
                         </div>
 

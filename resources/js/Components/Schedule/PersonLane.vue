@@ -6,17 +6,17 @@ import { gridEvery } from '../../composables/useAxis.js';
 /**
  * UN CARRIL: una persona, dentro de un puesto, dentro de un día.
  *
- * Medidas tomadas de la referencia renderizada: avatar 16 px, nombre 12 px/600, resumen en
- * mono 10 px, pista de 8 px con una línea cada 6 h, notas de 9,5 px/600.
- *
  * EL TIEMPO ES EL EJE X. Las barras se posicionan por su hora real, así que:
  *   · la jornada partida se VE como dos barras con un agujero físico en medio
  *   · el turno nocturno se VE cruzando el borde del día
  *   · el solape se VE como dos barras pisándose
  * Se ve. No hay que leerlo.
  *
- * EL NOMBRE NUNCA SE TRUNCA (truncar es ilegible: "Hu…" puede ser Hugo o Humberto). LA
- * HORA SÍ, si no cabe: se recorta ella y se lee entera en el tooltip. Lo tenía al revés.
+ * ⚠️ Y NADA SE TRUNCA. NUNCA. NI EL NOMBRE NI LA HORA.
+ *
+ * El nombre no se puede truncar ("Hu…" puede ser Hugo o Humberto), así que ENVUELVE: por
+ * largo que sea cabe, aunque la celda crezca. Y la hora tampoco se recorta, porque ya no hay
+ * una hora larga que recortar: hay UNA POR BARRA.
  */
 const props = defineProps({
     person: { type: Object, required: true },
@@ -25,17 +25,6 @@ const props = defineProps({
     // del turno de 9 a 17, en vez de haber que buscarla en otra fila.
     blocks: { type: Array, required: true },
     axis: { type: Object, required: true },
-    /**
-     * La columna es estrecha: la semana entera cabe a 1366 px, pero a costa de columnas de
-     * ~160 px, y ahí no caben el nombre y la hora en la MISMA línea.
-     *
-     * ⚠️ LA HORA NO SE PIERDE: BAJA DE LÍNEA.
-     *
-     * Ocultarla habría sido la salida fácil, y habría sido perder un dato para ganar
-     * espacio. Recortarla ("12:00–2…") habría parecido un error. Debajo del nombre cabe
-     * entera, y el nombre —que es lo que jamás se puede truncar— sigue en su línea.
-     */
-    compact: { type: Boolean, default: false },
     // null mientras el informe no ha llegado. NO significa "sin incidencias".
     violationsById: { type: Object, default: null },
 });
@@ -56,24 +45,21 @@ const tambienEnOtraEmpresa = computed(() => props.blocks
 
 const sinIcono = (texto) => texto.replace(/^[●⚠↗·]\s*/, '').toLowerCase();
 
-const summary = computed(() => props.blocks
-    .map((b) => (b.kind === 'concept' ? `◷ ${b.label}` : b.label))
-    .join('   ·   '));
-
 const ALTO = 8;
 const HUECO = 2;
 
 /**
- * DOS TURNOS EL MISMO DÍA SON DOS BARRAS. SIEMPRE.
+ * DOS TURNOS EL MISMO DÍA SON DOS BARRAS. SIEMPRE. Y AHORA TAMBIÉN DOS RÓTULOS.
  *
  * ⚠️ EL FALLO QUE ESTO ARREGLA ERA UNA INCOHERENCIA ENTRE VISTAS.
  *
  * En el zoom Día, el solape de Tomás (10:00–18:00 y 14:00–20:00) se VE: dos barras
- * pisándose. En la Semana, las dos barras caían en la MISMA pista de 8 px, se solapaban
- * píxel a píxel y se leían como una sola barra larga. El imposible había que CREÉRSELO
- * leyendo el texto — y este diseño es bueno precisamente porque las cosas SE VEN.
+ * pisándose. En la Semana caían en la MISMA pista de 8 px, se solapaban píxel a píxel y se
+ * leían como una sola barra larga. El imposible había que CREÉRSELO leyendo el texto.
  *
- * La misma situación, contada de dos maneras. Ahora se cuenta igual en las dos.
+ * Y arreglado eso quedaba media incoherencia: dos barras y UN SOLO rótulo
+ * ("10:00-18:00 · 14:…"), así que el ojo veía dos barras y no sabía cuál era cuál. Ahora
+ * cada barra tiene su línea, con su hora entera y con una muestra de su propio relleno.
  *
  * El reparto es geométrico y NO juzga nada:
  *   · si dos bloques SE PISAN  → sub-carriles distintos → se ven encimados → IMPOSIBLE
@@ -106,50 +92,63 @@ const altoPista = computed(() => {
     return n * ALTO + (n - 1) * HUECO;
 });
 
-const styleOf = (block) => {
-    const base = {
-        position: 'absolute',
-        left: `${block.left}%`,
-        width: `${block.width}%`,
-        top: `${(block.subcarril ?? 0) * (ALTO + HUECO)}px`,
-        height: `${ALTO}px`,
-        // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
-        minWidth: '3px',
-        borderRadius: '3px',
-        boxSizing: 'border-box',
-    };
-
-    // El concepto NO cubre puesto: discontinuo y hueco, para que no se confunda con un turno.
+/** El relleno de una barra. La muestra del rótulo usa EXACTAMENTE este, y por eso se emparejan. */
+const rellenoDe = (block) => {
     if (block.kind === 'concept') {
-        return { ...base, background: 'transparent', border: `1.5px dashed ${BRAND}` };
+        // El concepto NO cubre puesto: discontinuo y hueco, para que no se confunda con un turno.
+        return { background: 'transparent', border: `1.5px dashed ${BRAND}` };
     }
 
     const severity = severityOf(block);
 
     if (severity === 'impossible') {
         return {
-            ...base,
             background: 'repeating-linear-gradient(45deg,rgba(200,30,30,.55) 0 4px,rgba(200,30,30,.2) 4px 8px)',
             border: '1px solid #C81E1E',
         };
     }
 
-    if (block.forced) {
-        return { ...base, background: '#E8590C' };
+    if (block.forced || severity === 'breach') {
+        return { background: '#E8590C' };
     }
 
     // El nocturno tiene color propio, y no es el de la persona: es la excepción que más
     // cuesta ver en un cuadrante. Índigo, que no compite con la semántica de estado.
     if (block.crossesMidnight) {
-        return { ...base, background: BRAND_DARK };
+        return { background: BRAND_DARK };
     }
 
-    if (severity === 'breach') {
-        return { ...base, background: '#E8590C' };
-    }
-
-    return { ...base, background: props.person.color };
+    return { background: props.person.color };
 };
+
+const styleOf = (block) => ({
+    ...rellenoDe(block),
+    position: 'absolute',
+    left: `${block.left}%`,
+    width: `${block.width}%`,
+    top: `${(block.subcarril ?? 0) * (ALTO + HUECO)}px`,
+    height: `${ALTO}px`,
+    // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
+    minWidth: '3px',
+    borderRadius: '3px',
+    boxSizing: 'border-box',
+});
+
+const muestraStyle = (block) => ({
+    ...rellenoDe(block),
+    width: '10px',
+    height: '6px',
+    borderRadius: '2px',
+    boxSizing: 'border-box',
+    flexShrink: 0,
+});
+
+/** Una línea por bloque. El "◷" delante distingue el concepto horario del turno. */
+const rotulos = computed(() => repartidos.value.bloques.map((b) => ({
+    key: `${b.kind}-${b.id}`,
+    block: b,
+    text: b.kind === 'concept' ? `◷ ${b.label}` : b.label,
+})));
 
 /**
  * Las notas de la celda: UNA LÍNEA cada una.
@@ -175,7 +174,7 @@ const notes = computed(() => {
         }
 
         if (block.crossesMidnight) {
-            añadir(`☾ ${block.label} · cruza medianoche`, BRAND_DARK);
+            añadir('☾ cruza medianoche', BRAND_DARK);
         }
 
         const rotas = violationsOf(block);
@@ -204,7 +203,7 @@ const notes = computed(() => {
 
 /** El tooltip: aquí SÍ va todo, sin recortar. Se pide, no se impone. */
 const title = computed(() => {
-    const partes = [`${props.person.name} · ${summary.value}`];
+    const partes = [`${props.person.name} · ${rotulos.value.map((r) => r.text).join('   ·   ')}`];
 
     for (const block of props.blocks) {
         for (const v of violationsOf(block)) {
@@ -217,9 +216,9 @@ const title = computed(() => {
 </script>
 
 <template>
-    <div :title="title">
-        <div class="flex items-center gap-1.5">
-            <span class="relative flex shrink-0">
+    <div data-t="carril" :data-persona="person.name" :title="title">
+        <div class="flex items-start gap-1.5">
+            <span class="relative mt-px flex shrink-0">
                 <span
                     class="tabular flex h-4 w-4 items-center justify-center rounded-full text-[7.5px] font-semibold text-white"
                     :style="{ background: person.color }"
@@ -233,16 +232,11 @@ const title = computed(() => {
                 />
             </span>
 
-            <!-- El nombre NO se trunca. Nunca. -->
-            <span class="shrink-0 whitespace-nowrap text-[12px] font-semibold text-ink">{{ person.name }}</span>
-
-            <!-- Ancha: la hora va al lado. Estrecha: baja de línea, pero NO desaparece. -->
+            <!-- El nombre NO se trunca. Nunca. Si no cabe, ENVUELVE. -->
             <span
-                v-if="!compact"
-                class="tabular min-w-0 flex-1 truncate whitespace-nowrap text-[10px] text-[#8A8896]"
-            >{{ summary }}</span>
-
-            <span v-else class="flex-1" />
+                data-t="nombre"
+                class="min-w-0 flex-1 break-words text-[12px] font-semibold leading-tight text-ink"
+            >{{ person.name }}</span>
 
             <!-- El icono dice QUÉ pasa. Un punto solo diría QUE pasa algo. -->
             <span
@@ -253,14 +247,25 @@ const title = computed(() => {
         </div>
 
         <!--
-            Y ENVUELVE, no recorta. Una jornada partida son dos horas ("09:00–13:00 · 17:00–21:00")
-            y truncarla dejaba "17:00–…", que parece un error. Que ocupe dos líneas: la celda
-            tiene alto de sobra, y el dato no se pierde.
+            ⚠️ UN RÓTULO POR BARRA, Y CON LA MUESTRA DE SU PROPIO RELLENO.
+
+            Antes las horas iban en una sola línea, unidas por puntos ("10:00–18:00 · 14:…"):
+            se truncaban —perdiendo el dato— y, sobre todo, no se sabía QUÉ BARRA ERA CUÁL.
+            Con dos barras pisándose, esa línea única era una lista, no una explicación.
+
+            Ahora hay tantos rótulos como barras, en el mismo orden, cada uno con su hora
+            entera y una muestra idéntica al relleno de su barra. La partida se lee sin
+            esfuerzo, y el solape también.
         -->
         <div
-            v-if="compact"
-            class="tabular ml-[22px] text-[9.5px] leading-tight text-[#8A8896]"
-        >{{ summary }}</div>
+            v-for="rotulo in rotulos"
+            :key="rotulo.key"
+            data-t="rotulo"
+            class="tabular ml-[22px] mt-[3px] flex items-center gap-[5px] whitespace-nowrap text-[10px] leading-tight text-[#8A8896]"
+        >
+            <span :style="muestraStyle(rotulo.block)" />
+            {{ rotulo.text }}
+        </div>
 
         <!--
             La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y
@@ -268,7 +273,8 @@ const title = computed(() => {
             haciendo cuatro trabajos. Aquí solo hace uno — decir por dónde va el día.
         -->
         <div
-            class="bg-sunken relative mt-[3px] overflow-hidden rounded"
+            data-t="pista"
+            class="relative mt-[5px] overflow-hidden rounded bg-sunken"
             :style="{
                 height: `${altoPista}px`,
                 backgroundImage: 'linear-gradient(90deg, rgb(255 255 255 / 55%) 1px, transparent 1px)',
@@ -278,6 +284,7 @@ const title = computed(() => {
             <div
                 v-for="block in repartidos.bloques"
                 :key="`${block.kind}-${block.id}`"
+                data-t="barra"
                 :style="styleOf(block)"
             />
         </div>

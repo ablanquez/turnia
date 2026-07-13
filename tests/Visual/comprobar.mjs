@@ -42,14 +42,20 @@ await page.click('button[type=submit]');
 await page.waitForURL('**/dashboard', { timeout: 20000 });
 
 await page.goto(`${BASE}/companies/1/calendars/1/schedule?week=${lunes}`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(2000);
+
+/*
+ * ⚠️ LA COBERTURA LLEGA DIFERIDA, CON EL INFORME. Hasta que no llega no hay ni un tramo
+ * pintado, así que medir antes daría "0 verdes" — y sería un fallo inventado por el reloj.
+ *
+ * El indicador solo aparece cuando la parrilla ya sabe la verdad: esperarlo a él es esperar
+ * a que haya algo que medir.
+ */
+await page.waitForSelector('[data-t=indicador]', { timeout: 20000 });
 
 const medida = await page.evaluate(() => {
     const css = (el, p) => getComputedStyle(el)[p];
 
-    const tramos = [...document.querySelectorAll('div')]
-        .filter((e) => css(e, 'borderTopWidth') === '2px' && e.getBoundingClientRect().height < 20)
-        .map((e) => css(e, 'backgroundColor'));
+    const tramos = [...document.querySelectorAll('[data-t=tramo]')].map((e) => css(e, 'backgroundColor'));
 
     const raíl = document.querySelector('.rail-sticky');
     const celda = [...document.querySelectorAll('div')].find((e) => e.className.includes?.('border-line'));
@@ -176,21 +182,30 @@ const abre = await page.evaluate(async () => {
  */
 const barras = await page.evaluate(() => {
     const deLaPersona = (nombre) => {
-        const carril = [...document.querySelectorAll('div[title]')]
-            .find((d) => d.title.startsWith(nombre));
+        const carril = document.querySelector(`[data-t=carril][data-persona^="${nombre}"]`);
 
         if (!carril) {
             return null;
         }
 
-        const pista = [...carril.children].find((e) => e.className.includes('bg-sunken'));
-        const barras = [...pista.children].map((b) => {
+        const pista = carril.querySelector('[data-t=pista]');
+        const caja = pista.getBoundingClientRect();
+
+        const barras = [...carril.querySelectorAll('[data-t=barra]')].map((b) => {
             const r = b.getBoundingClientRect();
 
-            return { x1: r.left, x2: r.right, y: Math.round(r.top - pista.getBoundingClientRect().top) };
+            return { x1: r.left, x2: r.right, y: Math.round(r.top - caja.top) };
         });
 
-        return { cuantas: barras.length, barras, altoPista: Math.round(pista.getBoundingClientRect().height) };
+        return {
+            cuantas: barras.length,
+            barras,
+            // Un rótulo por barra: si hay dos barras y un solo rótulo, no se sabe cuál es cuál.
+            rotulos: carril.querySelectorAll('[data-t=rotulo]').length,
+            pista: { x1: caja.left, x2: caja.right },
+            // La celda entera, para poder preguntarle si tiene tira de cobertura.
+            celda: carril.closest('[data-t=celda]'),
+        };
     };
 
     const pisan = (b) => b.length === 2 && b[0].x2 > b[1].x1 + 1;
@@ -198,19 +213,56 @@ const barras = await page.evaluate(() => {
 
     const tomas = deLaPersona('Tomás Vega');
     const lucia = deLaPersona('Lucía Díaz');
+    const diego = deLaPersona('Diego Mora');
 
     return {
         tomas: tomas && {
             dosBarras: tomas.cuantas === 2,
             sePisan: pisan(tomas.barras),
             enAlturasDistintas: tomas.cuantas === 2 && tomas.barras[0].y !== tomas.barras[1].y,
-            altoPista: tomas.altoPista,
+            dosRotulos: tomas.rotulos === 2,
+            // ⚠️ La celda del imposible NO puede quedarse muda: Tomás no puede estar ahí, así
+            // que ese puesto está DESCUBIERTO, y el hueco hay que verlo.
+            tieneTira: !!tomas.celda?.querySelector('[data-t=tira]'),
+            tramosEnLaCelda: tomas.celda?.querySelectorAll('[data-t=tramo]').length ?? 0,
         },
         lucia: lucia && {
             dosBarras: lucia.cuantas === 2,
             conHuecoFisico: conHueco(lucia.barras),
             enLaMismaAltura: lucia.cuantas === 2 && lucia.barras[0].y === lucia.barras[1].y,
+            dosRotulos: lucia.rotulos === 2,
         },
+        // El nocturno de 22:00 a 06:00, y el eje termina a las 06:00: tiene que LLEGAR AL FILO.
+        // Si muere antes, el turno que más cuesta ver en un cuadrante se está pintando corto.
+        diego: diego && {
+            alFilo: Math.abs(diego.barras[0].x2 - diego.pista.x2),
+        },
+    };
+});
+
+/*
+ * EL INDICADOR DE LA DEMO. Que diga la verdad sobre SU semana, no sobre una inventada.
+ *
+ * La demo tiene huecos a propósito (el escalón del sábado, el sumiller sin candidato), así
+ * que aquí el verde sería mentira. Lo que se comprueba no es el texto: es que el color del
+ * cartel y lo que hay pintado en la parrilla CUENTEN LO MISMO.
+ */
+const indicador = await page.evaluate(() => {
+    const e = document.querySelector('[data-t=indicador]');
+    const rojos = [...document.querySelectorAll('[data-t=tramo]')]
+        .filter((t) => {
+            const [r, g, b] = (getComputedStyle(t).backgroundColor.match(/\d+/g) ?? []).map(Number);
+
+            return r > g + 40 && r > b + 40;
+        }).length;
+
+    return {
+        texto: e.textContent.trim(),
+        fondo: getComputedStyle(e).backgroundColor,
+        rojosEnPantalla: rojos,
+        // Ningún rótulo de la tira puede salirse de su caja: eso es recortar un dato.
+        rotulosRecortados: [...document.querySelectorAll('[data-t=tramo-rotulo]')]
+            .filter((r) => r.scrollWidth > r.clientWidth + 1).length,
     };
 });
 
@@ -223,11 +275,33 @@ const pruebas = [
             ? `${barras.tomas.dosBarras ? 2 : '?'} barras · se pisan: ${barras.tomas.sePisan} · apiladas: ${barras.tomas.enAlturasDistintas}`
             : 'no encontrado'],
 
+    ['¿Cada barra tiene SU rótulo, con su hora entera?',
+        !!barras.tomas?.dosRotulos && !!barras.lucia?.dosRotulos,
+        `Tomás: ${barras.tomas?.dosRotulos ? 2 : '?'} rótulos · Lucía: ${barras.lucia?.dosRotulos ? 2 : '?'} rótulos`],
+
+    // ⚠️ La celda del imposible se quedaba MUDA: ni verde ni rojo. Y lo que pasa de verdad es
+    // que FALTA GENTE, porque Tomás no puede estar ahí.
+    ['¿La celda IMPOSIBLE pinta su COBERTURA (no se calla)?',
+        !!barras.tomas?.tieneTira && barras.tomas.tramosEnLaCelda > 0,
+        `tira: ${barras.tomas?.tieneTira} · ${barras.tomas?.tramosEnLaCelda} tramos`],
+
     ['¿La JORNADA PARTIDA se ve como dos barras con hueco (Semana)?',
         !!barras.lucia?.dosBarras && barras.lucia.conHuecoFisico && barras.lucia.enLaMismaAltura,
         barras.lucia
             ? `hueco físico: ${barras.lucia.conHuecoFisico} · misma línea: ${barras.lucia.enLaMismaAltura}`
             : 'no encontrado'],
+
+    // El eje acaba a las 06:00 y el turno de Diego también: la barra tiene que morir EN EL FILO.
+    ['¿El NOCTURNO llega al filo derecho del eje?', barras.diego?.alFilo <= 1,
+        `le faltan ${barras.diego?.alFilo.toFixed(1)}px para el borde`],
+
+    // La demo TIENE huecos a propósito: el verde aquí sería una mentira en la cabecera.
+    ['¿El INDICADOR dice la verdad sobre esta semana?',
+        indicador.rojosEnPantalla > 0 && !esVerde(rgb(indicador.fondo)),
+        `"${indicador.texto}" · ${indicador.rojosEnPantalla} huecos rojos en pantalla`],
+
+    ['¿Ningún rótulo de la tira se recorta?', indicador.rotulosRecortados === 0,
+        `${indicador.rotulosRecortados} recortados`],
 
     ['¿Cabe la SEMANA ENTERA con el panel recogido?', layout.cabeLaSemana,
         layout.cabeLaSemana ? 'cabe, sin scroll' : `faltan ${layout.faltan}px`],

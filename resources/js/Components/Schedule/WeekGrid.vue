@@ -1,6 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import PersonLane from './PersonLane.vue';
 
@@ -26,7 +26,9 @@ const props = defineProps({
     assignments: { type: Array, required: true },
     conceptEntries: { type: Array, required: true },
     absences: { type: Array, required: true },
-    coverage: { type: Object, required: true },
+    // DIFERIDA, y en el mismo grupo que las violaciones: la cobertura DEPENDE de ellas (un
+    // turno imposible no cubre). null = todavía no se sabe, y NO se pinta nada.
+    coverage: { type: Object, default: null },
     violations: { type: Object, default: null },
 });
 
@@ -107,16 +109,23 @@ const huerfanos = (positionId, date) => {
     }));
 };
 
-const coverageOf = (positionId, date) => props.coverage.segments.filter(
+const coverageOf = (positionId, date) => (props.coverage?.segments ?? []).filter(
     (s) => s.positionId === positionId && s.workDate === date,
 );
 
 /**
- * El imposible de la celda: se GRITA, y la tira de cobertura DESAPARECE.
+ * El imposible de la celda: se GRITA. Y LA TIRA DE COBERTURA SIGUE AHÍ.
  *
- * Con alguien que no puede estar ahí —porque se solapa consigo mismo, o porque está de
- * baja— la cobertura calculada es una ficción: cuenta a quien no puede cubrir. Enseñar un
- * número derivado de un estado imposible es darle apariencia de dato.
+ * ⚠️ AQUÍ HABÍA UN SILENCIO FALSO, Y LO METÍ RAZONANDO BIEN.
+ *
+ * Escribí que "con alguien que no puede estar ahí, la cobertura es una ficción" y la
+ * escondí. El razonamiento era correcto y el resultado era peor que el problema: la celda
+ * de Tomás se quedaba MUDA, sin verde ni rojo, cuando lo que de verdad pasaba es que FALTA
+ * GENTE —él no puede estar, así que ese puesto está descubierto—. Callar no deshace el
+ * hueco: lo esconde.
+ *
+ * La ficción se arregló donde nacía: el motor ya no cuenta como cobertura un turno
+ * imposible. Ahora el número es el REAL, y por eso se pinta.
  *
  * ⚠️ Y EL BADGE DICE QUÉ ES IMPOSIBLE, no una frase fija.
  *
@@ -197,7 +206,7 @@ const bandStyle = (b) => ({
 
 /** Los puestos que nadie de la plantilla puede cubrir: el badge, una vez, donde se pide. */
 const uncoverableIn = (positionId, date) => coverageOf(positionId, date)
-    .some((s) => s.state === 'uncoverable');
+    .some((s) => s.uncoverable);
 
 /**
  * LOS PUESTOS SON BLOQUES, NO FILAS SUELTAS.
@@ -218,37 +227,17 @@ const esPar = (i) => i % 2 === 0;
  *
  * Con columnas fijas de 300 px la semana pide 2.224 px y a 1366 solo hay 1.290: faltan 934,
  * y el sábado y el domingo —el pico de carga de un bar— se quedaban escondidos detrás del
- * scroll. Con minmax(168px, 1fr) la columna se estira cuando hay sitio y se comprime cuando
+ * scroll. Con minmax(160px, 1fr) la columna se estira cuando hay sitio y se comprime cuando
  * no lo hay, y a 1366 con el panel recogido la semana entera CABE.
  *
- * ⚠️ Lo que se sacrifica al comprimir es LA HORA del carril, nunca el nombre.
+ * ⚠️ Y AL COMPRIMIR NO SE SACRIFICA NINGÚN DATO.
  *
- * El nombre no se puede truncar ("Hu…" puede ser Hugo o Humberto) y una hora recortada a
- * media cadena ("12:00–2…") parece un error. Así que por debajo de ~200 px la hora
- * desaparece del rótulo: sigue estando EN EL EJE (la barra está donde está), en el tooltip y
- * entera en el zoom Día. Se pierde un rótulo, no un dato.
+ * Aquí hubo un ResizeObserver que, por debajo de 200 px, escondía la hora del carril. Nació
+ * de un problema real —"12:00–18:00 · 14:00–20:00" no cabe en una línea de 160 px— pero la
+ * solución era rendirse. Ahora cada barra tiene SU rótulo en SU línea ("12:00–18:00" cabe de
+ * sobra) y el nombre envuelve en vez de truncarse. No hay nada que esconder, así que no hace
+ * falta medir nada.
  */
-const celda = ref(null);
-const anchoColumna = ref(300);
-
-let observador = null;
-
-onMounted(() => {
-    if (!celda.value) {
-        return;
-    }
-
-    observador = new ResizeObserver(([e]) => {
-        anchoColumna.value = e.contentRect.width;
-    });
-
-    observador.observe(celda.value);
-    anchoColumna.value = celda.value.getBoundingClientRect().width;
-});
-
-onBeforeUnmount(() => observador?.disconnect());
-
-const columnaEstrecha = computed(() => anchoColumna.value < 200);
 </script>
 
 <template>
@@ -288,7 +277,6 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
             <div
                 v-for="(day, i) in window.days"
                 :key="day.date"
-                :ref="i === 0 ? (el) => (celda = el) : undefined"
                 class="head-sticky border-b-2 border-edge bg-rail px-3 py-2.5"
                 :class="i < 6 ? 'border-r border-r-line' : ''"
             >
@@ -323,6 +311,8 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
                 <div
                     v-for="(day, i) in window.days"
                     :key="`${position.id}-${day.date}`"
+                    data-t="celda"
+                    :data-celda="`${position.name}|${day.date}`"
                     class="relative flex min-h-[124px] flex-col"
                     :class="[
                         i < 6 ? 'border-r border-line' : '',
@@ -343,6 +333,7 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
 
                     <div
                         v-if="impossibleIn(position.id, day.date)"
+                        data-t="imposible"
                         class="mb-1.5 inline-block w-fit rounded bg-impossible px-[7px] py-[3px] text-[9px] font-bold tracking-[.02em] text-white"
                     >
                         {{ impossibleIn(position.id, day.date) }}
@@ -350,6 +341,7 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
 
                     <div
                         v-else-if="uncoverableIn(position.id, day.date)"
+                        data-t="sin-candidato"
                         class="mb-1.5 inline-block w-fit rounded bg-[#5A5A66] px-[7px] py-[3px] text-[9px] font-bold text-white"
                     >
                         Sin candidato en catálogo
@@ -362,7 +354,6 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
                             :person="lane.person"
                             :blocks="lane.blocks"
                             :axis="axis"
-                            :compact="columnaEstrecha"
                             :violations-by-id="violations?.assignments ?? null"
                         />
 
@@ -372,7 +363,6 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
                             :person="lane.person"
                             :blocks="lane.blocks"
                             :axis="axis"
-                            :compact="columnaEstrecha"
                             :violations-by-id="violations?.assignments ?? null"
                         />
                     </div>
@@ -380,14 +370,13 @@ const columnaEstrecha = computed(() => anchoColumna.value < 200);
                     <div class="flex-1" />
 
                     <!--
-                        Con un imposible dentro, la cobertura es una ficción: no se pinta.
-                        Y donde no se pide gente ni hay nadie, tampoco: una tira gris vacía no
-                        informa de nada y llena la rejilla de ruido.
+                        LA TIRA SE PINTA TAMBIÉN EN LA CELDA IMPOSIBLE, y sobre todo ahí: es
+                        donde el hueco es más real y donde antes la celda se quedaba muda.
+
+                        Solo se calla donde no se pide gente NI hay nadie: una tira gris vacía
+                        no informa de nada y llena la rejilla de ruido.
                     -->
-                    <div
-                        v-if="!impossibleIn(position.id, day.date) && coverageOf(position.id, day.date).length"
-                        class="mt-[9px]"
-                    >
+                    <div v-if="coverageOf(position.id, day.date).length" class="mt-[9px]">
                         <CoverageStrip :segments="coverageOf(position.id, day.date)" :axis="axis" />
                     </div>
                 </div>

@@ -18,11 +18,12 @@ const props = defineProps({
     assignments: { type: Array, required: true },
     conceptEntries: { type: Array, required: true },
     absences: { type: Array, required: true },
-    coverage: { type: Object, required: true },
     staff: { type: Array, required: true },
     can: { type: Object, required: true },
 
+    // DIFERIDAS y en el mismo grupo. La cobertura depende del informe: llegan juntas.
     violations: { type: Object, default: undefined },
+    coverage: { type: Object, default: undefined },
 });
 
 // La ventana del día tiene los dos extremos iguales: un solo día dentro.
@@ -38,12 +39,13 @@ const day = computed(() => props.window.days[0]);
                 :window="window"
                 :granularity="granularity"
                 :violations="violations"
+                :coverage="coverage"
             />
         </template>
 
         <template #banner>
             <Legend :axis="axis" />
-            <CatalogueConflicts :conflicts="coverage.conflicts" />
+            <CatalogueConflicts :conflicts="coverage?.conflicts ?? []" />
         </template>
 
         <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch overflow-hidden">
@@ -56,7 +58,7 @@ const day = computed(() => props.window.days[0]);
                     :assignments="assignments"
                     :concept-entries="conceptEntries"
                     :absences="absences"
-                    :coverage="coverage"
+                    :coverage="coverage ?? null"
                     :violations="violations ?? null"
                 />
             </div>
