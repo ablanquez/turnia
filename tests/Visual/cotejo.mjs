@@ -69,10 +69,40 @@ const loPintado = () => {
 
             carriles: [...celda.querySelectorAll('[data-t=carril]')].map((l) => {
                 const pista = caja(l.querySelector('[data-t=pista]'));
+                const nombre = l.querySelector('[data-t=nombre]');
+
+                /*
+                 * ⚠️ EL AGRUPAMIENTO SE MIDE, NO SE SUPONE.
+                 *
+                 * Contar "2 barras, 2 rótulos" daba ✅ mientras el segundo rótulo de Nuria
+                 * caía debajo de su hora médica y pegado al nombre de Ana. Había dos rótulos,
+                 * sí — y uno no se sabía de quién era. Contar elementos NO es preguntarse si
+                 * la información es inequívoca.
+                 *
+                 * Aquí se apunta la Y de cada cosa y el color del filo que la agrupa; quien
+                 * juzga si cada elemento cae bajo SU nombre y no bajo el del vecino es el
+                 * cotejo de fuera, con todos los nombres de la celda delante.
+                 */
+                const grupo = l.querySelector('[data-t=rotulo]')?.parentElement;
+
+                // El AIRE se mide entre el pie de uno y la frente del siguiente. Medirlo entre
+                // "topes" mete dentro la ALTURA del elemento y convierte un hueco de 3 px en
+                // uno de 17: el instrumento diría que el grupo está suelto cuando está pegado.
+                const marca = (e) => ({
+                    texto: e.textContent.trim().replace(/\s+/g, ' '),
+                    y: caja(e).top,
+                    y2: caja(e).bottom,
+                });
 
                 return {
                     persona: l.dataset.persona,
-                    pista: { x: pista.left, ancho: pista.width },
+                    color: css(l.querySelector('[data-t=nombre]').previousElementSibling.firstElementChild, 'backgroundColor'),
+                    // El filo vertical que ata todo lo suyo. Debe ser DE SU COLOR.
+                    filo: grupo ? css(grupo, 'borderLeftColor') : null,
+                    filoAncho: grupo ? parseFloat(css(grupo, 'borderLeftWidth')) : 0,
+                    yNombre: caja(nombre).top,
+                    yNombre2: caja(nombre).bottom,
+                    pista: { x: pista.left, ancho: pista.width, y: pista.top, y2: pista.bottom },
                     barras: [...l.querySelectorAll('[data-t=barra]')].map((b) => {
                         const c = caja(b);
 
@@ -85,11 +115,9 @@ const loPintado = () => {
                             imagen: css(b, 'backgroundImage'),
                         };
                     }),
-                    // El texto TAL COMO HA QUEDADO PINTADO.
-                    rotulos: [...l.querySelectorAll('[data-t=rotulo]')].map((r) => r.textContent.trim().replace(/\s+/g, ' ')),
-                    notas: [...l.children]
-                        .filter((e) => !e.hasAttribute('data-t') && e.textContent.trim() && !e.querySelector('[data-t=nombre]'))
-                        .map((e) => e.textContent.trim().replace(/\s+/g, ' ')),
+                    // El texto TAL COMO HA QUEDADO PINTADO, y DÓNDE ha quedado.
+                    rotulos: [...l.querySelectorAll('[data-t=rotulo]')].map(marca),
+                    notas: [...l.querySelectorAll('[data-t=nota]')].map(marca),
                 };
             }),
 
@@ -196,6 +224,10 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
 
             let primera = true;
 
+            // Con una sola persona no hay a quién confundir. Con dos o más, la pregunta
+            // "¿de quién es esto?" tiene que tener UNA respuesta, no una deducción.
+            const personasEnCelda = porPersona.size;
+
             for (const [personId, suyos] of porPersona) {
                 const nombre = persona(personId);
                 const carril = visto?.carriles.find((c) => c.persona === nombre);
@@ -203,11 +235,11 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 suyos.sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
 
                 const esperados = suyos.map((b) => (b.kind === 'concept'
-                    ? `◷ ${b.name} · ${b.label}`
+                    ? `◷ ${b.name} · ${b.label} · no cubre puesto`
                     : b.label));
 
                 const barrasOk = carril?.barras.length === suyos.length;
-                const rotulosOk = JSON.stringify(carril?.rotulos ?? []) === JSON.stringify(esperados);
+                const rotulosOk = JSON.stringify((carril?.rotulos ?? []).map((r) => r.texto)) === JSON.stringify(esperados);
 
                 // ⚠️ Y LA BARRA TIENE QUE ESTAR DONDE DICE EL EJE, no solo existir. Un contador
                 // de barras no habría visto los dos huecos de hora que tuvimos en la tanda 5.
@@ -244,16 +276,30 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 const notas = carril?.notas ?? [];
                 const fallosDeNota = [];
 
+                /*
+                 * ⚠️ TODA NOTA TIENE QUE DECIR DE QUÉ TURNO HABLA.
+                 *
+                 * Es la misma lección tres veces: "cruza medianoche" a secas, "no cubre
+                 * puesto" a secas, "descanso corto" en un carril con dos turnos. Un aviso sin
+                 * sujeto obliga a deducir. La regla, ahora general: TODA nota empieza por la
+                 * hora del bloque del que habla.
+                 */
+                for (const n of notas) {
+                    if (! suyos.some((b) => n.texto.includes(b.label))) {
+                        fallosDeNota.push(`"${n.texto}" no dice de qué turno habla`);
+                    }
+                }
+
                 for (const b of suyos) {
-                    if (b.crossesMidnight && ! notas.some((n) => n.includes(b.label) && n.includes('medianoche'))) {
-                        fallosDeNota.push(`el nocturno ${b.label} no dice su hora`);
+                    if (b.crossesMidnight && ! notas.some((n) => n.texto.includes(b.label) && n.texto.includes('medianoche'))) {
+                        fallosDeNota.push(`el nocturno ${b.label} no avisa de que cruza medianoche`);
                     }
 
-                    if (b.kind === 'concept' && ! notas.some((n) => n.includes('no cubre puesto'))) {
-                        fallosDeNota.push(`${b.name} no avisa de que no cubre puesto`);
+                    if (b.kind === 'concept' && ! (carril?.rotulos ?? []).some((r) => r.texto.includes(b.name) && r.texto.includes('no cubre puesto'))) {
+                        fallosDeNota.push(`${b.name} no dice que no cubre puesto`);
                     }
 
-                    if (b.forced && ! notas.some((n) => n.includes('Forzado'))) {
+                    if (b.forced && ! notas.some((n) => n.texto.includes('Forzado'))) {
                         fallosDeNota.push('un turno forzado sin constancia');
                     }
                 }
@@ -267,7 +313,81 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                     fallosDeNota.push(`${reglas.size} reglas rotas y solo ${notas.length} notas`);
                 }
 
-                const ok = !! carril && barrasOk && rotulosOk && sitioOk && apiladasOk && ! fallosDeNota.length;
+                /*
+                 * ⚠️ ¿SE SABE DE QUIÉN ES CADA COSA? La columna que faltaba.
+                 *
+                 * "2 barras, 2 rótulos ✅" era CIERTO y no probaba nada: el segundo rótulo de
+                 * Nuria no decía de quién era. Aquí se comprueba lo que el ojo hace de verdad
+                 * —agrupar por proximidad y por color— y se exige que ese agrupamiento NO
+                 * MIENTA:
+                 *
+                 *   · cada rótulo y cada nota cuelga del nombre de SU persona, no del de otra
+                 *   · lo suyo está MÁS CERCA de su nombre que del nombre del vecino
+                 *   · y el filo que los ata es DE SU COLOR (tapa los nombres y aún se sabe)
+                 */
+                const fallosDeDueno = [];
+
+                // 1. Cada cosa cuelga del nombre de SU persona: el nombre inmediatamente por
+                //    encima de un rótulo o una nota tiene que ser el suyo, nunca el del vecino.
+                for (const e of [...(carril?.rotulos ?? []), ...notas]) {
+                    const encima = (visto?.carriles ?? [])
+                        .filter((c) => c.yNombre <= e.y)
+                        .sort((a, b) => b.yNombre - a.yNombre)[0];
+
+                    if (encima?.persona !== nombre) {
+                        fallosDeDueno.push(`"${e.texto}" cuelga de ${encima?.persona ?? 'nadie'}`);
+                    }
+                }
+
+                /*
+                 * 2. LA LEY DE PROXIMIDAD, MEDIDA.
+                 *
+                 * ⚠️ Y aquí corrijo mi propio criterio, porque el primero era imposible.
+                 *
+                 * Empecé exigiendo que cada elemento estuviera más cerca de SU nombre que del
+                 * de cualquier otro. Eso NO lo puede cumplir el último elemento de un carril:
+                 * la nota de Marco está a 60 px de su nombre por pura acumulación (rótulos +
+                 * pista + notas) y a 12 px del nombre de Iker, que viene justo debajo. El test
+                 * daba ❌ sobre un carril que se lee perfectamente.
+                 *
+                 * Lo que el ojo usa de verdad no es la distancia AL TÍTULO: son los HUECOS.
+                 * Un grupo se lee como grupo cuando el aire DENTRO es menor que el aire que lo
+                 * separa del siguiente. Eso es lo que hay que exigir, y es lo que se mide:
+                 *
+                 *     el hueco que separa a dos personas > el mayor hueco dentro de una
+                 */
+                const hitos = [
+                    { y: carril?.yNombre ?? 0, y2: carril?.yNombre2 ?? 0 },
+                    ...(carril?.rotulos ?? []),
+                    { y: carril?.pista.y ?? 0, y2: carril?.pista.y2 ?? 0 },
+                    ...notas,
+                ].sort((a, b) => a.y - b.y);
+
+                let huecoInterno = 0;
+
+                for (let i = 1; i < hitos.length; i++) {
+                    huecoInterno = Math.max(huecoInterno, hitos[i].y - hitos[i - 1].y2);
+                }
+
+                const siguiente = (visto?.carriles ?? []).find((c) => c.yNombre > (carril?.yNombre ?? 0));
+
+                if (siguiente) {
+                    const huecoExterno = siguiente.yNombre - hitos[hitos.length - 1].y2;
+
+                    // Con el mismo aire dentro que fuera, el ojo no sabe dónde acaba una
+                    // persona y empieza la otra. Se exige que fuera haya AL MENOS el doble.
+                    if (huecoExterno < huecoInterno * 2) {
+                        fallosDeDueno.push(`aire entre personas ${huecoExterno.toFixed(0)}px vs ${huecoInterno.toFixed(0)}px dentro (hace falta el doble)`);
+                    }
+                }
+
+                // 3. El filo de color: el hilo que ata lo suyo AUNQUE TAPES LOS NOMBRES.
+                if (carril && (carril.filo !== carril.color || carril.filoAncho < 2)) {
+                    fallosDeDueno.push(`el filo (${carril.filo}) no es el color de la persona (${carril.color})`);
+                }
+
+                const dueno = !! carril && ! fallosDeDueno.length;
+                const ok = !! carril && barrasOk && rotulosOk && sitioOk && apiladasOk && ! fallosDeNota.length && dueno;
 
                 if (! ok) {
                     noes++;
@@ -280,9 +400,12 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                     turno: suyos.map((b) => (b.kind === 'concept' ? `◷${b.label}` : b.label)).join(' + '),
                     barras: `${carril?.barras.length ?? 0}/${suyos.length}${seSolapa ? (apiladasOk ? ' apiladas' : ' ¡PISADAS!') : ''}`,
                     rotulos: `${carril?.rotulos.length ?? 0}/${suyos.length}`,
-                    dicen: (carril?.rotulos ?? []).join(' | ') || '—',
-                    notas: fallosDeNota.length ? '⚠ ' + fallosDeNota.join('; ') : (notas.join(' | ') || '—'),
+                    dicen: (carril?.rotulos ?? []).map((r) => r.texto).join(' | ') || '—',
+                    notas: fallosDeNota.length
+                        ? '⚠ ' + fallosDeNota.join('; ')
+                        : (notas.map((n) => n.texto).join(' | ') || '—'),
                     sitio: barrasOk ? `±${desvio.toFixed(1)}px` : '—',
+                    dueno: fallosDeDueno.length ? '❌ ' + fallosDeDueno[0] : (personasEnCelda > 1 ? 'SÍ (filo propio)' : 'SÍ (única)'),
                     ok,
                 });
 
@@ -307,7 +430,24 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                 const sinNumero = (visto?.tramos ?? []).filter((t, i) => tramos[i]?.missing > 0 && ! t.texto).length;
                 const recortados = (visto?.tramos ?? []).filter((t) => t.recortado).length;
 
-                const ok = JSON.stringify(esperado) === JSON.stringify(pintadoTira) && ! sinNumero && ! recortados;
+                /*
+                 * ⚠️ UN SOLO EJE X PARA TODA LA CELDA. Y esto casi se me escapa.
+                 *
+                 * Al indentar los carriles bajo su nombre, las PISTAS se movieron 18 px a la
+                 * derecha y la TIRA se quedó donde estaba. Las 15:00 de la barra de Tomás
+                 * dejaron de caer sobre las 15:00 de su hueco: el eje mentía por 18 px.
+                 *
+                 * Y con él se iba la única lectura que esta parrilla presume de dar sin leer
+                 * —la vertical: "aquí falta gente justo a esta hora"—. Lo cazó el otro
+                 * instrumento, no este. Ahora lo caza este.
+                 */
+                const desalineadas = (visto?.carriles ?? []).filter((c) => (
+                    Math.abs(c.pista.x - (visto.tira?.x ?? c.pista.x)) > 1
+                    || Math.abs(c.pista.ancho - (visto.tira?.ancho ?? c.pista.ancho)) > 1
+                ));
+
+                const ok = JSON.stringify(esperado) === JSON.stringify(pintadoTira)
+                    && ! sinNumero && ! recortados && ! desalineadas.length;
 
                 if (! ok) {
                     noes++;
@@ -322,6 +462,10 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                     rotulos: '',
                     dicen: pintadoTira.join(' | ') || '—',
                     sitio: esperado.join(' | ') || '—',
+                    notas: desalineadas.length
+                        ? `⚠ ${desalineadas.length} pistas desalineadas del eje`
+                        : 'eje alineado con las pistas',
+                    dueno: 'SÍ (es de la celda)',
                     ok,
                 });
             }
@@ -341,6 +485,7 @@ for (const [etiqueta, offset] of [['semana anterior', -1], ['semana en curso', 0
                     rotulos: '',
                     dicen: visto?.imposible ?? 'no está',
                     sitio: hayImposible ? 'el motor dice que SÍ' : 'el motor dice que NO',
+                    dueno: '—',
                     ok: false,
                 });
             }
@@ -360,6 +505,7 @@ const COLS = [
     ['dicen', 'RÓTULOS pintados', 40],
     ['sitio', 'Sitio / tira ESPERADA', 30],
     ['notas', 'NOTAS pintadas', 46],
+    ['dueno', '¿SE SABE DE QUIÉN ES CADA COSA?', 34],
 ];
 
 const pad = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));

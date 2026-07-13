@@ -40,7 +40,10 @@ const props = defineProps({
  * SUPERPUESTAS encima: el rojo dice cuánta gente falta, la textura dice que el problema no
  * se arregla colocando a nadie. Ninguna de las dos tapa a la otra.
  */
-const RAYAS = 'repeating-linear-gradient(45deg, rgba(60,56,84,.30) 0 4px, transparent 4px 9px)';
+// Suaves a propósito: tienen que VERSE sin comerse el número que llevan encima. Con el
+// rayado al 30 % el "-1" competía con las rayas; con un velo detrás del número, el velo se
+// comía las rayas. Ni una cosa ni la otra: rayas discretas y número bien contrastado.
+const RAYAS = 'repeating-linear-gradient(45deg, rgba(60,56,84,.20) 0 4px, transparent 4px 9px)';
 
 const ESTILO = {
     covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: '#0F5C2C' },
@@ -114,7 +117,18 @@ onBeforeUnmount(() => observador?.disconnect());
  * el zoom Día se lee entero. Eso es degradar, no recortar: lo que no se hace nunca es
  * enseñar media cifra.
  */
-const cabe = (texto, s) => texto.length * 6.1 + 2 <= (s.width / 100) * ancho.value;
+/*
+ * ⚠️ EL NÚMERO NO CABE EN EL TRAMO: SE CENTRA SOBRE ÉL, CON SU PROPIO AIRE.
+ *
+ * El "-1" del sumiller vive en un tramo de 3 h, que en la semana son 17 px. Encajonado ahí
+ * dentro quedaba diminuto y besando los bordes, mientras el "-3 / -2" de la barra —tramos de
+ * 4 h— se leía cómodo. El mismo dato, dos legibilidades.
+ *
+ * Ahora el rótulo NO está confinado al ancho del tramo: se centra en su punto medio y se
+ * extiende lo que necesite (a los lados solo hay tira vacía). Así todos los déficits se leen
+ * igual de bien, mida lo que mida su tramo.
+ */
+const cabe = (texto, s) => texto.length * 6.1 <= (s.width / 100) * ancho.value + 14;
 
 const escalones = (s) => {
     if (s.state === 'missing') {
@@ -164,13 +178,25 @@ const tip = (s) => {
     >
         <div v-for="(s, i) in segments" :key="i" data-t="tramo" :style="style(s)" :title="tip(s)" />
 
+        <!--
+            Centrado sobre el PUNTO MEDIO del tramo y con ancho propio, no encajonado en él.
+
+            ⚠️ SIN VELO POR DETRÁS. Le puse uno para que el número no compitiera con las rayas
+            del "sin candidato", y en un tramo de 3 h —17 px— el velo TAPABA las rayas: arreglé
+            la mitad del mensaje rompiendo la otra. Ahora las rayas son discretas y el número
+            va más oscuro. Las dos cosas se ven.
+        -->
         <span
             v-for="(s, i) in segments"
             :key="`l${i}`"
+            v-show="label(s)"
             data-t="tramo-rotulo"
-            class="tabular pointer-events-none absolute top-0 whitespace-nowrap text-center font-bold"
+            class="tabular pointer-events-none absolute top-0 -translate-x-1/2 whitespace-nowrap rounded-sm px-[3px] text-center font-bold"
             :class="wide ? 'text-[10px] leading-[18px]' : 'text-[10px] leading-[15px]'"
-            :style="{ left: `${s.left}%`, width: `${s.width}%`, color: estiloDe(s).color }"
+            :style="{
+                left: `${s.left + s.width / 2}%`,
+                color: estiloDe(s).rayado ? '#8A1010' : estiloDe(s).color,
+            }"
         >{{ label(s) }}</span>
     </div>
 </template>

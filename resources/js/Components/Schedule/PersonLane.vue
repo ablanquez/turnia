@@ -144,33 +144,50 @@ const muestraStyle = (block) => ({
 });
 
 /**
- * Una línea por bloque, Y EL CONCEPTO DICE SU NOMBRE.
+ * Una línea por bloque, Y EL CONCEPTO LO DICE TODO EN SU LÍNEA.
  *
  * ⚠️ UN SÍMBOLO QUE HAY QUE DEDUCIR NO COMUNICA NADA.
  *
  * La muestra del concepto —un rectángulo con borde discontinuo— iba sola, con un reloj y una
- * hora, y no había manera de saber qué era: había que deducirlo de una nota que estaba tres
- * líneas más abajo. Ahora lleva su etiqueta al lado ("Hora médica · 09:00–11:00") y se
- * entiende sin salir de la línea. El cuadradito ya no es un jeroglífico: es la muestra de
- * SU barra, y al lado pone lo que es.
+ * hora, y había que deducir qué era leyendo una nota tres líneas más abajo. Ahora su rótulo
+ * dice las tres cosas juntas y en su color: QUÉ es, CUÁNDO es, y que NO CUBRE PUESTO.
+ *
+ * Y así desaparece la nota huérfana: "no cubre puesto" suelta, en una celda con dos personas,
+ * no decía QUÉ no cubría puesto. Arreglé el aviso sin sujeto de Diego y creé otro idéntico.
+ * Un aviso que no identifica a qué se refiere no sirve, esté donde esté.
  */
 const rotulos = computed(() => repartidos.value.bloques.map((b) => ({
     key: `${b.kind}-${b.id}`,
     block: b,
-    text: b.kind === 'concept' ? `◷ ${b.name} · ${b.label}` : b.label,
+    text: b.kind === 'concept'
+        ? `◷ ${b.name} · ${b.label} · no cubre puesto`
+        : b.label,
+    color: b.kind === 'concept' ? BRAND_DARK : '#8A8896',
 })));
 
 /**
- * Las notas de la celda: UNA LÍNEA cada una.
+ * Las notas del carril: UNA LÍNEA cada una, Y TODAS CON SU SUJETO.
  *
- * El mensaje completo del motor va en el tooltip de la barra. Volcarlo aquí estiraba las
- * celdas al triple y la semana dejaba de caber en la pantalla.
+ * ⚠️ TODA NOTA EMPIEZA POR LA HORA DEL TURNO DEL QUE HABLA. SIN EXCEPCIÓN.
+ *
+ * Es la misma lección tres veces: "cruza medianoche" a secas no decía de qué turno; "no cubre
+ * puesto" a secas no decía de qué bloque; y "descanso corto" en un carril con dos turnos no
+ * diría en cuál de los dos. Un aviso sin sujeto obliga a deducir, y deducir en una parrilla
+ * es equivocarse.
+ *
+ * Sí: la hora se repite respecto al rótulo. Es un precio barato — el rótulo es gris y la nota
+ * va en color, así que se leen como dos cosas distintas — y compra que NINGÚN aviso pueda
+ * hablar de un turno que no es.
+ *
+ * El mensaje completo del motor va en el tooltip. Volcarlo aquí estiraba las celdas al triple.
  */
 const notes = computed(() => {
     const out = [];
     const vistas = new Set();
 
-    const añadir = (text, color, dot = false) => {
+    const añadir = (block, icono, texto, color, dot = false) => {
+        const text = `${icono} ${block.label} · ${texto}`;
+
         if (!vistas.has(text)) {
             vistas.add(text);
             out.push({ text, color, dot });
@@ -178,37 +195,33 @@ const notes = computed(() => {
     };
 
     for (const block of props.blocks) {
-        // El nombre ya está en su rótulo, con su hora. Aquí solo queda lo que el rótulo no
-        // puede decir: que ocupa a la persona pero NO cubre el puesto.
+        // El concepto ya lo dice todo en su rótulo: qué es, cuándo, y que no cubre puesto.
         if (block.kind === 'concept') {
-            añadir('◷ no cubre puesto', BRAND_DARK);
             continue;
         }
 
-        // ⚠️ EL AVISO LLEVA SU HORA. Se me quedó "cruza medianoche" a secas —el aviso sin el
-        // dato— y en un carril con dos turnos no se sabría de CUÁL de los dos habla.
         if (block.crossesMidnight) {
-            añadir(`☾ ${block.label} · cruza medianoche`, BRAND_DARK);
+            añadir(block, '☾', 'cruza medianoche', BRAND_DARK);
         }
 
         const rotas = violationsOf(block);
 
-        // "⚠ Forzado · descanso corto entre turnos", en UNA línea. Separar el "forzado" de
-        // su motivo daba dos notas para un solo hecho, y la celda crecía por nada.
+        // "⚠ 08:00–16:00 · Forzado · descanso corto entre turnos", en UNA nota. Separar el
+        // "forzado" de su motivo daba dos líneas para un solo hecho.
         if (block.forced && rotas.length) {
             for (const v of rotas) {
-                añadir(`⚠ Forzado · ${sinIcono(shortText(v))}`, severityColor(v.severity));
+                añadir(block, '⚠', `Forzado · ${sinIcono(shortText(v))}`, severityColor(v.severity));
             }
 
             continue;
         }
 
         if (block.forced) {
-            añadir('⚠ Forzado, con constancia', '#E8590C');
+            añadir(block, '⚠', 'Forzado, con constancia', '#E8590C');
         }
 
         for (const v of rotas) {
-            añadir(shortText(v), severityColor(v.severity), v.severity === 'notice');
+            añadir(block, severityIcon(v.severity), sinIcono(shortText(v)), severityColor(v.severity), v.severity === 'notice');
         }
     }
 
@@ -261,65 +274,75 @@ const title = computed(() => {
         </div>
 
         <!--
-            ⚠️ UN RÓTULO POR BARRA, Y CON LA MUESTRA DE SU PROPIO RELLENO.
+            ⚠️ TODO LO DE UNA PERSONA CUELGA DE UNA LÍNEA DE SU COLOR. Y ESO NO ES DECORACIÓN.
 
-            Antes las horas iban en una sola línea, unidas por puntos ("10:00–18:00 · 14:…"):
-            se truncaban —perdiendo el dato— y, sobre todo, no se sabía QUÉ BARRA ERA CUÁL.
-            Con dos barras pisándose, esa línea única era una lista, no una explicación.
+            Al dar una línea a cada barra, el carril PERDIÓ EL AGRUPAMIENTO. Los rótulos
+            quedaron flotando: en la celda de Barra del sábado, el "12:00–20:00" de Nuria caía
+            debajo de su hora médica y encima del nombre de Ana, y había que deducir de quién
+            era POR PROXIMIDAD. En una parrilla que existe para saber QUIÉN está CUÁNDO, un
+            horario sin dueño no es información: es un acertijo.
 
-            Ahora hay tantos rótulos como barras, en el mismo orden, cada uno con su hora
-            entera y una muestra idéntica al relleno de su barra. La partida se lee sin
-            esfuerzo, y el solape también.
+            Ahora los rótulos, la pista y las notas van INDENTADOS bajo el nombre y colgando de
+            un filo vertical del color de la persona — el mismo color de su avatar. Tapa los
+            nombres y todavía puedes reconstruir quién hace qué: el color agrupa.
         -->
         <div
-            v-for="rotulo in rotulos"
-            :key="rotulo.key"
-            data-t="rotulo"
-            class="tabular ml-[22px] mt-[3px] flex items-start gap-[5px] text-[10px] leading-tight text-[#8A8896]"
-        >
-            <!--
-                ENVUELVE, no trunca. "Hora médica · 09:00–11:00" no cabe en una columna de
-                160 px, y la salida NO es recortarlo: es bajar de línea. Una hora suelta
-                ("12:00–20:00") no tiene espacios, así que nunca se parte.
-            -->
-            <span class="mt-[2px]" :style="muestraStyle(rotulo.block)" />
-            <span class="min-w-0 break-words">{{ rotulo.text }}</span>
-        </div>
-
-        <!--
-            La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y
-            se confundía con el fondo, con el borde y con la tira de cobertura: el mismo gris
-            haciendo cuatro trabajos. Aquí solo hace uno — decir por dónde va el día.
-        -->
-        <div
-            data-t="pista"
-            class="relative mt-[5px] overflow-hidden rounded bg-sunken"
-            :style="{
-                height: `${altoPista}px`,
-                backgroundImage: 'linear-gradient(90deg, rgb(255 255 255 / 55%) 1px, transparent 1px)',
-                backgroundSize: gridEvery(axis, 6),
-            }"
+            class="ml-[7px] mt-[3px] border-l-2 pl-[9px]"
+            :style="{ borderColor: person.color }"
         >
             <div
-                v-for="block in repartidos.bloques"
-                :key="`${block.kind}-${block.id}`"
-                data-t="barra"
-                :style="styleOf(block)"
-            />
-        </div>
+                v-for="rotulo in rotulos"
+                :key="rotulo.key"
+                data-t="rotulo"
+                class="tabular mt-[3px] flex items-start gap-[5px] text-[10px] leading-tight first:mt-0"
+                :style="{ color: rotulo.color }"
+            >
+                <!--
+                    ENVUELVE, no trunca. El rótulo del concepto lo dice todo ("Hora médica ·
+                    09:00–11:00 · no cubre puesto") y no cabe en una columna de 160 px: baja
+                    de línea. Una hora suelta ("12:00–20:00") no tiene espacios, así que nunca
+                    se parte.
+                -->
+                <span class="mt-[2px]" :style="muestraStyle(rotulo.block)" />
+                <span class="min-w-0 break-words">{{ rotulo.text }}</span>
+            </div>
 
-        <div
-            v-for="(note, i) in notes"
-            :key="i"
-            class="mt-1 flex items-center gap-[5px] text-[9.5px] font-semibold leading-tight"
-            :style="{ color: note.color }"
-        >
-            <span
-                v-if="note.dot"
-                class="h-1.5 w-1.5 shrink-0 rounded-full"
-                :style="{ background: note.color }"
-            />
-            {{ note.text }}
+            <!--
+                La pista va HUNDIDA respecto a la celda. Antes era gris clarito sobre blanco y
+                se confundía con el fondo, con el borde y con la tira de cobertura: el mismo
+                gris haciendo cuatro trabajos. Aquí solo hace uno — decir por dónde va el día.
+            -->
+            <div
+                data-t="pista"
+                class="relative mt-[5px] overflow-hidden rounded bg-sunken"
+                :style="{
+                    height: `${altoPista}px`,
+                    backgroundImage: 'linear-gradient(90deg, rgb(255 255 255 / 55%) 1px, transparent 1px)',
+                    backgroundSize: gridEvery(axis, 6),
+                }"
+            >
+                <div
+                    v-for="block in repartidos.bloques"
+                    :key="`${block.kind}-${block.id}`"
+                    data-t="barra"
+                    :style="styleOf(block)"
+                />
+            </div>
+
+            <div
+                v-for="(note, i) in notes"
+                :key="i"
+                data-t="nota"
+                class="mt-[5px] flex items-start gap-[5px] text-[9.5px] font-semibold leading-tight"
+                :style="{ color: note.color }"
+            >
+                <span
+                    v-if="note.dot"
+                    class="mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full"
+                    :style="{ background: note.color }"
+                />
+                <span class="min-w-0 break-words">{{ note.text }}</span>
+            </div>
         </div>
     </div>
 </template>

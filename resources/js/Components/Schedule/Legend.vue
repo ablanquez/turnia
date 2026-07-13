@@ -67,7 +67,7 @@ const rango = computed(() => `${reloj(props.axis.from)} → ${reloj(props.axis.t
             <span class="flex items-center gap-1.5 text-[#41404E]">
                 <span
                     class="h-3.5 w-3.5 rounded-sm border-t-[3px] border-missing"
-                    style="background: repeating-linear-gradient(45deg, rgba(60,56,84,.30) 0 4px, transparent 4px 9px), rgba(220,38,38,.24)"
+                    style="background: repeating-linear-gradient(45deg, rgba(60,56,84,.20) 0 4px, transparent 4px 9px), rgba(220,38,38,.24)"
                 />
                 Falta · sin candidato
             </span>

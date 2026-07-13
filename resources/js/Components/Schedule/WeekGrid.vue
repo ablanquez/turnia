@@ -347,7 +347,13 @@ const esPar = (i) => i % 2 === 0;
                         Sin candidato en catálogo
                     </div>
 
-                    <div class="flex flex-col gap-2">
+                    <!--
+                        El hueco ENTRE personas (12 px) es muy mayor que el hueco entre las
+                        líneas de una misma persona (3 px). El ojo agrupa por proximidad antes
+                        que por cualquier otra cosa, así que la distancia TIENE que decir la
+                        verdad sobre quién va con quién.
+                    -->
+                    <div class="flex flex-col gap-3">
                         <PersonLane
                             v-for="lane in lanesOf(position.id, day.date)"
                             :key="lane.person.id"
@@ -375,8 +381,17 @@ const esPar = (i) => i % 2 === 0;
 
                         Solo se calla donde no se pide gente NI hay nadie: una tira gris vacía
                         no informa de nada y llena la rejilla de ruido.
+
+                        ⚠️ Y VA CON LA MISMA SANGRÍA QUE LAS PISTAS (18 px: 7 de margen + 2 de
+                        filo + 9 de aire). EL EJE X ES UNO SOLO PARA TODA LA CELDA.
+
+                        Al indentar los carriles bajo su nombre, las pistas se movieron 18 px a
+                        la derecha y la tira se quedó donde estaba: las 15:00 de la barra de
+                        Tomás dejaron de caer sobre las 15:00 de su hueco. El eje mentía por
+                        18 px, y con él la única lectura que esta parrilla presume de dar sin
+                        leer — la vertical: "aquí falta gente justo a esta hora".
                     -->
-                    <div v-if="coverageOf(position.id, day.date).length" class="mt-[9px]">
+                    <div v-if="coverageOf(position.id, day.date).length" class="ml-[18px] mt-[9px]">
                         <CoverageStrip :segments="coverageOf(position.id, day.date)" :axis="axis" />
                     </div>
                 </div>
