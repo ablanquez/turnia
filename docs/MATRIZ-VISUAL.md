@@ -434,6 +434,38 @@ Las cuatro daban verde. Ninguna estaba mal *hoy*.
 
 Lo que **sí** puede llevar tinta fija: la trama de la **tira** y la de la **banda**, porque se
 pintan siempre sobre el mismo fondo. **Una tinta fija solo vale si el fondo también es fijo.**
+### Ley 17 — **DOS NOTAS CON EL MISMO MOTIVO SE AGRUPAN. UNA HORA NO SE PIERDE JAMÁS.**
+
+Marco, el miércoles, tiene dos turnos y los dos llevan el mismo aviso:
+
+```
+↗ 12:00–20:00 · también trabaja en otra empresa
+↗ 21:00–22:00 · también trabaja en otra empresa
+```
+
+**Correcto** —cada nota lleva su sujeto y su hora (ley 8)— **y redundante**: la misma información dos
+veces, ocupando el doble. El ruido entrena a no leer, que es la **ley 9** con otra ropa.
+
+```
+↗ 12:00–20:00 y 21:00–22:00 · también trabaja en otra empresa
+```
+
+> ⚠️ **Y AQUÍ ESTÁ TODO EL PELIGRO, QUE ES EL DE SIEMPRE EN ESTA APP: AGRUPAR ES BORRAR.**
+>
+> Si se agrupara lo **parecido**, dos turnos con motivos distintos caerían bajo una sola frase y uno
+> de los dos motivos **desaparecería de la pantalla**. Un dato perdido por ahorrar espacio es
+> exactamente el **silencio falso** del que este proyecto se defiende — y encima con buena letra.
+
+**La clave de agrupación es el MOTIVO EXACTO:** mismo icono, mismo texto, misma gravedad. Ni *«casi
+el mismo»*, ni *«de la misma familia»*. **Si difieren en una coma, van por separado.**
+
+Y **la hora sigue estando** (ley 8): no se agrupa, se **acumula**. `"a"` · `"a y b"` · `"a, b y c"`.
+
+> **Y esto destapó una ley 8 rota en el zoom Día.** Allí las notas no viven dentro del carril de su
+> persona —caen en una lista del **puesto entero**—, así que **no llevaban nombre**: había que
+> adivinar de quién era cada aviso. Peor: se deduplicaban **por texto**, así que **si dos personas
+> tenían el mismo motivo a la misma hora, una de las dos notas se BORRABA.** El aviso de alguien
+> desaparecía de la pantalla. Ahora se agrupa **por persona** y cada nota lleva su nombre delante.
 
 ---
 

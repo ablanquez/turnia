@@ -212,6 +212,14 @@ verificar $MATRIZ "16. la sombra se RECORTA (y el recorte mueve el tono de la ra
 sed -i "s/^const BAJADA = 22;$/const BAJADA = 6;/" $MATRIZ
 verificar $MATRIZ "17. la trama se apaga (la raya deja de verse: un bloque que no cubre parece sólido)" && probar "17. la trama se apaga (la raya deja de verse: un bloque que no cubre parece sólido)" pixeles
 
+# 18. LAS NOTAS SE AGRUPAN POR LO PARECIDO (por el icono) EN VEZ DE POR EL MOTIVO EXACTO.
+#     Agrupar es BORRAR: dos turnos con motivos distintos caen bajo una sola frase y uno de los dos
+#     motivos DESAPARECE de la pantalla. Un dato perdido por ahorrar espacio — el silencio falso de
+#     siempre, pero con buena letra. Lo caza matriz.mjs porque la nota entra en la FIRMA: al perder
+#     un motivo, dos casos distintos se vuelven gemelos visuales.
+sed -i 's@const clave = `${n.icono}|${n.texto}|${n.color}|${n.dot}`;@const clave = `${n.icono}`;@' $MATRIZ
+verificar $MATRIZ "18. las notas agrupan lo PARECIDO (y un motivo desaparece)" && probar "18. las notas agrupan lo PARECIDO (y un motivo desaparece)"
+
 echo "──────────────────────────────────────────────────────────────────────────────"
 echo "  CAZADOS: $cazados    ESCAPADOS: $escapados    NO PROBADAS: $rotas"
 echo

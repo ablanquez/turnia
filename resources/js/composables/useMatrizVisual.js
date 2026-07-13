@@ -521,12 +521,22 @@ function notasDe(block, rotas, gritadas) {
     const out = [];
     const vistas = new Set();
 
+    /**
+     * ⚠️ LA NOTA SE GUARDA DESPIEZADA: ICONO · HORAS · MOTIVO. Y no es contabilidad interna.
+     *
+     * Antes se guardaba la frase ya montada («↗ 12:00–20:00 · también trabaja en otra empresa»), y
+     * una frase montada NO SE PUEDE AGRUPAR: para saber si dos notas dicen lo mismo hay que
+     * comparar el MOTIVO, y el motivo estaba pegado a la hora. Con la frase entera, dos turnos con
+     * el mismo aviso son dos cadenas distintas — y se pintaban las dos.
+     *
+     * Separadas, el motivo es una clave y la hora es un dato. Ver agruparNotas().
+     */
     const añadir = (icono, texto, color, dot = false) => {
-        const text = `${icono} ${block.label} · ${texto}`;
+        const clave = `${icono}|${texto}`;
 
-        if (!vistas.has(text)) {
-            vistas.add(text);
-            out.push({ text, color, dot });
+        if (!vistas.has(clave)) {
+            vistas.add(clave);
+            out.push({ icono, horas: [block.label], texto, color, dot, text: `${icono} ${block.label} · ${texto}` });
         }
     };
 
@@ -557,6 +567,69 @@ function notasDe(block, rotas, gritadas) {
     }
 
     return out;
+}
+
+/**
+ * LEY 17 — DOS NOTAS CON EL MISMO MOTIVO SE AGRUPAN. UNA HORA NO SE PIERDE JAMÁS.
+ *
+ * Marco, el miércoles, tiene dos turnos y los dos llevan el mismo aviso. Se leía así:
+ *
+ *     ↗ 12:00–20:00 · también trabaja en otra empresa
+ *     ↗ 21:00–22:00 · también trabaja en otra empresa
+ *
+ * CORRECTO —cada nota lleva su sujeto y su hora (ley 8)— y REDUNDANTE: la información es la misma
+ * dos veces, y ocupa el doble. El ruido entrena a no leer, que es la ley 9 con otra ropa.
+ *
+ *     ↗ 12:00–20:00 y 21:00–22:00 · también trabaja en otra empresa
+ *
+ * ⚠️ Y AQUÍ ESTÁ TODO EL PELIGRO, QUE ES EL DE SIEMPRE EN ESTA APP: AGRUPAR ES BORRAR.
+ *
+ * Si se agrupara lo PARECIDO, dos turnos con motivos distintos acabarían bajo una sola frase y uno
+ * de los dos motivos DESAPARECERÍA de la pantalla. Un dato perdido por ahorrar espacio es
+ * exactamente el silencio falso del que este proyecto se defiende — y encima con buena letra.
+ *
+ * Así que la clave de agrupación es el MOTIVO EXACTO: mismo icono, mismo texto, misma gravedad. Ni
+ * "casi el mismo". Ni "de la misma familia". Si difieren en una coma, van por separado.
+ *
+ * Y LA HORA SIGUE ESTANDO (ley 8): no se agrupa la hora, se ACUMULA. Ninguna nota pierde el sujeto
+ * ni el cuándo — que es justo lo que hace que una nota sirva para algo.
+ */
+export function agruparNotas(notas, sujeto = null) {
+    const grupos = new Map();
+
+    for (const n of notas) {
+        // Sin `horas` no es una nota de bloque (las de la banda ya vienen montadas): se deja pasar
+        // tal cual, y NO se agrupa con nada. Mejor una repetición que una fusión inventada.
+        if (!n.horas) {
+            grupos.set(Symbol(), { ...n });
+            continue;
+        }
+
+        const clave = `${n.icono}|${n.texto}|${n.color}|${n.dot}`;
+
+        if (!grupos.has(clave)) {
+            grupos.set(clave, { ...n, horas: [] });
+        }
+
+        for (const h of n.horas) {
+            if (!grupos.get(clave).horas.includes(h)) {
+                grupos.get(clave).horas.push(h);
+            }
+        }
+    }
+
+    return [...grupos.values()].map((g) => (g.horas
+        ? { ...g, text: `${g.icono} ${sujeto ? `${sujeto} · ` : ''}${enumerar(g.horas)} · ${g.texto}` }
+        : g));
+}
+
+/** "a" · "a y b" · "a, b y c". Con "y" delante del último, como se habla. */
+function enumerar(horas) {
+    if (horas.length === 1) {
+        return horas[0];
+    }
+
+    return `${horas.slice(0, -1).join(', ')} y ${horas[horas.length - 1]}`;
 }
 
 /**

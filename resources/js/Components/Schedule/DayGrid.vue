@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import { BRAND_DARK, severityColor, severityIcon } from '../../composables/useSeverity.js';
-import { cartelesDe, gritadasDe, pintarBanda, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
+import { agruparNotas, cartelesDe, gritadasDe, pintarBanda, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
@@ -124,12 +124,25 @@ const rows = computed(() => props.positions.map((position) => {
         }),
     }));
 
-    // Ley 8: toda nota lleva su hora. Y ley 9: lo que el cartel ya grita no se repite. Las dos
-    // las aplica la matriz, aquí solo se quitan los duplicados exactos del puesto.
-    const vistas = new Set();
-    const notas = pintadas
-        .flatMap((p) => p.notas)
-        .filter((n) => !vistas.has(n.text) && vistas.add(n.text));
+    /**
+     * ⚠️ AQUÍ LAS NOTAS SON DE VARIAS PERSONAS, Y SE ESTABAN MEZCLANDO SIN NOMBRE.
+     *
+     * En la Semana cada nota vive DENTRO del carril de su persona, así que el sujeto es el sitio
+     * donde está. En el Día no: las notas del puesto entero caían en una sola lista, sin nombre y
+     * deduplicadas POR TEXTO. Dos problemas, los dos silenciosos:
+     *
+     *   · una nota sin sujeto obliga a adivinar de quién es (ley 8)
+     *   · y si dos personas tenían el MISMO motivo a la MISMA hora, el `dedupe` por texto
+     *     BORRABA una de las dos. El aviso de alguien desaparecía de la pantalla.
+     *
+     * Ahora se agrupa POR PERSONA (ley 17) y cada nota lleva su nombre delante. Se juntan las de
+     * una misma persona con el mismo motivo; jamás las de dos personas distintas.
+     */
+    const notas = [...new Map(pintadas.map((p) => [p.bar.personId, p.bar.personId])).values()]
+        .flatMap((personId) => agruparNotas(
+            pintadas.filter((p) => p.bar.personId === personId).flatMap((p) => p.notas),
+            peopleById.value[personId]?.name ?? '?',
+        ));
 
     // LA TIRA SE PINTA TAMBIÉN CON UN IMPOSIBLE DENTRO. La ficción no estaba en pintarla: estaba
     // en que el motor contaba como cobertura a alguien que no podía estar ahí. Eso se arregló en

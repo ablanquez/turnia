@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { BRAND_DARK, severityColor, severityIcon, worst } from '../../composables/useSeverity.js';
-import { ANILLO_MAX, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
+import { ANILLO_MAX, agruparNotas, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
 
 /**
@@ -136,13 +136,13 @@ const tambienEnOtraEmpresa = computed(() => props.blocks
     .flatMap((b) => violacionesDe(b, props.violations))
     .some((v) => v.code === 'shared_workday'));
 
-const notas = computed(() => {
-    const vistas = new Set();
-
-    return pintados.value
-        .flatMap((p) => p.notas)
-        .filter((n) => !vistas.has(n.text) && vistas.add(n.text));
-});
+/**
+ * Las notas del carril, con las del MISMO MOTIVO agrupadas (ley 17).
+ *
+ * El filtro por texto que había aquí solo quitaba duplicados EXACTOS —misma hora y mismo motivo—,
+ * así que los dos turnos de Marco, con el mismo aviso y horas distintas, salían dos veces.
+ */
+const notas = computed(() => agruparNotas(pintados.value.flatMap((p) => p.notas)));
 
 const barraStyle = (p) => ({
     ...p.relleno,
