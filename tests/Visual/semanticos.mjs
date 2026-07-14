@@ -1,130 +1,195 @@
 /**
- * ⚠️ LA PALETA SE PROTEGÍA DE LAS TRES GRAVEDADES. Y HAY MÁS COLORES QUE SIGNIFICAN COSAS.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ * CADA COLOR DE PERSONA CONTRA **CADA COLOR QUE SIGNIFICA ALGO**. Y TODOS SALEN DE LA PÁGINA.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
  *
- * El exceso de cobertura («+1») se pinta con `--color-brand-300` / `--color-brand-600`: **LA MARCA**.
- * Un índigo. Y la paleta de personas TIENE índigos, porque la zona fría es lo único que le queda
- * libre una vez que el rojo, el naranja, el ámbar y el verde están reservados al estado.
+ * La paleta se protegía de las TRES GRAVEDADES. Y la TIRA DE COBERTURA —que se pinta a DOS PÍXELES
+ * de las barras, justo debajo— tiene CUATRO estados propios, contra los que nadie la había medido.
  *
- * O sea que la paleta se estuvo midiendo contra una lista de colores semánticos INCOMPLETA, y el
- * agujero es entero: nadie ha comprobado nunca que el azul de una persona no suene al índigo del
- * exceso — que aparece **justo debajo de su barra**, en la tira de cobertura.
+ * Resultado: el exceso («sobra 1») estaba pintado con la MARCA (#534AB7), que estaba a **ΔE 2,2** del
+ * color de una persona. El «+1» se pintaba con el color de otra persona.
  *
- * Esto lista TODOS los colores que significan algo en la parrilla, y mide cada color de persona
- * contra cada uno.
+ *     UN COLOR SEMÁNTICO ES CUALQUIER COLOR QUE SIGNIFIQUE ALGO. NO SOLO UNA GRAVEDAD.
+ *
+ * ───────────────────────────────────────────────────────────────────────────────────────
+ * ⚠️ Y LOS COLORES SE LEEN DE **LA PÁGINA**, NO DE UNA LISTA COPIADA AQUÍ.
+ * ───────────────────────────────────────────────────────────────────────────────────────
+ *
+ * La primera versión los tenía escritos a mano. Y la contraprueba lo destapó: al volver a pintar el
+ * exceso con la marca —el bug original, reintroducido— **este instrumento siguió dando verde**,
+ * porque seguía midiendo SU copia, no la aplicación.
+ *
+ *     UN INSTRUMENTO CON UNA COPIA DE LOS DATOS NO MIDE LA APP: MIDE SU PROPIA COPIA.
+ *     Y el día que las dos se separan, el verde no significa nada.
+ *
+ * Ahora se abre Chromium, se leen las variables CSS y **los tramos de cobertura de verdad**, y se
+ * compara contra los avatares de las personas, que también salen de la página.
  *
  *   node tests/Visual/semanticos.mjs
  */
-import { deltaE00 } from './pixel.mjs';
+import { chromium } from 'playwright';
+import { deltaE00, entrar, lunesDe } from './pixel.mjs';
 
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const BASE = 'http://turnia.test';
 
-/** Los doce colores de PersonPalette. */
-const PERSONAS = {
-    1: '#2490B4', 2: '#085C88', 3: '#54588C', 4: '#7C7CB0',
-    5: '#C484FC', 6: '#A830A4', 7: '#44BCFC', 8: '#789CFC',
-    9: '#4068E8', 10: '#905CDC', 11: '#64249C', 12: '#F45CC8',
+const rgb = (css) => {
+    const m = css.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+
+    if (m) {
+        return [+m[1], +m[2], +m[3]];
+    }
+
+    const h = css.trim().replace('#', '');
+
+    return h.length === 6 ? [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) : null;
 };
 
-/**
- * ⚠️ TODO LO QUE SIGNIFICA ALGO. Y la columna «dónde» importa: un color semántico que NUNCA
- * aparece cerca de una barra es menos peligroso que uno que se pinta DEBAJO de ella.
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+
+await entrar(page, BASE);
+await page.goto(`${BASE}/companies/1/calendars/1/schedule?week=${lunesDe(0)}`, { waitUntil: 'domcontentloaded' });
+await page.waitForSelector('[data-t=tramo]', { timeout: 90000 });
+await page.waitForTimeout(1200);
+
+/* ── LO QUE LA PÁGINA DICE DE SÍ MISMA ────────────────────────────────────────── */
+
+const leido = await page.evaluate(() => {
+    const raiz = getComputedStyle(document.documentElement);
+    const v = (n) => raiz.getPropertyValue(n).trim();
+
+    // Las personas: el AVATAR lleva su color, y sale del servidor (PersonPalette).
+    const personas = {};
+
+    for (const a of document.querySelectorAll('[data-t=avatar]')) {
+        personas[a.dataset.persona] = getComputedStyle(a).backgroundColor;
+    }
+
+    /*
+     * ⚠️ LOS TRAMOS DE LA TIRA, LEÍDOS DE LOS TRAMOS DE VERDAD.
+     *
+     * No de una tabla copiada: del DOM. Si mañana alguien vuelve a pintar el exceso con la marca,
+     * este instrumento lo VE — porque está mirando el mismo píxel que el usuario.
+     */
+    const tira = {};
+
+    for (const t of document.querySelectorAll('[data-t=tramo][data-estado]')) {
+        const c = getComputedStyle(t);
+
+        tira[`tira · ${t.dataset.estado} (relleno)`] = c.backgroundColor;
+        tira[`tira · ${t.dataset.estado} (borde)`] = c.borderTopColor;
+    }
+
+    return {
+        personas,
+        tira,
+        vars: {
+            'imposible (anillo)': v('--color-impossible') || '#C81E1E',
+            'incumplimiento (anillo)': v('--color-breach'),
+            'aviso (anillo)': v('--color-notice'),
+            'cubierto (borde)': v('--color-ok'),
+            'falta gente (borde)': v('--color-missing'),
+            'sin candidato (rayado)': v('--color-void-fill'),
+            'fondo hundido (pista)': v('--color-sunken'),
+            'celda alterna': v('--color-band'),
+            'línea de sección': v('--color-edge'),
+        },
+        marca: {
+            'marca · brand-300': v('--color-brand-300'),
+            'marca · brand-600': v('--color-brand-600'),
+            'marca · brand-800': v('--color-brand-800'),
+        },
+    };
+});
+
+await browser.close();
+
+const PERSONAS = Object.fromEntries(
+    Object.entries(leido.personas).map(([n, c]) => [n, rgb(c)]).filter(([, c]) => c),
+);
+
+const SEMANTICOS = Object.fromEntries(
+    Object.entries({ ...leido.vars, ...leido.tira })
+        .map(([n, c]) => [n, rgb(c)])
+        .filter(([, c]) => c),
+);
+
+const MARCA = Object.fromEntries(
+    Object.entries(leido.marca).map(([n, c]) => [n, rgb(c)]).filter(([, c]) => c),
+);
+
+/*
+ * ⚠️ EL UMBRAL DE 24 CONTESTA A: «¿puede esta barra confundirse con un ESTADO del cuadrante?».
+ *
+ * La MARCA no es un estado: no dice nada del cuadrante, no aparece en la parrilla diciendo qué le
+ * pasa a nadie. Exigirle 20 HUNDE la paleta —se come el 84 % de la zona fría y las doce personas
+ * caen a ΔE 2,5 unas de otras (`node techo.mjs`)—. Lo único que hay que impedir es que una persona
+ * sea PRÁCTICAMENTE el mismo color que un botón.
+ *
+ * Dos umbrales, dos preguntas. Y los dos elegidos sobre la tabla, no a ojo.
  */
-const SEMANTICOS = {
-    // — Las tres gravedades (lo único contra lo que se medía) —
-    'rojo · imposible (anillo)': ['#C81E1E', 'pegado a la barra'],
-    'tinta de imposible': ['#B01414', 'nota, bajo la barra'],
-    'naranja · incumplimiento (anillo)': ['#E8590C', 'pegado a la barra'],
-    'tinta de incumplimiento': ['#A8410A', 'nota, bajo la barra'],
-    'ámbar · aviso (anillo)': ['#C2870A', 'pegado a la barra'],
-    'tinta de aviso': ['#7D5606', 'nota, bajo la barra'],
-
-    // — LA COBERTURA. CUATRO ESTADOS, Y SOLO UNO ESTABA EN LA LISTA —
-    'verde · cubierto (borde)': ['#15803D', 'tira, BAJO la barra'],
-    'verde · cubierto (relleno)': ['#C3E6D1', 'tira, BAJO la barra'],
-    'rojo · falta gente (borde)': ['#DC2626', 'tira, BAJO la barra'],
-    'rojo · falta gente (relleno)': ['#F7C9C9', 'tira, BAJO la barra'],
-    'ámbar · sobra gente (relleno)': ['#EFE0C0', 'tira, BAJO la barra'],
-    'ámbar · sobra gente (borde)': ['#C2870A', 'tira, BAJO la barra'],
-    'ámbar · sobra gente (cifra)': ['#7D5606', 'tira, BAJO la barra'],
-    '⚠ GRIS · no se pide a nadie': ['#EFEEF4', 'tira, BAJO la barra'],
-    '⚠ GRIS · no se pide (borde)': ['#C9C6D6', 'tira, BAJO la barra'],
-
-    // — La estructura. No «significa» un estado, pero un color de persona que se confunda con el
-    //   fondo DESAPARECE, que es peor que confundirse. —
-    '⚠ fondo hundido (la pista)': ['#E7E5F0', 'DETRÁS de la barra'],
-    '⚠ fondo de celda alterna': ['#F7F6FC', 'detrás de todo'],
-    '⚠ línea de sección': ['#C3BFD6', 'entre bloques'],
-};
-
 const UMBRAL = 20;
-
-/**
- * ⚠️ LA MARCA NO ES UN ESTADO, Y POR ESO NO SE MIDE CON EL MISMO RASERO.
- *
- * El umbral de 20 contesta a «¿puede esta barra confundirse con un ESTADO del cuadrante?». La marca
- * (los índigos de los botones y la cabecera) no dice nada del cuadrante: no aparece en la parrilla
- * diciendo qué le pasa a nadie. Y exigirle 20 —o 24, en el generador— **hunde la paleta**: se come
- * el 84 % de la zona fría y las doce personas caen a ΔE 2,5 unas de otras (`node techo.mjs`).
- *
- * Lo único que hay que impedir es que una persona sea **prácticamente el mismo color** que la marca.
- */
-const MARCA = { 'marca · brand-300': '#7F77DD', 'marca · brand-600': '#534AB7', 'marca · brand-800': '#3C3489' };
 const UMBRAL_MARCA = 8;
 
-console.log('\nCADA COLOR DE PERSONA CONTRA CADA COLOR QUE SIGNIFICA ALGO');
-console.log('═'.repeat(112));
-console.log('(ΔE00 sobre el color plano. Umbral: 20. Por debajo, el ojo los emparenta.)\n');
-
+const di = console.log;
 const choques = [];
 
-for (const [nombre, [h, donde]] of Object.entries(SEMANTICOS)) {
-    const dists = Object.entries(PERSONAS)
-        .map(([id, p]) => ({ id, p, d: deltaE00(hex(p), hex(h)) }))
-        .sort((a, b) => a.d - b.d);
+di(`\nCADA COLOR DE PERSONA CONTRA CADA COLOR QUE SIGNIFICA ALGO`);
+di('═'.repeat(104));
+di(`(leídos de la página: ${Object.keys(PERSONAS).length} personas · ${Object.keys(SEMANTICOS).length} colores semánticos)\n`);
 
-    const peor = dists[0];
-    const mal = peor.d < UMBRAL;
-
-    if (mal) {
-        choques.push({ nombre, h, donde, ...peor });
-    }
-
-    console.log(
-        `  ${mal ? '❌' : '✅'} ${nombre.padEnd(36)} ${h}  ${String(peor.d.toFixed(1)).padStart(5)}  ← persona ${peor.id} (${peor.p})   ${donde}`,
-    );
+/*
+ * ⚠️ SI NO HAY NADA QUE MEDIR, SE GRITA. Cero casos probados NO es cero fallos.
+ *
+ * Si el selector cambia y no se encuentra ni un avatar ni un tramo, este instrumento imprimiría una
+ * tabla vacía y un ✅ triunfal. Ya pasó con el <span> que cegó a pixeles.mjs: 0 barras con anillo, y
+ * casi lo doy por bueno.
+ */
+if (Object.keys(PERSONAS).length < 2 || Object.keys(SEMANTICOS).length < 5) {
+    di('❌ NO HAY NADA QUE MEDIR: no se han encontrado personas o colores en la página.');
+    di('   Un instrumento sin casos NO ES UN INSTRUMENTO EN VERDE: es un instrumento CIEGO.\n');
+    process.exit(1);
 }
 
-console.log();
-console.log(`LA MARCA (no es un estado: umbral ${UMBRAL_MARCA}, «prácticamente el mismo color»)`);
-console.log('─'.repeat(112));
-
-for (const [nombre, h] of Object.entries(MARCA)) {
+const contra = (nombre, color, umbral) => {
     const peor = Object.entries(PERSONAS)
-        .map(([id, p]) => ({ id, p, d: deltaE00(hex(p), hex(h)) }))
+        .map(([n, p]) => ({ n, p, d: deltaE00(p, color) }))
         .sort((a, b) => a.d - b.d)[0];
 
-    const mal = peor.d < UMBRAL_MARCA;
+    const mal = peor.d < umbral;
 
     if (mal) {
-        choques.push({ nombre, h, donde: 'botones y cabecera', ...peor });
+        choques.push({ nombre, ...peor });
     }
 
-    console.log(`  ${mal ? '❌' : '✅'} ${nombre.padEnd(36)} ${h}  ${String(peor.d.toFixed(1)).padStart(5)}  ← persona ${peor.id} (${peor.p})`);
+    di(`  ${mal ? '❌' : '✅'} ${nombre.padEnd(34)} rgb(${color.join(',')})`.padEnd(66)
+        + `${peor.d.toFixed(1).padStart(5)}  ← ${peor.n}`);
+};
+
+for (const [n, c] of Object.entries(SEMANTICOS)) {
+    contra(n, c, UMBRAL);
 }
 
-console.log('\n' + '═'.repeat(112));
+di(`\nLA MARCA (no es un estado: umbral ${UMBRAL_MARCA}, «prácticamente el mismo color»)`);
+di('─'.repeat(104));
+
+for (const [n, c] of Object.entries(MARCA)) {
+    contra(n, c, UMBRAL_MARCA);
+}
+
+di('\n' + '═'.repeat(104));
 
 if (! choques.length) {
-    console.log('✅ Ningún color de persona suena a ningún color semántico, ni es el color de la marca.\n');
+    di('✅ Ningún color de persona suena a ningún color semántico, ni es el color de la marca.\n');
     process.exit(0);
 }
 
-console.log(`❌ ${choques.length} COLORES SEMÁNTICOS TIENEN UNA PERSONA A MENOS DE ΔE ${UMBRAL}:\n`);
+di(`❌ ${choques.length} CHOQUES:\n`);
 
 for (const c of choques) {
-    console.log(`   · ${c.nombre} (${c.h}) está a ΔE ${c.d.toFixed(1)} de la persona ${c.id} (${c.p})`);
-    console.log(`     y se pinta ${c.donde}`);
+    di(`   · «${c.nombre}» está a ΔE ${c.d.toFixed(1)} del color de ${c.n}`);
 }
 
-console.log('\n   LA PALETA HAY QUE REGENERARLA CON **TODOS** ESTOS EN LA EXCLUSIÓN.\n');
+di('\n   Un color que significa algo NO PUEDE vivir en la zona de las personas.');
+di('   O se cambia ese color, o SE REGENERA LA PALETA con él en la exclusión.\n');
 process.exitCode = 1;

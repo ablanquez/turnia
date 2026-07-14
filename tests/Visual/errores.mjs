@@ -82,8 +82,35 @@ const idDe = async (p) => (await page.$$eval(`[data-t=carril][data-persona="${p}
 const centroDe = async (id) => { const c = await page.locator(`[data-t=barra][data-assignment-id="${id}"]`).first().boundingBox(); return { x: c.x + c.width / 2, y: c.y + c.height / 2 }; };
 const celda = async (pos, d) => { const c = await page.locator(`[data-position-id="${pos}"][data-date="${d}"]`).first().boundingBox(); return { x: c.x + c.width / 2, y: c.y + 40 }; };
 
-/** Lo que la celda de destino ESTÁ DICIENDO ahora mismo. Ver WeekGrid::estadoDeDestino. */
-const loQueDiceLaCelda = () => page.$eval('[data-celda-destino][data-previa]', (e) => e.dataset.previa).catch(() => null);
+/**
+ * Lo que la celda de destino ESTÁ DICIENDO ahora mismo.
+ *
+ * ⚠️ SE LEE LA ETIQUETA **Y EL COLOR**. Y no es redundancia: la etiqueta es lo que el código DICE
+ * que pinta, y el color es lo que PINTA. La contraprueba (`mutaciones-tanda9.sh`) demostró que
+ * pueden divergir: al romper el color a propósito, **el atributo seguía diciendo la verdad** y este
+ * instrumento daba verde sobre una celda que se veía VERDE con la petición caída.
+ *
+ *     UN INSTRUMENTO QUE MIDE UNA ETIQUETA NO MIDE LO QUE SE VE:
+ *     MIDE LO QUE ALGUIEN DICE QUE SE VE.
+ *
+ * (En el código las dos salen ya de una sola función, pero eso hay que COMPROBARLO, no confiarlo:
+ * mañana alguien las vuelve a separar y este instrumento tiene que enterarse.)
+ */
+const loQueDiceLaCelda = () => page.$eval('[data-celda-destino][data-previa]', (e) => {
+    const css = getComputedStyle(e);
+
+    return {
+        dice: e.dataset.previa,
+        borde: css.boxShadow,
+        fondo: css.backgroundColor,
+        rayado: css.backgroundImage !== 'none',
+    };
+}).catch(() => null);
+
+/** El VERDE de «se puede soltar aquí» (--color-ok / OK_FILL). Ninguna avería puede pintarse así. */
+const VERDE = '21, 128, 61';
+
+const pintaVerde = (c) => !! c && (c.borde.includes(VERDE) || c.fondo.includes(VERDE));
 
 /** ⚠️ SE INTERCEPTA LA RESPUESTA DEL SERVIDOR. El fallo se PROVOCA; no se espera a que caiga. */
 const romper = async (como) => {
@@ -162,11 +189,15 @@ for (const [nombre, como, esperado] of [
     await page.mouse.move(d.x, d.y, { steps: 20 });
     await page.waitForTimeout(1200);
 
-    const dice = await loQueDiceLaCelda();
-    di(`   la celda de destino dice: «${dice}»`);
+    const c = await loQueDiceLaCelda();
+    di(`   la celda dice «${c?.dice}» · borde: ${c?.borde?.slice(0, 40)} · ¿rayada? ${c?.rayado}`);
 
-    ok('la celda NO dice que se pueda soltar', dice !== 'limpio',
-        dice === 'limpio' ? '¡¡VERDE!! La interfaz dice «sí» y el motor no se ha enterado' : `dice «${dice}»`);
+    ok('la celda NO dice que se pueda soltar', c?.dice !== 'limpio',
+        c?.dice === 'limpio' ? '¡¡«limpio»!! La interfaz dice «sí» y el motor no se ha enterado' : `dice «${c?.dice}»`);
+
+    // ⚠️ Y EL PÍXEL. La etiqueta y el color son dos cosas, y ya se han contradicho una vez.
+    ok('y NO se PINTA de verde (que es lo que el ojo lee)', ! pintaVerde(c),
+        pintaVerde(c) ? '¡¡SE PINTA VERDE!! aunque la etiqueta diga otra cosa' : '');
 
     await foto(`${como}-arrastrando`);
 
@@ -226,18 +257,21 @@ await sembrar();
     await page.waitForTimeout(800);   // la respuesta AÚN no ha llegado
 
     const enVuelo = await loQueDiceLaCelda();
-    di(`   con la petición EN VUELO, la celda dice: «${enVuelo}»`);
+    di(`   con la petición EN VUELO, la celda dice «${enVuelo?.dice}» · borde ${enVuelo?.borde?.slice(0, 40)}`);
 
-    ok('mientras no sabe, la celda NO dice que se pueda', enVuelo !== 'limpio',
-        enVuelo === 'limpio' ? '¡¡VERDE!! se lo está inventando' : `dice «${enVuelo}»`);
+    ok('mientras no sabe, la celda NO dice que se pueda', enVuelo?.dice !== 'limpio',
+        enVuelo?.dice === 'limpio' ? '¡¡«limpio»!! se lo está inventando' : `dice «${enVuelo?.dice}»`);
+    ok('y NO se PINTA de verde mientras espera', ! pintaVerde(enVuelo),
+        pintaVerde(enVuelo) ? '¡¡SE PINTA VERDE!! sobre una comprobación que no ha ocurrido' : '');
 
     await foto('en-vuelo');
 
     await page.waitForTimeout(4200);   // ahora sí
 
     const yaSabe = await loQueDiceLaCelda();
-    di(`   cuando el servidor contesta, la celda dice: «${yaSabe}»`);
-    ok('y cuando el servidor contesta, lo dice', yaSabe === 'limpio', `dice «${yaSabe}»`);
+    di(`   cuando el servidor contesta, la celda dice «${yaSabe?.dice}»`);
+    ok('y cuando el servidor contesta, lo dice', yaSabe?.dice === 'limpio', `dice «${yaSabe?.dice}»`);
+    ok('y AHORA sí se pinta de verde (el verde se GANA)', pintaVerde(yaSabe));
 
     await page.mouse.up();
     await page.waitForTimeout(1500);

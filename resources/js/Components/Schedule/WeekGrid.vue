@@ -4,7 +4,7 @@ import { computed, inject } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import PersonLane from './PersonLane.vue';
 import { cartelesDe, gritadasDe, pintarBanda } from '../../composables/useMatrizVisual.js';
-import { severityFill } from '../../composables/useSeverity.js';
+import { severityFill, OK_FILL } from '../../composables/useSeverity.js';
 
 /**
  * LA REJILLA: 7 días × puestos, y EL TIEMPO EN EL EJE X.
@@ -90,42 +90,22 @@ const esDestino = (positionId, date) => edicion?.destinoActual?.value?.positionI
  */
 const GRIS = '#8A8598';
 
-const marcaDeDestino = (positionId, date) => {
-    if (! esDestino(positionId, date)) {
-        return null;
-    }
-
-    const p = edicion.previa.value;
-
-    // ⚠️ TODAVÍA NO HA CONTESTADO. No es «se puede»: es «espera».
-    if (! p) {
-        return {
-            boxShadow: `inset 0 0 0 2px ${GRIS}`,
-            background: `${GRIS}10`,
-        };
-    }
-
-    // ⚠️ NO SE PUDO PREGUNTAR (sesión caducada, servidor caído, red). Rayado: esto NO es un estado
-    // del cuadrante, es una avería. Y se distingue a simple vista de los cuatro colores que sí
-    // significan algo.
-    if (p.fallo) {
-        return {
-            boxShadow: `inset 0 0 0 2px ${GRIS}`,
-            backgroundImage: `repeating-linear-gradient(45deg, ${GRIS}33 0 4px, transparent 4px 10px)`,
-        };
-    }
-
-    const s = p.severidad ?? null;
-    const color = s ? severityFill(s) : '#15803D';
-
-    return {
-        // Un anillo POR DENTRO: no mueve ni un píxel del contenido de la celda.
-        boxShadow: `inset 0 0 0 2px ${color}`,
-        background: `${color}14`,
-    };
-};
-
-/** Lo que la celda de destino está diciendo, para poder MEDIRLO. Ver tests/Visual/errores.mjs. */
+/**
+ * ⚠️⚠️ QUÉ DICE LA CELDA. **UNA SOLA FUENTE**, Y ESO LO DESTAPÓ LA CONTRAPRUEBA.
+ *
+ * Esto y el color eran DOS FUNCIONES INDEPENDIENTES: una decidía el píxel y otra escribía el
+ * `data-previa` que mide el instrumento. Y dos funciones que contestan a la misma pregunta acaban
+ * divergiendo — es la ley 0 otra vez, ahora entre el código y su instrumento.
+ *
+ * Se vio metiendo el bug a propósito (`mutaciones-tanda9.sh`): al romper el color, **el atributo
+ * seguía diciendo la verdad**. La celda se pintaba VERDE con la petición caída, y `errores.mjs`
+ * daba verde… porque medía la etiqueta, no el píxel.
+ *
+ *     UN INSTRUMENTO QUE MIDE UNA ETIQUETA ESCRITA POR OTRO SITIO NO MIDE LO QUE SE PINTA.
+ *     MIDE LO QUE ALGUIEN DICE QUE SE PINTA.
+ *
+ * Ahora el color SALE de aquí. No pueden discrepar.
+ */
 const estadoDeDestino = (positionId, date) => {
     if (! esDestino(positionId, date)) {
         return null;
@@ -133,10 +113,49 @@ const estadoDeDestino = (positionId, date) => {
 
     const p = edicion.previa.value;
 
-    if (! p) return 'comprobando';
-    if (p.fallo) return 'no-se-pudo';
+    // ⚠️ TODAVÍA NO HA CONTESTADO. No es «se puede»: es «espera». (Ley 21: el verde se gana.)
+    if (! p) {
+        return 'comprobando';
+    }
+
+    // ⚠️ NO SE PUDO PREGUNTAR (sesión caducada, servidor caído, red caída). Esto NO es un estado del
+    // cuadrante: es una AVERÍA, y tiene que distinguirse de los cuatro colores que sí significan algo.
+    if (p.fallo) {
+        return 'no-se-pudo';
+    }
 
     return p.severidad ?? 'limpio';
+};
+
+const marcaDeDestino = (positionId, date) => {
+    const estado = estadoDeDestino(positionId, date);
+
+    if (! estado) {
+        return null;
+    }
+
+    if (estado === 'comprobando') {
+        return {
+            boxShadow: `inset 0 0 0 2px ${GRIS}`,
+            background: `${GRIS}10`,
+        };
+    }
+
+    // Rayado: una avería no se puede confundir con ningún estado del cuadrante.
+    if (estado === 'no-se-pudo') {
+        return {
+            boxShadow: `inset 0 0 0 2px ${GRIS}`,
+            backgroundImage: `repeating-linear-gradient(45deg, ${GRIS}33 0 4px, transparent 4px 10px)`,
+        };
+    }
+
+    const color = estado === 'limpio' ? OK_FILL : severityFill(estado);
+
+    return {
+        // Un anillo POR DENTRO: no mueve ni un píxel del contenido de la celda.
+        boxShadow: `inset 0 0 0 2px ${color}`,
+        background: `${color}14`,
+    };
 };
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((p) => [p.id, p])));
