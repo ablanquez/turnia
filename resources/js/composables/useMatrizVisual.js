@@ -764,10 +764,23 @@ export function gritadasDe(carteles) {
  * `unrequested` es neutro y NO lleva número: donde no se pide a nadie no hay déficit ni exceso
  * que dar. Y se distingue de los otros tres, que es lo único que se le pide.
  */
+/*
+ * ⚠️⚠️ EL EXCESO ESTABA PINTADO CON LA MARCA, Y LA MARCA **NO PUEDE SIGNIFICAR UN ESTADO**.
+ *
+ * `border: brand-300` (#7F77DD) y `color: brand-600` (#534AB7). Y ese #534AB7 está a **ΔE 2,2** del
+ * color de la persona 5 de la paleta (#5844BC): es el MISMO color. O sea que el «+1» de un exceso se
+ * pintaba, justo debajo de las barras, **con el color de una persona**.
+ *
+ * Ley 0: un canal, una pregunta. El relleno dice DE QUIÉN es; el estado dice QUÉ PASA. Un índigo que
+ * significa las dos cosas no es un canal: es una trampa.
+ *
+ * Ahora la tira habla entera en la escala del estado — ROJO falta · VERDE justo · ÁMBAR sobra ·
+ * GRIS no se pide — y el ámbar está a ΔE ≥ 42 de las doce personas.
+ */
 const ESTADO = {
     covered: { bg: 'var(--color-ok-fill)', border: 'var(--color-ok)', color: OK_TEXT },
     missing: { bg: 'var(--color-missing-fill)', border: 'var(--color-missing)', color: '#9E1616' },
-    excess: { bg: 'var(--color-excess-fill)', border: 'var(--color-brand-300)', color: 'var(--color-brand-600)' },
+    excess: { bg: 'var(--color-excess-fill)', border: 'var(--color-notice)', color: severityColor('notice') },
     unrequested: { bg: '#EFEEF4', border: '#C9C6D6', color: 'transparent' },
 };
 

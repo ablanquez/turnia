@@ -113,13 +113,39 @@ final class PersonPalette
      *     Si R < D/2, la barra pintada está a ≥ D − R de cualquier otra persona y a R de la suya:
      *     GANA LA SUYA. Siempre. Para toda barra que exista y para las que todavía no.
      *
-     *   · D = 16,1   (antes: 13,8)
-     *   · R =  5,4   → 5,4 < 8,0 ✅  la ley 2 se cumple POR CONSTRUCCIÓN, no por suerte
-     *   · Lo más cerca de una gravedad AJENA:  24,1   a CUALQUIER ancho de barra
-     *   · Lo más cerca de la PISTA (#E7E5F0):  26,1   una barra tiene que verse sobre su fondo
+     *   · D = 13,9   (antes: 16,1 — y la bajada es lo que CUESTA proteger la tira de cobertura)
+     *   · R =  5,4   → 5,4 < 7,0 ✅  la ley 2 se cumple POR CONSTRUCCIÓN, no por suerte
+     *   · Lo más cerca de una gravedad AJENA:  24,0   a CUALQUIER ancho de barra
+     *   · Lo más cerca de la PISTA (#E7E5F0):  28,9   una barra tiene que verse sobre su fondo
      *   · Croma mínimo: 30 — por debajo, un color no tiene identidad y adopta la del vecino
      *
-     * ⚠️ Y 16,1 ES EL TECHO, NO UNA MEDIA TINTA. Medido: en la zona fría —sin rojo, naranja, ámbar
+     * ═══════════════════════════════════════════════════════════════════════════════════════
+     * ⚠️⚠️ POR QUÉ D BAJÓ DE 16,1 A 13,9: LA LISTA DE COLORES SEMÁNTICOS ESTABA INCOMPLETA.
+     * ═══════════════════════════════════════════════════════════════════════════════════════
+     *
+     * La paleta se protegía de LAS TRES GRAVEDADES. Y la TIRA DE COBERTURA —que se pinta a DOS
+     * PÍXELES de las barras, justo debajo— tiene CUATRO estados propios, y nadie la había medido
+     * nunca contra ellos.
+     *
+     * El exceso («sobra 1») estaba pintado con la MARCA (#534AB7), que estaba a **ΔE 2,2** del color
+     * de una persona de la paleta anterior (#5844BC). El «+1» se pintaba con el color de alguien.
+     *
+     * Ahora la tira entera entra en la exclusión, y eso cuesta 2,2 puntos de D. Se pagan.
+     *
+     * ⚠️ Pero NO todo lo que significa algo pesa igual, y meterlo todo con el mismo umbral HUNDE la
+     * paleta a ΔE 2,5 (doce cianes iguales). Ver `node tests/Visual/techo.mjs`:
+     *
+     *     ESTADOS (gravedades + los cuatro tramos de la tira) → ΔE 24. Compiten con la barra por
+     *         significar algo del cuadrante. Cuesta el 18 % del espacio.
+     *     FONDOS y LA MARCA                                   → ΔE  8. NO afirman nada del
+     *         cuadrante. A ΔE 24 la marca sola se come el 84 % del espacio, porque #7F77DD cae en
+     *         el centro exacto de la zona fría. Basta con que ninguna persona sea PRÁCTICAMENTE
+     *         el mismo color que un botón.
+     *
+     * Lo vigila `tests/Visual/semanticos.mjs`, que mide cada color de persona contra cada color que
+     * significa algo. Ver la LEY 22 de MATRIZ-VISUAL.md.
+     *
+     * ⚠️ Y 13,9 ES EL TECHO, NO UNA MEDIA TINTA. Medido: en la zona fría —sin rojo, naranja, ámbar
      * ni verde, que son del estado— NO EXISTEN doce colores a ΔE 20 unos de otros. Ni ocho: el
      * máximo para ocho es 19,6. O sea que "todas las parejas holgadas" es IMPOSIBLE con el color
      * como único canal, y no por falta de esfuerzo.
@@ -139,18 +165,8 @@ final class PersonPalette
      * quince que no.
      */
     private const COLORS = [
-        '#70D0CC', // turquesa claro
-        '#0880A8', // teal
-        '#38A0FC', // azul cielo
-        '#989CFC', // periwinkle
-        '#5844BC', // índigo
-        '#840884', // magenta oscuro
-        '#40CCFC', // cian
-        '#08507C', // azul marino
-        '#4470F0', // azul
-        '#8074A8', // malva
-        '#F890F8', // rosa claro
-        '#C844B8', // magenta
+        '#2490B4', '#085C88', '#54588C', '#7C7CB0', '#C484FC', '#A830A4',
+        '#44BCFC', '#789CFC', '#4068E8', '#905CDC', '#64249C', '#F45CC8',
     ];
 
     /**

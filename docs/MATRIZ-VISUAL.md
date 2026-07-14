@@ -582,6 +582,100 @@ colores que sí significan algo.** Un gris liso podría confundirse con «no se 
 
 ---
 
+### Ley 21 — **EL VERDE SE GANA. NUNCA ES LA RAMA POR DEFECTO.**
+
+Ha pasado **dos veces**, en dos sitios que no se parecen en nada, y esa es la prueba de que no era
+un despiste sino un patrón:
+
+```js
+// (1) CoverageSegment::state()  —  required = 0, covered = 0  →  «covered» (VERDE)
+// (2) WeekGrid::marcaDeDestino  —  const color = s ? severityFill(s) : '#15803D';  (VERDE)
+```
+
+En el primero, *«nadie ha pedido a nadie y no hay nadie»* se pintaba **igual que «está cubierto»**.
+En el segundo, *«la petición falló / todavía no ha contestado»* se pintaba **igual que «el motor
+dice que sí»**.
+
+Las dos veces la causa fue idéntica: **el verde estaba en el `else`.** Y un `else` no comprueba
+nada — es lo que pasa **cuando no se ha comprobado nada**.
+
+> **🔑 EL VERDE ES UNA AFIRMACIÓN. Y una afirmación hay que ganársela:**
+> **alguien tiene que haber MIRADO y haber dicho que sí.**
+
+Si el estado no se ha calculado, si la respuesta no ha llegado, si la petición falló, si el dato es
+`null` — **eso no es verde. Es «no lo sé», y tiene su propio píxel.** (Gris liso si se está
+esperando; gris rayado si no se pudo preguntar: una avería no es un estado del cuadrante.)
+
+Y es la misma regla que ya gobernaba las props diferidas —*«comprobando el cuadrante…»*, jamás un
+verde prematuro— sin que nadie se hubiera dado cuenta de que era **una ley**, y no una decisión de
+una pantalla.
+
+**Al revisar código, la pregunta es literal: ¿de qué `else` cuelga este verde?**
+
+---
+
+### Ley 22 — **UN COLOR SEMÁNTICO ES CUALQUIER COLOR QUE SIGNIFIQUE ALGO. NO SOLO UNA GRAVEDAD.**
+
+La paleta de personas se generaba protegiéndose de **las tres gravedades y el verde**. Ocho colores.
+Y nadie la había medido nunca contra **los cuatro estados de la TIRA DE COBERTURA**, que se pinta a
+**dos píxeles** de las barras, justo debajo.
+
+Resultado: el exceso («sobra 1») estaba pintado con `--color-brand-600` — **la marca**. Un índigo. Y
+la zona fría es exactamente donde viven las personas, porque el rojo, el naranja, el ámbar y el
+verde están reservados al estado.
+
+```
+   ÍNDIGO del exceso  #534AB7   está a ΔE  2,2  de la persona 5 (#5844BC)
+   ÍNDIGO del exceso  #7F77DD   está a ΔE  9,4  de la persona 9 (#4470F0)
+   verde · cubierto   #C3E6D1   está a ΔE 14,0  de la persona 1 (#70D0CC)
+```
+
+**ΔE 2,2 no es «se parece»: es el mismo color.** El «+1» de un exceso se pintaba, justo debajo de
+las barras, **con el color de otra persona**. Es el marrón de Marco otra vez, en otro canal.
+
+Y el arreglo de fondo **no era regenerar la paleta**: era que **la ley ya estaba escrita y rota**.
+
+> *«ROJO = imposible · NARANJA = incumplimiento · ÁMBAR = aviso · VERDE = correcto.*
+> ***La marca (índigo) nunca se usa para estado**, y el estado nunca se usa para adornar.»*
+
+«Sobra gente» **es un estado**. Ahora la tira habla entera en la escala del estado:
+
+| tramo | color | por qué |
+|---|---|---|
+| falta gente | **rojo** | alarma: hay que cubrirlo |
+| justo | **verde** | correcto |
+| **sobra gente** | **ámbar** | **aviso**: cuesta dinero, pero no rompe ninguna ley |
+| no se pide a nadie | **gris** | no hay nada que decir |
+
+#### ⚠️ Y el corolario, que costó tres regeneraciones: **NO TODO LO QUE SIGNIFICA ALGO PESA IGUAL**
+
+Meter los diecisiete colores en la exclusión con el mismo umbral (ΔE 24) parecía lo riguroso, y
+**hunde la paleta**: las doce personas caen a **ΔE 2,5** unas de otras. Doce cianes iguales. Se
+cambiaba un bug por otro. Medido (`node tests/Visual/techo.mjs`):
+
+| exclusión | candidatos que sobreviven (de 50.641) |
+|---|---|
+| la tira de cobertura entera | 41.604 — cuesta **18 %** |
+| la estructura (fondos, líneas) | 42.014 — cuesta **17 %** |
+| **la MARCA** | **6.769 — cuesta el 84 %** |
+
+La marca sola se come el espacio, porque `#7F77DD` cae **en el centro exacto de la zona fría**. Así
+que **cada color se excluye con el umbral de la pregunta que le corresponde:**
+
+- **Los ESTADOS (ΔE 24)** — «¿puede esta barra confundirse con algo que el cuadrante afirma?».
+  Compiten con la barra por significar. Van todos: gravedades **y los cuatro tramos de la tira**.
+- **Los FONDOS y LA MARCA (ΔE 8)** — no afirman nada del cuadrante. De un fondo lo que importa es
+  que la barra **no desaparezca encima** (y eso ya se mide aparte, con el contraste contra la pista);
+  de la marca, que un avatar no sea **exactamente** el color de un botón.
+
+**Dos umbrales, dos preguntas. Y los dos elegidos sobre la tabla, no a ojo.**
+
+Paleta resultante: **D = 13,9 · R = 5,4 · R < D/2 ✅** (era D = 16,1: la bajada es lo que cuesta
+proteger la tira, y hay que pagarlo). Lo vigila `tests/Visual/semanticos.mjs`, que mide **cada color
+de persona contra cada color que significa algo** — y que no existía.
+
+---
+
 ## 3. El mapa de canales
 
 | Canal | Dimensión que lleva | Y ninguna otra |

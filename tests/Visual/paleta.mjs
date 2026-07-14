@@ -69,14 +69,91 @@ const rgbDeLab=(l)=>crudo(l).map(v=>Math.max(0,Math.min(255,gam(v)*255)));
  * el usuario con los ojos: "la barra de Marco, que tiene un AVISO, ¿parece un INCUMPLIMIENTO?".
  */
 const FAMILIA = {
-  impossible: [[200,30,30],[176,20,20],[220,38,38]],
+  impossible: [[200,30,30],[176,20,20],[220,38,38],[247,201,201],[158,22,22]],
   breach: [[232,89,12],[168,65,10]],
-  notice: [[194,135,10],[125,86,6]],
-  ok: [[21,128,61]],
+  notice: [[194,135,10],[125,86,6],[239,224,192]],
+  ok: [[21,128,61],[195,230,209],[15,92,44]],
 };
 
 const ESTADO = Object.values(FAMILIA).flat();
 const ajenos = (mia) => Object.entries(FAMILIA).filter(([k]) => k !== mia).flatMap(([, v]) => v);
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ LA LISTA DE COLORES SEMÁNTICOS ESTABA **INCOMPLETA**, Y ESE ERA EL AGUJERO ENTERO.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * La paleta se protegía de las TRES GRAVEDADES (rojo, naranja, ámbar) y del verde. Y nadie la había
+ * medido nunca contra **los cuatro estados de la TIRA DE COBERTURA** — que se pinta A DOS PÍXELES
+ * de las barras, justo debajo.
+ *
+ * Resultado: el exceso («sobra 1») estaba pintado con **la marca** (#7F77DD / #534AB7), que es un
+ * índigo… y la zona fría es justo donde viven las personas, porque el rojo, el naranja, el ámbar y
+ * el verde están reservados. **#534AB7 estaba a ΔE 2,2 de la persona 5 (#5844BC).** El «+1» se
+ * pintaba con el color de alguien.
+ *
+ * El exceso ya no es índigo (pasó al ámbar del aviso: ver app.css). Pero la lección es la lista:
+ *
+ *     UN COLOR SEMÁNTICO ES **CUALQUIER COLOR QUE SIGNIFIQUE ALGO**, NO SOLO UNA GRAVEDAD.
+ *
+ * Y estos NO tienen familia —ninguna persona debe parecerse a ellos, jamás—, así que se excluyen
+ * SIEMPRE, sin la excepción de «su propia gravedad».
+ */
+const SIEMPRE = [
+  [239, 238, 244],   // «no se pide a nadie», relleno   ← ES un estado de la tira
+  [201, 198, 214],   // «no se pide a nadie», borde
+  [215, 212, 226],   // rayado del puesto sin candidato ← ES un estado de la tira
+];
+
+/**
+ * ⚠️ LA MARCA VA APARTE, Y CON UN UMBRAL MÁS BAJO. Y ESO **NO ES RELAJAR: ES QUE LA PREGUNTA ES OTRA.**
+ *
+ * Meterla en `SIEMPRE` a ΔE 24 parecía lo riguroso, y HUNDE LA PALETA: de 50.641 candidatos quedan
+ * 6.769 (`node tests/Visual/techo.mjs`), y las doce personas salen a **ΔE 2,5 unas de otras** — doce
+ * cianes iguales. Peor que el bug que se venía a arreglar.
+ *
+ * La razón es geométrica: #7F77DD es un índigo medio-claro que cae **en el centro exacto de la zona
+ * fría**, que es la única zona que les queda a las personas (el rojo, el naranja, el ámbar y el
+ * verde son del estado). Ella sola se come el 84 % del espacio.
+ *
+ * Y el umbral de 24 existe para una pregunta muy concreta:
+ *
+ *     «¿PUEDE ESTA BARRA CONFUNDIRSE CON UN ESTADO DEL CUADRANTE?»
+ *
+ * **La marca no es un estado.** Está escrito desde hace tandas: *«la marca nunca se usa para estado,
+ * y el estado nunca se usa para adornar»*. No compite con una barra por significar algo: no aparece
+ * en la parrilla diciendo qué le pasa a nadie. El peligro real —el exceso pintado con `brand-600`,
+ * a ΔE 2,2 de una persona— era **la ley rota**, no la paleta mal generada. Y ya está cortado.
+ *
+ * Lo único que sí hay que impedir es que una persona sea **INDISTINGUIBLE** de la marca (ΔE < 12):
+ * un avatar del color exacto de un botón es una confusión de otro tipo, y esa sí es real.
+ *
+ * Dos umbrales, dos preguntas. Y los dos medidos, no elegidos a ojo.
+ */
+const MARCA = [
+  [127, 119, 221],   // brand-300
+  [ 83,  74, 183],   // brand-600
+  [ 60,  52, 137],   // brand-800
+
+  /*
+   * ⚠️ Y LA ESTRUCTURA VA AQUÍ, NO EN `SIEMPRE`. POR EL MISMO MOTIVO Y CON LA MISMA MEDIDA.
+   *
+   * La pista, la celda alterna y la línea de sección son **FONDOS**. No significan nada del
+   * cuadrante: no dicen si un turno incumple ni si falta gente. Exigirles ΔE 24 —el umbral de «no
+   * puedes SONAR a un estado»— es contestar una pregunta que nadie ha hecho, y sale carísimo: con
+   * ellos dentro de `SIEMPRE`, las doce personas caen a **ΔE 11,3 unas de otras**, o sea por debajo
+   * del umbral de INDISTINGUIBLE. Se cambiaba un bug por otro.
+   *
+   * De un fondo lo que importa es que **la barra no DESAPAREZCA encima** — y eso ya se mide aparte,
+   * y con su propio número: «lo más cerca que queda un color de su PISTA». Aquí basta con que ningún
+   * color de persona sea INDISTINGUIBLE de un fondo.
+   */
+  [231, 229, 240],   // el fondo hundido de la pista
+  [247, 246, 252],   // la celda alterna
+  [195, 191, 214],   // la línea de sección
+];
+
+const NO_IGUAL = 8;   // «prácticamente el mismo color». Ver la tabla del bloque MARCA.
 
 /*
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -198,12 +275,25 @@ const PISTA = [231, 229, 240];
  */
 const UMBRAL = 24;
 
-const sonarA = (c) => Math.min(...ANILLOS.map(([g, ring, w]) => {
-  // La barra imposible es TRAMADA; las otras dos, lisas. Se mide cada una como se pinta.
-  const base = g === 'impossible' ? tramada(c) : c;
+const sonarA = (c) => Math.min(
+  // (a) La barra CON su anillo, contra las gravedades AJENAS. Una barra imposible se tiene que
+  //     parecer a un rojo: lo que no puede es parecerse a un naranja.
+  ...ANILLOS.map(([g, ring, w]) => {
+    // La barra imposible es TRAMADA; las otras dos, lisas. Se mide cada una como se pinta.
+    const base = g === 'impossible' ? tramada(c) : c;
 
-  return Math.min(...ajenos(g).map((e) => dE(mezcla(base, ring, peso(w)), e)));
-}));
+    return Math.min(...ajenos(g).map((e) => dE(mezcla(base, ring, peso(w)), e)));
+  }),
+
+  /*
+   * (b) ⚠️ Y CONTRA TODO LO DEMÁS QUE SIGNIFICA ALGO. Esto NO ESTABA, y es el agujero.
+   *
+   * La marca, los grises de «no se pide a nadie», el fondo hundido de la pista. Ninguna persona
+   * puede parecerse a ninguno de ellos, **con anillo o sin él** — la barra LIMPIA (que no lleva
+   * anillo) es justo la que más cerca está de la tira que tiene debajo.
+   */
+  ...SIEMPRE.map((e) => Math.min(dE(c, e), dE(tramada(c), e))),
+);
 
 /**
  * EL RADIO DE UNA PERSONA: lo MÁS que se aleja su barra de su propio color, pintándose como se
@@ -244,6 +334,11 @@ for (let b = 40; b <= 252; b += 4) {
   // Ni el color pelado ni la barra vista pueden sonar a un estado.
   if (Math.min(...ESTADO.map((e) => dE([r,g,b], e))) < 28) continue;
   if (sonarA([r,g,b]) < UMBRAL) continue;
+
+  // ⚠️ Y NINGUNA PERSONA PUEDE SER **INDISTINGUIBLE** DE LA MARCA. Otra pregunta, otro umbral: ver
+  // el bloque de MARCA arriba. A ΔE 24 esto hunde la paleta a doce cianes iguales; a ΔE 12 impide
+  // lo único que de verdad confunde —un avatar del color exacto de un botón— y deja sitio.
+  if (Math.min(...MARCA.map((e) => Math.min(dE([r,g,b], e), dE(tramada([r,g,b]), e)))) < NO_IGUAL) continue;
 
   // ⚠️ Y LA BARRA SE PINTA SOBRE LA PISTA. Un lavanda pálido sobre un fondo lavanda pálido es una
   // barra que no está.

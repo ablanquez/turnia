@@ -218,10 +218,17 @@ const TRAMA = tramaDe(MUESTRA);
                     Falta · sin candidato
                 </span>
 
-                <!-- El exceso NO es un error, y por eso NO es rojo: sobra gente, que a veces es lo
-                     que quieres un sábado. -->
+                <!--
+                    El exceso NO es un error, y por eso NO es rojo: sobra gente, que a veces es lo
+                    que quieres un sábado. Es un AVISO — cuesta dinero, no rompe ninguna ley— y por
+                    eso lleva el ámbar del aviso.
+
+                    ⚠️ ERA ÍNDIGO, o sea LA MARCA. Y la marca no puede significar un estado: ese
+                    índigo estaba a ΔE 2,2 del color de una persona de la paleta, así que el «+1» de
+                    un exceso se pintaba —justo debajo de las barras— con el color de alguien.
+                -->
                 <span class="flex items-center gap-1.5 text-[#41404E]">
-                    <span class="h-3.5 w-5 rounded-sm border-t-[3px] border-brand-300 bg-[var(--color-excess-fill)]" />
+                    <span class="h-3.5 w-5 rounded-sm border-t-[3px] border-notice bg-[var(--color-excess-fill)]" />
                     Exceso
                 </span>
 

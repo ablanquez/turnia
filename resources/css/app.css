@@ -82,9 +82,31 @@
     --color-ok: #15803d;
     --color-missing: #dc2626;
 
+    /*
+     * ⚠️⚠️ EL EXCESO ERA ÍNDIGO —LA MARCA— Y ESO ROMPÍA UNA LEY QUE YA ESTABA ESCRITA:
+     *
+     *     «La marca (índigo) NUNCA se usa para estado, y el estado nunca se usa para adornar.»
+     *
+     * «Sobra gente» ES un estado. Y estaba pintado con `--color-brand-600` (#534AB7) — que está a
+     * **ΔE 2,2** del color de la persona 5 (#5844BC). No «se parece»: ES su color. El «+1» aparecía
+     * justo debajo de la barra de alguien, con el color de otra persona.
+     *
+     * El marrón de Marco otra vez, pero en la tira: **un color semántico dentro de la zona fría, que
+     * es la de las personas.** Y no se vio porque la paleta se medía contra las TRES GRAVEDADES y
+     * nadie la había medido nunca contra los CUATRO ESTADOS DE COBERTURA.
+     *
+     * Ahora el exceso habla en la escala del estado, como el resto de la tira:
+     *
+     *     falta gente  → ROJO    (alarma: hay que cubrirlo)
+     *     justo        → VERDE   (correcto)
+     *     SOBRA gente  → ÁMBAR   (aviso: cuesta dinero, pero no rompe ninguna ley)
+     *     no se pide   → GRIS    (no hay nada que decir)
+     *
+     * Y el ámbar está a ΔE ≥ 42 de las doce personas: no puede confundirse con nadie.
+     */
     --color-ok-fill: #c3e6d1;
     --color-missing-fill: #f7c9c9;
-    --color-excess-fill: #d3cff1;
+    --color-excess-fill: #efe0c0; /* ámbar lavado, con la misma dilución que los otros dos */
     --color-void-fill: #d7d4e2; /* rayado del puesto sin candidato */
 }
 

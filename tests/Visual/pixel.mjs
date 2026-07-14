@@ -119,11 +119,16 @@ export const SEMANTICOS = {
     'rojo · imposible': { rgb: [200, 30, 30], familia: 'impossible' },
     'tinta de imposible': { rgb: [176, 20, 20], familia: 'impossible' },
     'rojo · hueco de cobertura': { rgb: [220, 38, 38], familia: 'impossible' },
+    'rojo · hueco (relleno)': { rgb: [247, 201, 201], familia: 'impossible' },
     'naranja · incumplimiento': { rgb: [232, 89, 12], familia: 'breach' },
     'tinta de incumplimiento': { rgb: [168, 65, 10], familia: 'breach' },
     'ámbar · aviso': { rgb: [194, 135, 10], familia: 'notice' },
     'tinta de aviso': { rgb: [125, 86, 6], familia: 'notice' },
+    // ⚠️ EL EXCESO. Era ÍNDIGO —la marca— y estaba a ΔE 2,2 de una persona: el «+1» se pintaba
+    // con el color de alguien. Ahora es ámbar, y por eso vive en la familia `notice`.
+    'ámbar · sobra gente (relleno)': { rgb: [239, 224, 192], familia: 'notice' },
     'verde · cobertura correcta': { rgb: [21, 128, 61], familia: 'ok' },
+    'verde · cubierto (relleno)': { rgb: [195, 230, 209], familia: 'ok' },
 };
 
 /** El estado al que más suena un color, saltándose (si se pide) el de su propia familia. */
@@ -168,7 +173,7 @@ export const INDISTINGUIBLE = 12;
 export const CUESTA = 20;
 
 /** El máximo ΔE mínimo alcanzable con doce colores en la zona fría. Medido, no supuesto. */
-export const TECHO = 16.1;
+export const TECHO = 13.9;
 
 /**
  * LA TRAMA TIENE QUE VERSE. Si la raya no se distingue del fondo, la trama no dice nada — y un
