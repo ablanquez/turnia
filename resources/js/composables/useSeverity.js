@@ -67,6 +67,16 @@ export function severityChip(severity) {
  * seguidos y estira la celda al triple. La parrilla se lee de un vistazo o no se lee.
  *
  * El texto largo NO se pierde: va en el `title` de la barra. Se pide, no se impone.
+ *
+ * ⚠️ CORTO NO ES LO MISMO QUE MUDO, Y AQUÍ SE CONFUNDIERON.
+ *
+ * El popover decía «No cualificado para el puesto» y el diálogo de forzado, del mismo turno y en el
+ * mismo segundo, decía «No está cualificado para el puesto "Cocina"». Dos frases para el mismo
+ * hecho, y **la corta se había comido el sujeto**. Eso es la ley 8 rota: `¿qué puesto?` es
+ * exactamente la pregunta que uno se hace al leerla, y la respuesta estaba a un campo de distancia.
+ *
+ * Por eso una entrada de esta tabla puede ser una FUNCIÓN de la violación: acortar es quitar
+ * palabras, nunca quitar datos.
  */
 const CORTO = {
     overlap: '● Solape imposible',
@@ -79,7 +89,9 @@ const CORTO = {
     shift_length: '⚠ Turno demasiado largo',
     minimum_rest: '⚠ Descanso corto entre turnos',
     workday_type: '⚠ El perfil no admite esta jornada',
-    eligibility: '⚠ No cualificado para el puesto',
+    eligibility: (v) => (v.context?.position
+        ? `⚠ No cualificado para ${v.context.position}`
+        : '⚠ No cualificado para el puesto'),
     overtime_limit: '⚠ Se pasa del tope de horas extra',
 
     shared_workday: '↗ También trabaja en otra empresa',
@@ -87,7 +99,13 @@ const CORTO = {
 };
 
 export function shortText(violation) {
-    return CORTO[violation.code] ?? violation.message;
+    const corto = CORTO[violation.code];
+
+    if (typeof corto === 'function') {
+        return corto(violation);
+    }
+
+    return corto ?? violation.message;
 }
 
 /** La gravedad que manda de una lista: la peor. */

@@ -3,12 +3,17 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { severityColor, severityFill, shortText } from '../../composables/useSeverity.js';
 
 /**
- * LAS HORAS DE UN TURNO NUEVO. Y la previsualización EN VIVO mientras se escriben.
+ * LAS HORAS DE UN TURNO. Y la previsualización EN VIVO mientras se escriben.
  *
- * Al mover una barra las horas ya existen: se conservan. Al COLOCAR a alguien en una celda vacía,
- * la aplicación no las sabe — y no se las inventa.
+ * ⚠️ EL MISMO POPOVER PARA LAS DOS COSAS, Y NO ES AHORRO DE CÓDIGO: ES QUE ES LA MISMA PREGUNTA.
  *
- * ⚠️ LAS PROPONE EL SERVIDOR, Y SALEN DEL HUECO DE COBERTURA.
+ *   COLOCAR (arrastrando a alguien del panel a una celda vacía) → ¿de qué hora a qué hora?
+ *   EDITAR  (pulsando sobre un turno y soltando sin moverlo)     → ¿de qué hora a qué hora?
+ *
+ * Cambia de dónde salen las horas de partida, y cambia el verbo del botón. El flujo —previsualizar
+ * en vivo, confirmar, CANDADO— es idéntico, porque la pregunta es idéntica.
+ *
+ * ⚠️ AL COLOCAR, LAS HORAS LAS PROPONE EL SERVIDOR, Y SALEN DEL HUECO DE COBERTURA.
  *
  * La celda ya sabe qué se pide ahí («faltan 1 de 12:00 a 20:00»), así que se prefijan esas horas:
  * colocar a alguien DONDE FALTA GENTE es lo que se quiere hacer nueve de cada diez veces. Si el
@@ -17,23 +22,27 @@ import { severityColor, severityFill, shortText } from '../../composables/useSev
  *
  * ⚠️ Y LO QUE SE PINTA AQUÍ ES UNA PREVISUALIZACIÓN. NO DECIDE NADA.
  *
- * Al pulsar «Colocar» se valida OTRA VEZ, dentro del candado, y esa es la que manda — aunque
- * contradiga a esta. Ver useEscritura.js.
+ * Al confirmar se valida OTRA VEZ, dentro del candado, y esa es la que manda — aunque contradiga a
+ * esta. Ver useEscritura.js.
  */
 const props = defineProps({
     abierto: { type: Boolean, default: false },
+    modo: { type: String, default: 'colocar' },  // colocar | editar
     persona: { type: Object, default: null },
     celda: { type: Object, default: null },      // { positionId, date, positionName, dia }
+    // Las horas de partida: el hueco de cobertura al colocar, las que ya tiene al editar.
     sugerido: { type: Object, default: null },   // { start, end, motivo }
     previsualizacion: { type: Object, default: null },
     ocupado: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['cerrar', 'colocar', 'cambiar']);
+const emit = defineEmits(['cerrar', 'confirmar', 'cambiar']);
 
 const start = ref('');
 const end = ref('');
 const campo = ref(null);
+
+const editando = computed(() => props.modo === 'editar');
 
 watch(() => props.sugerido, (s) => {
     start.value = s?.start ?? '';
@@ -44,12 +53,30 @@ watch(() => props.abierto, async (v) => {
     if (v) {
         await nextTick();
         campo.value?.focus();
+        campo.value?.select();
     }
 });
 
 const HORA = /^(?:[01]\d|2[0-4]):[0-5]\d$/;
 
 const validas = computed(() => HORA.test(start.value) && HORA.test(end.value));
+
+/**
+ * ⚠️ AL EDITAR, SI LAS HORAS NO HAN CAMBIADO NO HAY NADA QUE GUARDAR.
+ *
+ * Y no es una optimización: escribir un turno idéntico al que hay le pasaría por el candado, le
+ * BORRARÍA EL OVERRIDE (la justificación caduca al mover, ver AssignmentWriter::move) y volvería a
+ * preguntar si se fuerza — todo para dejarlo exactamente igual que estaba. Un botón que no cambia
+ * nada pero destruye una firma es peor que un botón que no hace nada.
+ */
+const cambiadas = computed(() => start.value !== props.sugerido?.start || end.value !== props.sugerido?.end);
+
+const severidad = computed(() => props.previsualizacion?.severidad ?? null);
+
+const puedeConfirmar = computed(() => validas.value
+    && severidad.value !== 'impossible'
+    && ! props.ocupado
+    && (! editando.value || cambiadas.value));
 
 // Cada vez que las horas cambian y son válidas, se vuelve a preguntar «¿qué pasaría?». El motor
 // valida en 4-6 ms: da de sobra para contestar mientras se teclea.
@@ -58,16 +85,13 @@ watch([start, end], () => {
         emit('cambiar', { start: start.value, end: end.value });
     }
 });
-
-const severidad = computed(() => props.previsualizacion?.severidad ?? null);
-
-const puedeColocar = computed(() => validas.value && severidad.value !== 'impossible' && ! props.ocupado);
 </script>
 
 <template>
     <div
         v-if="abierto"
         data-t="popover-colocar"
+        :data-modo="modo"
         class="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(30_26_60/45%)] p-4"
         @click.self="emit('cerrar')"
         @keydown.esc="emit('cerrar')"
@@ -96,7 +120,7 @@ const puedeColocar = computed(() => validas.value && severidad.value !== 'imposs
                             data-t="start"
                             placeholder="12:00"
                             class="tabular mt-1 w-full rounded-lg border border-line bg-page px-3 py-2 text-[14px] font-bold text-ink outline-none focus:border-brand-300"
-                            @keydown.enter="puedeColocar && emit('colocar', { start, end })"
+                            @keydown.enter="puedeConfirmar && emit('confirmar', { start, end })"
                         >
                     </label>
 
@@ -107,7 +131,7 @@ const puedeColocar = computed(() => validas.value && severidad.value !== 'imposs
                             data-t="end"
                             placeholder="20:00"
                             class="tabular mt-1 w-full rounded-lg border border-line bg-page px-3 py-2 text-[14px] font-bold text-ink outline-none focus:border-brand-300"
-                            @keydown.enter="puedeColocar && emit('colocar', { start, end })"
+                            @keydown.enter="puedeConfirmar && emit('confirmar', { start, end })"
                         >
                     </label>
                 </div>
@@ -158,10 +182,10 @@ const puedeColocar = computed(() => validas.value && severidad.value !== 'imposs
 
                 <button
                     data-t="colocar"
-                    :disabled="! puedeColocar"
+                    :disabled="! puedeConfirmar"
                     class="rounded-lg bg-brand-600 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-40"
-                    @click="emit('colocar', { start, end })"
-                >Colocar</button>
+                    @click="emit('confirmar', { start, end })"
+                >{{ editando ? 'Guardar horas' : 'Colocar' }}</button>
             </div>
         </div>
     </div>

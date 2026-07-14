@@ -469,6 +469,76 @@ Y **la hora sigue estando** (ley 8): no se agrupa, se **acumula**. `"a"` · `"a 
 
 ---
 
+### Ley 18 — **DESPUÉS DE UNA ACCIÓN SE DICE QUÉ HA PASADO. Y QUÉ HA CAMBIADO DONDE NO ESTABAS MIRANDO.**
+
+Arrastras un turno, sueltas, la parrilla se repinta — y nadie te dice qué has hecho. En una
+aplicación que existe para **no mentir**, *el silencio después de una acción es una forma de no
+contar*.
+
+Y la razón que lo hace grave no es la cortesía:
+
+> ⚠️ **LA PARRILLA CAMBIA EN SITIOS QUE NO ESTABAS MIRANDO.**
+
+Mueves a Iker del lunes al domingo. El domingo lo estás mirando: ahí está la barra, en su sitio.
+Pero **el hueco rojo que acabas de abrir aparece en el LUNES** —la celda que dejó—, al otro extremo
+de la pantalla. Está **medido**: la semana pasa de 4 a 5 tramos sin cubrir. Sin aviso, **la
+consecuencia de tu acción ocurre donde no estás mirando**, y eso es un silencio falso con las manos
+en la masa.
+
+**El colateral se MIDE, no se predice.** Se guarda una foto de los huecos antes de escribir, se
+escribe, y **cuando el informe diferido vuelve** (~700 ms) se comparan las dos fotos. Así que el
+aviso no adivina nada: mira el estado real, después. Y si el informe no había llegado todavía, **no
+hay «antes» con el que comparar y no se dice nada** — callarse porque no se sabe es correcto;
+inventarse un *«sin novedad»* sería otro silencio falso.
+
+> **⚠️ PERO UN AVISO QUE SE DESVANECE SIRVE PARA CONFIRMAR, NO PARA NEGAR.**
+>
+> Lo que **SÍ** ha pasado se cuenta con un aviso breve. Lo que **NO** ha pasado —el candado dijo que
+> no— se cuenta con el **DIÁLOGO**: un modal, en el centro, que hay que cerrar a mano. Meter «no se
+> ha podido escribir» en una tarjetita de seis segundos sería **degradar la información más
+> importante que esta aplicación da**.
+
+Y **quitar lleva DESHACER**, porque quitar es lo único destructivo que hay. Deshacer **no restaura la
+fila: la vuelve a colocar, por el candado** — en los segundos que el turno estuvo fuera, otro pudo
+ocupar a esa persona, y un `restore()` devolvería un solape que **nadie validó**.
+
+---
+
+### Ley 19 — **UN ASIDERO DICE EXACTAMENTE QUÉ AGARRA. AMPLIARLO NUNCA ES AMPLIAR LA AMBIGÜEDAD.**
+
+Un turno de una hora mide **5 píxeles** de ancho. Con el ratón, eso es una lotería.
+
+Y la salida fácil —*«que se pueda coger el carril entero»*— **está mal**, por la razón de siempre:
+
+> **LO QUE SE ARRASTRA ES UN TURNO, NO UNA PERSONA.**
+
+Lucía tiene 09:00–13:00 y 17:00–21:00. Si al pasar el ratón se iluminara **todo su carril**, la
+pregunta *«¿cuál de los dos voy a mover?»* no tendría respuesta en la pantalla. **Un asidero que no
+dice qué agarra es peor que uno pequeño: el pequeño falla, el ambiguo ACIERTA MAL.**
+
+La salida es **ampliar el asidero sin ampliar la barra**:
+
+- **El RÓTULO de ese turno también agarra**, y mide ~140 px. Como cada barra ya tiene su propio
+  rótulo con su propia hora (ley 8), **cada rótulo agarra SU barra**. Sin ambigüedad, y sin inventar
+  nada nuevo en la pantalla.
+- **Al pasar el ratón, la barra y su rótulo se resaltan JUNTOS.** Eso contesta a *«¿cuál de los
+  dos?»* **antes** de pulsar, no después.
+- Margen de agarre invisible **arriba y abajo**, y **nunca a los lados**: la distancia entre dos
+  barras de la misma persona **no es una constante, es tiempo convertido a píxeles** (los turnos de
+  Marco distan 1 hora ≈ 6 px). Un margen lateral se comería ese hueco y las zonas de agarre se
+  pisarían — **ley 16 otra vez**.
+
+> ⚠️ **Y EL RESALTADO NO PUEDE USAR NINGÚN CANAL DE LA MATRIZ.** Los seis están ocupados. Se usa una
+> **sombra proyectada** (difuminada y desplazada: no se confunde con el anillo, que son dos franjas
+> nítidas), y **la barra no se mueve ni un píxel**: su posición **es** el eje del tiempo.
+>
+> **Y CASI BORRA LA ALARMA.** El anillo de gravedad **también es un `box-shadow`**. La primera
+> versión escribía `boxShadow: SOMBRA_HOVER` después de esparcir el relleno, y en JavaScript eso no
+> compone: **sobrescribe**. Resultado: **pasar el ratón por encima de un turno imposible le borraba
+> el anillo rojo.** Se concatenan, y el anillo va primero.
+
+---
+
 ## 3. El mapa de canales
 
 | Canal | Dimensión que lleva | Y ninguna otra |

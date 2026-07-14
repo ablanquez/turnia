@@ -48,9 +48,22 @@ const props = defineProps({
  * panel no arranca nada, y la papelera no aparece. Y aun así, la Policy lo vuelve a decir en el
  * servidor — porque una interfaz que no ofrece un gesto NO ES una autorización: es una cortesía.
  */
+/*
+ * ⚠️ LA VENTANA Y LOS PUESTOS VAN COMO GETTERS, NO COMO VALORES. Y LA COBERTURA, REACTIVA.
+ *
+ * Los dos primeros porque tras cada escritura la página se recarga (`router.reload()`) y las props
+ * cambian: una copia tomada en el `setup` se quedaría hablando de la semana anterior, y los avisos
+ * dirían el día equivocado. Un dato congelado es un dato que empieza a mentir en cuanto algo se
+ * mueve.
+ *
+ * Y `coverage` porque es DIFERIDA: llega ~700 ms después de la escritura, y es con ella con la que
+ * se compara la foto de los huecos de antes para saber si la acción rompió algo EN OTRA CELDA. Ver
+ * useAvisos.js.
+ */
 const edicion = useEdicion(props.company, props.calendar, {
-    window: props.window,
-    positions: props.positions,
+    ventana: () => props.window,
+    puestos: () => props.positions,
+    coverage: () => props.coverage,
 });
 
 provide('edicion', props.can.manage ? edicion : null);

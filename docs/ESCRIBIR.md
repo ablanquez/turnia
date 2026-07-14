@@ -257,3 +257,70 @@ no coinciden no sirve para nada.
 - **Editar en el zoom Día.** El zoom Día enseña **un solo día**, así que el gesto principal —mover a
   otro día— no existe allí. Lo que sí tendría sentido es ajustar las horas arrastrando el borde, y eso
   es justamente lo que está fuera de esta tanda.
+
+---
+
+## 9. Los CUATRO gestos, y los cuatro salen del mismo `pointerdown`
+
+La tanda anterior dejó tres. Usándola aparecieron dos huecos: **no se podían cambiar las horas de un
+turno ya puesto**, y **un turno de una hora no se podía agarrar**.
+
+| gesto | qué hace | cómo se distingue |
+|---|---|---|
+| Arrastrar a otra celda | **mover** (las horas se conservan) | se mueve > 4 px |
+| Arrastrar a la papelera | **quitar** | ídem, y suelta abajo |
+| **Pulsar y soltar SIN MOVER** | **editar las horas** | **se mueve < 4 px → es un clic** |
+| `Supr` con la barra enfocada | **quitar** (sin ratón) | teclado |
+
+El **umbral de 4 px** ya existía —estaba para que un temblor no se convirtiera en un arrastre— y
+**es exactamente la línea que separa los dos gestos**. Solo faltaba escuchar el lado de acá: antes,
+un clic era un `return` a secas.
+
+Y el flujo de editar es **el mismo popover, el mismo previsualizar-en-vivo, el mismo candado**. No
+es ahorro de código: **es que es la misma pregunta** («¿de qué hora a qué hora?»). Cero mecanismos
+nuevos.
+
+> ⚠️ **Y AL EDITAR, EL TURNO NO SE COMPARA CONSIGO MISMO.** La previsualización lleva su propio
+> `assignmentId`, así que el motor lo ignora. Sin eso, cambiarle un minuto daría **siempre un solape
+> imposible contra su propia versión vieja** — un aviso falso, y de los que hacen creer que la
+> aplicación está rota.
+
+> ⚠️ **Y SI LAS HORAS NO CAMBIAN, EL BOTÓN NO SE PUEDE PULSAR.** No es una optimización: guardar un
+> turno idéntico pasaría por el candado, **le borraría el override** (la justificación caduca al
+> mover) y volvería a preguntar si se fuerza — todo para dejarlo igual que estaba. **Un botón que no
+> cambia nada pero destruye una firma es peor que uno que no hace nada.**
+
+### Lo que se DESCARTÓ: estirar la barra arrastrando el borde
+
+La columna de un día mide ~150 px para 24 horas → **6 PÍXELES POR HORA**. Cambiar las 20:00 por las
+21:00 exigiría mover el ratón **exactamente 6 px**. Y lo peor no es que se falle: es que **se
+acertaría por error** — un temblor de 6 px cambiaría un turno sin que nadie lo pidiera.
+
+> **Escribir «21:00» es inequívoco. Arrastrar 6 px es una lotería. En una aplicación cuyo valor
+> entero es la precisión, EL TECLADO GANA AL RATÓN.**
+
+(En el zoom Día son 42 px/hora y sí sería viable. Apuntado en `PENDIENTES.md`.)
+
+---
+
+## 10. Lo que la tanda del uso destapó
+
+Cinco cosas, todas encontradas **arrastrando**, no leyendo:
+
+1. **Los dos diálogos se apilaban.** Al forzar desde el popover de horas, el popover no se cerraba:
+   quedaban dos respuestas a la misma pregunta en pantalla, y **la de atrás ya no valía** (era una
+   previsualización; la de encima es la decisión del candado).
+2. **Silencio después de escribir.** → **Ley 18** de la matriz.
+3. **`quitar` era el único gesto MUDO, y es el destructivo.** Si el servidor contestaba algo que no
+   fuera 200 —un 403, un turno que otro ya había borrado—, **no pasaba nada**: el turno seguía en
+   pantalla y el usuario creía haberlo quitado.
+4. **El aviso de `Supr` no decía a QUIÉN.** Por la papelera sí (el arrastre lleva la persona en la
+   carga); con la tecla, no. El mismo hecho contado de dos maneras según el gesto — **ley 8 rota**.
+5. **El mensaje corto se comía el sujeto.** El popover decía «No cualificado para el puesto» y el
+   diálogo, del mismo turno y en el mismo segundo, «No está cualificado para el puesto "Cocina"».
+   **Acortar es quitar palabras, nunca quitar datos.** El nombre del puesto viaja ahora en el
+   contexto de la violación: la vista no puede reconstruirlo, así que **lo manda quien lo sabe**.
+
+Y una sexta, **que no se ve ni arrastrando ni leyendo, y solo la vio el instrumento**: el margen de
+agarre que puse dentro de la barra **cegó a `pixel.mjs`** y dejó las diez leyes de la matriz visual
+sin comprobar, en silencio. Ver `COTEJO-VISUAL.md` §18.

@@ -64,6 +64,7 @@ export function useArrastre() {
     let origen = { x: 0, y: 0 };
     let alSoltar = null;
     let alMover = null;
+    let alClicar = null;
 
     const celdaBajo = (x, y) => {
         const el = document.elementFromPoint(x, y)?.closest('[data-celda-destino]');
@@ -125,9 +126,25 @@ export function useArrastre() {
 
         limpiar();
 
-        // Un clic que no llegó a ser arrastre no suelta nada. No es un no-op silencioso: es que
-        // nunca fue un arrastre.
-        if (! arrastro || ! carga) {
+        if (! carga) {
+            return;
+        }
+
+        /*
+         * ⚠️ NO LLEGÓ A MOVERSE CUATRO PÍXELES: ES UN CLIC. Y UN CLIC TAMBIÉN DICE ALGO.
+         *
+         * Esto ANTES ERA UN `return` a secas —«nunca fue un arrastre»— y era verdad a medias: no
+         * era un arrastre, pero tampoco era nada. Pulsar sobre un turno y soltar sin moverlo es el
+         * gesto con el que medio mundo abre un evento en Google Calendar o en Outlook. No hay que
+         * enseñarlo: ya está aprendido, y se descubre solo (pinchas, te lo piensas, sueltas).
+         *
+         * El umbral de 4 px, que existía para que un temblor no se convirtiera en un arrastre, es
+         * exactamente la línea que separa los dos gestos. Estaba puesta. Solo faltaba escuchar el
+         * lado de acá.
+         */
+        if (! arrastro) {
+            alClicar?.(carga);
+
             return;
         }
 
@@ -156,7 +173,7 @@ export function useArrastre() {
      * `setPointerCapture` es lo que hace que esto funcione: sin él, en cuanto el puntero sale de la
      * barra (o sea, inmediatamente) los eventos dejan de llegarle y el arrastre se queda colgado.
      */
-    const empezar = (e, carga, { onDrop, onCell } = {}) => {
+    const empezar = (e, carga, { onDrop, onCell, onClick } = {}) => {
         // Solo el botón principal. Y el clic derecho no arrastra.
         if (e.button !== 0) {
             return;
@@ -171,6 +188,7 @@ export function useArrastre() {
         estado.arrancado = false;
         alSoltar = onDrop;
         alMover = onCell;
+        alClicar = onClick;
 
         e.currentTarget.setPointerCapture?.(e.pointerId);
 

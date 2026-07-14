@@ -26,10 +26,21 @@ class EligibilityRule implements AssignmentRule
             return [];
         }
 
+        /*
+         * ⚠️ EL NOMBRE DEL PUESTO VIAJA EN EL CONTEXTO, Y NO SOLO DENTRO DEL MENSAJE.
+         *
+         * El mensaje largo decía «No está cualificado para el puesto "Cocina"» y la forma corta de
+         * la interfaz —la que cabe en la celda— decía «No cualificado para el puesto», sin más. El
+         * mismo hecho contado de dos maneras, y la que más se lee era la que se callaba el sujeto.
+         *
+         * La vista NO puede reconstruirlo del `position_id`: en el popover y en el diálogo no hay
+         * ninguna lista de puestos a mano. Así que lo manda quien lo sabe. Ley 8: toda nota lleva
+         * sujeto, y la forma corta también es una nota.
+         */
         return [Violation::breach(
             RuleCode::Eligibility,
             sprintf('No está cualificado para el puesto "%s".', $draft->position->name),
-            ['position_id' => $draft->position->id],
+            ['position_id' => $draft->position->id, 'position' => $draft->position->name],
         )];
     }
 }

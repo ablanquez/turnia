@@ -560,3 +560,53 @@ porque estuvieran mal escritos, sino porque **el caso no se sembraba**:
 
 > Un instrumento que no se actualiza con la app **no da un falso verde: da un falso ROJO**. Y eso
 > **enseña a no mirarlo** — que acaba siendo exactamente lo mismo.
+
+---
+
+## 18. UN HIJO QUE CUBRE LA BARRA **CIEGA AL INSTRUMENTO**. Y NO GRITA: SE CALLA.
+
+De la tanda del arrastre. **El peor hallazgo del proyecto en cuanto a instrumentación**, y no lo
+encontré leyendo código: lo encontró `anchos.mjs`, contando.
+
+Un turno de una hora mide 5 px de ancho, así que hacía falta **ampliar la zona de agarre**. Lo
+primero que escribí fue lo obvio: un `<span>` transparente **dentro** de la barra, con un inset
+negativo, para que el ratón la pillara con margen.
+
+Y `pixel.mjs` —el instrumento que sostiene las diez leyes de la matriz visual— hace esto:
+
+```js
+// Un punto de la barra donde solo haya RELLENO. Ni texto, ni avatar, ni muesca.
+const hijos = [...el.children].map((c) => c.getBoundingClientRect());
+const dentro = (x) => hijos.some((h) => x >= h.left - 2 && x <= h.right + 2 && ...);
+```
+
+Busca un punto **que no pise a ninguno de sus hijos** — para no medir el color de una letra y
+llamarlo relleno. **Un hijo que cubre el 100 % del ancho hace que ese punto NO EXISTA.**
+
+```
+                                     con el <span>      sin él
+  anchos.mjs · barras con anillo          0               24
+```
+
+**La barra se descartaba entera.** Y con ella su anillo, su trama y su identidad. Las diez leyes
+dejaron de comprobarse **sobre una página que se veía perfectamente bien**.
+
+> ⚠️ **Y ESE ES EL PUNTO.** No hubo un rojo, ni un error, ni una barra mal pintada. El instrumento
+> siguió corriendo, siguió imprimiendo su tabla, y la tabla **estaba vacía**. Solo lo cazó porque
+> `anchos.mjs` tiene una comprobación que casi nadie escribe:
+>
+> ```
+> ❌ NO HA SALIDO NI UNA BARRA CON ANILLO. Esta rampa no ha probado nada,
+>    y callarlo sería aprobar por omisión.
+> ```
+>
+> **Un instrumento que no denuncia su propio conjunto vacío es un instrumento que da verde por no
+> haber mirado.** Si esa línea no estuviera, la tanda se habría entregado con la matriz visual sin
+> medir, y nadie se habría enterado hasta que un color mintiera en producción.
+
+**La solución:** el margen de agarre es un **pseudo-elemento** (`before:-inset-y-1`). No aparece en
+`el.children`, y `elementFromPoint` lo atribuye a su anfitrión. Amplía el agarre **sin taparle la
+cara a nadie** — ni al ojo, ni a quien mide.
+
+**La regla que queda:** *lo que se pone ENCIMA de un canal lo tapa. También para quien lo mide.*
+Antes de meter un hijo dentro de una barra, hay que preguntarse qué instrumento vive de mirarla.

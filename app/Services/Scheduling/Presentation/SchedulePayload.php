@@ -446,6 +446,15 @@ class SchedulePayload
                 'uuid' => $a->uuid,
                 'positionId' => $a->position_id,
                 'personId' => $a->person_id,
+                /*
+                 * ⚠️ EL CONTRATO, NO LA PERSONA. Y va aquí porque DESHACER UN «QUITAR» lo necesita.
+                 *
+                 * Quitar borra la fila. Para devolverla hay que COLOCARLA otra vez —por el candado,
+                 * como cualquier escritura— y `place()` pide el contrato, no la persona: una persona
+                 * puede tener dos contratos, y el turno colgaba de UNO. Sin este dato, deshacer
+                 * tendría que ADIVINAR cuál, y adivinar es exactamente lo que esta aplicación no hace.
+                 */
+                'employmentId' => $a->employment_id,
                 'workDate' => $workDate->toDateString(),
                 'startHour' => $from,
                 'endHour' => $to,

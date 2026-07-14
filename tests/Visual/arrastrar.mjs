@@ -8,12 +8,17 @@
  *
  *   1. Soltar en un IMPOSIBLE            → ¿explica y devuelve la barra?
  *   2. Forzar un INCUMPLIMIENTO          → ¿se registra quién/cuándo/por qué?
- *   3. Mover un turno que ROMPE OTRO     → ¿se ve el otro en rojo tras el repintado?
- *   4. Colocar a alguien NO CUALIFICADO  → ¿lo dice?
- *   5. Colocar a alguien DE BAJA         → ¿lo dice?
- *   6. Soltar EN EL MISMO SITIO          → ¿no-op, sin escritura?
- *   7. Quitar arrastrando a la papelera  → ¿desaparece?
- *   8. Quitar con la tecla Supr          → ¿desaparece?
+ *   3. Colocar a alguien NO CUALIFICADO  → ¿lo dice, y dice QUÉ PUESTO?
+ *   4. Colocar a alguien DE BAJA         → ¿lo dice?
+ *   4bis. Mover un turno que ROMPE OTRO  → ¿se ve el hueco tras el repintado?
+ *   5. Soltar EN EL MISMO SITIO          → ¿no-op, sin escritura?
+ *   6. Quitar arrastrando a la papelera  → ¿desaparece?
+ *   7. Quitar con la tecla Supr          → ¿desaparece?
+ *   8. Forzar desde el popover           → ¿SE CIERRA el popover, o se apilan los dos?
+ *   9. Después de escribir               → ¿SE DICE lo que ha pasado? ¿Y lo que rompió EN OTRA CELDA?
+ *  10. Quitar                            → ¿se puede DESHACER?
+ *  11. Un turno de UNA HORA (5 px)       → ¿se puede agarrar? ¿desde su rótulo? ¿SOLO el suyo?
+ *  12. Clic sin mover                    → ¿abre las horas, con las de ahora?
  *
  *   node tests/Visual/arrastrar.mjs
  */
@@ -89,9 +94,16 @@ const ir = async () => {
 /** Cuántos turnos hay ahora mismo, según la página (no según la base: se mide lo que se ve). */
 const barras = () => page.$$eval('[data-t=barra][data-assignment-id]', (e) => e.length);
 
-/** El centro de una barra concreta (por su id de asignación). */
+/**
+ * El centro de una barra concreta (por su id de asignación).
+ *
+ * ⚠️ `[data-t=barra]` VA EN EL SELECTOR, Y NO SOBRA. El rótulo de ese mismo turno es AHORA otro
+ * asidero (mide 100 px, y por eso un turno de una hora se puede coger). Si el selector no dijera
+ * cuál de los dos quiere, cogería «el primero» — y el primero en el DOM es el rótulo. El
+ * instrumento seguiría en verde midiendo una cosa distinta de la que cree.
+ */
 const centroDeBarra = async (id) => {
-    const caja = await page.locator(`[data-assignment-id="${id}"]`).first().boundingBox();
+    const caja = await page.locator(`[data-t=barra][data-assignment-id="${id}"]`).first().boundingBox();
 
     return caja ? { x: caja.x + caja.width / 2, y: caja.y + caja.height / 2 } : null;
 };
@@ -168,7 +180,7 @@ await ir();
     // sigue solapando. Se coge el turno de Leo del lunes y se lleva al MISMO día que su otro turno.
     // Más simple y más honesto: Iker (Barra, lunes 12–20) tiene turno TODOS los días de 12 a 20.
     // Moverlo del lunes al martes lo hace chocar con el suyo del martes → IMPOSIBLE.
-    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
+    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
     const id = iker[0];
 
     const desde = await centroDeBarra(id);
@@ -201,7 +213,7 @@ await ir();
 {
     // Sara, Cocina, martes 08–16. Se mueve al lunes: choca con su descanso corto (la víspera acaba
     // a medianoche) → INCUMPLIMIENTO, no imposible.
-    const sara = await page.$$eval('[data-t=carril][data-persona="Sara Gil"] [data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
+    const sara = await page.$$eval('[data-t=carril][data-persona="Sara Gil"] [data-t=barra][data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
 
     // El del lunes ya está forzado; se coge el del MARTES y se lleva al miércoles, que no rompe nada.
     // Para provocar un incumplimiento de verdad: mover el turno de Leo del miércoles al martes,
@@ -358,7 +370,7 @@ await ir();
     const indicadorAntes = (await page.locator('[data-t=indicador]').innerText()).replace(/\s+/g, ' ');
 
     const iker = await page.$$eval(
-        '[data-t=carril][data-persona="Iker Blanco"] [data-assignment-id]',
+        '[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]',
         (e) => e.map((x) => x.dataset.assignmentId),
     );
 
@@ -393,7 +405,7 @@ await ir();
 {
     const antes = await barras();
 
-    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
+    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
     const id = iker[0];
 
     const desde = await centroDeBarra(id);
@@ -421,7 +433,7 @@ await ir();
 {
     const antes = await barras();
 
-    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
+    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
     const desde = await centroDeBarra(iker[0]);
 
     await page.mouse.move(desde.x, desde.y);
@@ -454,13 +466,307 @@ await ir();
 {
     const antes = await barras();
 
-    const iker = await page.$$eval('[data-t=carril][data-persona="Iker Blanco"] [data-assignment-id]', (e) => e.map((x) => x.dataset.assignmentId));
+    const iker = await page.$$eval(
+        '[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]',
+        (e) => e.map((x) => x.dataset.assignmentId),
+    );
 
-    await page.locator(`[data-assignment-id="${iker[0]}"]`).first().focus();
+    await page.locator(`[data-t=barra][data-assignment-id="${iker[0]}"]`).first().focus();
     await page.keyboard.press('Delete');
     await page.waitForTimeout(2500);
 
     ok('el turno se ha quitado', await barras() === antes - 1, `${await barras()} (antes ${antes})`);
+}
+
+/* ── 8. LOS DOS DIÁLOGOS NO SE APILAN ──────────────────────────────────────────── */
+
+di();
+di('8. AL PASAR AL DIÁLOGO DE FORZADO, EL POPOVER DE HORAS SE CIERRA.');
+di('   Se quedaban los dos abiertos, uno detrás del otro. Y el de atrás ya no decía nada:');
+di('   su aviso era una PREVISUALIZACIÓN, y lo que hay encima es LA DECISIÓN.');
+
+await ir();
+
+{
+    const desde = await fichaDe('Sara Gil');
+    const hasta = await centroDeCelda(1, dia(6));   // Barra, domingo → no cualificada → incumple
+
+    await arrastrar(desde, hasta);
+
+    await page.locator('[data-t=start]').fill('10:00');
+    await page.locator('[data-t=end]').fill('12:00');
+    await page.waitForTimeout(900);
+
+    ok('el popover está abierto', await popover().isVisible());
+
+    await page.locator('[data-t=colocar]').click();
+    await page.waitForTimeout(1200);
+
+    const hayDialogo = await dialogo().isVisible().catch(() => false);
+    const hayPopover = await popover().isVisible().catch(() => false);
+
+    ok('sale el diálogo de decisión', hayDialogo);
+    ok('y el popover SE HA CERRADO: no quedan dos', ! hayPopover, hayPopover ? 'siguen los dos' : 'solo uno');
+
+    await foto('8-un-solo-dialogo');
+
+    // ⚠️ Y el mensaje del puesto: el diálogo decía «Cocina» y el popover no decía nada. Ley 8.
+    const motivos = (await page.locator('[data-t=motivos]').innerText()).replace(/\s+/g, ' ');
+
+    ok('y el motivo dice QUÉ PUESTO', /Barra/.test(motivos), motivos.slice(0, 70));
+
+    await page.locator('[data-t=cancelar]').click();
+    await page.waitForTimeout(300);
+}
+
+/* ── 9. EL AVISO DE LO QUE ACABA DE PASAR, Y EL DAÑO COLATERAL ─────────────────── */
+
+di();
+di('9. TRAS ESCRIBIR, SE DICE QUÉ HA PASADO. Y SI HA ROTO ALGO EN OTRA CELDA, TAMBIÉN.');
+di('   Iker, Barra, lunes → domingo. El hueco se abre en el LUNES, fuera del foco visual.');
+
+await ir();
+
+{
+    const iker = await page.$$eval(
+        '[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]',
+        (e) => e.map((x) => x.dataset.assignmentId),
+    );
+
+    const desde = await centroDeBarra(iker[0]);
+    const hasta = await centroDeCelda(1, dia(6));
+
+    await arrastrar(desde, hasta);
+    await page.waitForTimeout(1200);
+
+    const aviso = page.locator('[data-t=aviso]').first();
+
+    ok('sale el aviso', await aviso.isVisible().catch(() => false));
+
+    const texto = await page.locator('[data-t=aviso-texto]').first().innerText().catch(() => '');
+
+    di(`      «${texto}»`);
+
+    ok('y dice QUIÉN', /Iker Blanco/.test(texto), texto.slice(0, 60));
+    ok('y DE DÓNDE a DÓNDE (el origen es la celda que dejas de mirar)', /de .+ a /i.test(texto));
+    ok('y CON QUÉ HORAS', /\d{2}:\d{2}–\d{2}:\d{2}/.test(texto));
+
+    // ⚠️ El colateral llega DESPUÉS: el informe es diferido (719 ms). Se espera a que llegue.
+    await page.waitForTimeout(3500);
+
+    const colateral = await page.locator('[data-t=aviso-colateral]').first().innerText().catch(() => '');
+
+    di(`      «${colateral}»`);
+
+    ok('y AVISA del hueco que ha abierto en la celda que dejó', /hueco/i.test(colateral), colateral || 'no dijo nada');
+    ok('y dice EN QUÉ CELDA', /Barra/.test(colateral), colateral.slice(0, 70));
+
+    await foto('9-aviso-y-colateral');
+}
+
+/* ── 10. QUITAR SE PUEDE DESHACER ──────────────────────────────────────────────── */
+
+di();
+di('10. QUITAR ES DESTRUCTIVO, ASÍ QUE SE PUEDE DESHACER.');
+di('    Y deshacer NO restaura la fila: la vuelve a COLOCAR, por el candado.');
+
+await ir();
+
+{
+    const antes = await barras();
+
+    const iker = await page.$$eval(
+        '[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]',
+        (e) => e.map((x) => x.dataset.assignmentId),
+    );
+
+    await page.locator(`[data-t=barra][data-assignment-id="${iker[0]}"]`).first().focus();
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(2500);
+
+    ok('el turno se ha quitado', await barras() === antes - 1, `${await barras()} (antes ${antes})`);
+
+    const texto = await page.locator('[data-t=aviso-texto]').first().innerText().catch(() => '');
+
+    di(`      «${texto}»`);
+
+    ok('y el aviso lo dice, con sujeto y sitio', /Iker Blanco/.test(texto) && /Barra/.test(texto), texto.slice(0, 60));
+
+    const deshacer = page.locator('[data-t=deshacer]').first();
+
+    ok('y lleva DESHACER', await deshacer.isVisible().catch(() => false));
+
+    await foto('10-deshacer');
+
+    await deshacer.click();
+    await page.waitForTimeout(3000);
+
+    ok('y al deshacer, el turno VUELVE', await barras() === antes, `${await barras()} (antes ${antes})`);
+}
+
+/* ── 11. UN TURNO DE UNA HORA SE PUEDE AGARRAR ─────────────────────────────────── */
+
+di();
+di('11. UN TURNO DE UNA HORA MIDE 5 PÍXELES. ¿SE PUEDE COGER?');
+di('    Marco, miércoles 21:00–22:00 (el peor caso geométrico, ley 15).');
+
+await ir();
+
+{
+    const cortas = await page.$$eval(
+        '[data-t=carril][data-persona="Marco Ruiz"] [data-t=barra][data-assignment-id]',
+        (e) => e.map((x) => ({ id: x.dataset.assignmentId, ancho: x.getBoundingClientRect().width })),
+    );
+
+    const corta = cortas.sort((a, b) => a.ancho - b.ancho)[0];
+
+    di(`      la barra más estrecha de Marco mide ${corta.ancho.toFixed(1)} px de ancho`);
+
+    ok('y es una barra de verdad estrecha (el caso peor está sembrado)', corta.ancho < 12,
+        `${corta.ancho.toFixed(1)} px`);
+
+    /*
+     * ⚠️ SE AGARRA DESDE EL RÓTULO, QUE MIDE ~100 px. Y agarra SU barra, no el carril.
+     *
+     * Este es el arreglo entero del punto: la barra sigue midiendo 5 px —no se ha inflado, porque
+     * su ancho ES el dato— y el asidero es el rótulo, que ya existía y que ya lleva la hora.
+     */
+    const rotulo = page.locator(`[data-rotulo-de="${corta.id}"]`).first();
+    const caja = await rotulo.boundingBox();
+
+    di(`      su rótulo mide ${caja.width.toFixed(0)} px`);
+
+    ok('el rótulo es un asidero ancho de verdad', caja.width > 60, `${caja.width.toFixed(0)} px`);
+
+    /*
+     * ⚠️ NO SE CUENTAN LAS BARRAS «CON SOMBRA». SE COMPARA EL ANTES CON EL DESPUÉS.
+     *
+     * Y la diferencia es la que casi me cuela un bug gravísimo: EL ANILLO DE GRAVEDAD **TAMBIÉN ES
+     * UN box-shadow** (dos franjas, arriba y abajo — ver `anilloDe` en useMatrizVisual). Contar
+     * «cuántas barras tienen sombra» mezclaba dos canales distintos en un solo número, y ese número
+     * no significaba nada.
+     *
+     * Midiendo el ANTES y el DESPUÉS, en cambio, se contestan las dos preguntas de verdad:
+     *
+     *   · ¿SOLO cambia la barra que señalo?              → el asidero no es ambiguo
+     *   · ¿la barra resaltada CONSERVA su anillo?        → el hover no borra la alarma
+     *
+     * Y la segunda es la que cazó el bug: la sombra del hover SOBRESCRIBÍA la del anillo, así que
+     * pasar el ratón por encima de un turno imposible LE BORRABA EL ANILLO ROJO. Un silencio falso
+     * en el canal más importante que tiene la app, causado por un efecto de ratón.
+     */
+    const sombrasDe = () => page.$$eval(
+        '[data-t=carril][data-persona="Marco Ruiz"] [data-t=barra]',
+        (e) => Object.fromEntries(e.map((x) => [x.dataset.assignmentId, getComputedStyle(x).boxShadow])),
+    );
+
+    const antesDelHover = await sombrasDe();
+
+    await page.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+    await page.waitForTimeout(300);
+
+    const conHover = await sombrasDe();
+
+    const cambiadas = Object.keys(conHover).filter((id) => conHover[id] !== antesDelHover[id]);
+
+    ok('al pasar el ratón por el rótulo, SU barra se resalta', cambiadas.includes(corta.id),
+        cambiadas.length ? `cambió ${cambiadas.join(', ')}` : 'no cambió ninguna');
+
+    ok('y SOLO la suya: no se ilumina el carril entero', cambiadas.length === 1,
+        `${cambiadas.length} barras cambiaron`);
+
+    /*
+     * ⚠️ Y EL ANILLO SIGUE AHÍ. Marco tiene un AVISO ámbar ese día, así que su barra lleva anillo:
+     * la sombra del hover tiene que SUMARSE a la del anillo, no sustituirla.
+     */
+    const anillo = antesDelHover[corta.id];
+    const conservaElAnillo = anillo === 'none' || conHover[corta.id].includes(anillo);
+
+    ok('y el hover NO le borra el anillo de gravedad', conservaElAnillo,
+        anillo === 'none' ? 'esa barra no tenía anillo' : conHover[corta.id].slice(0, 60));
+
+    await foto('11-agarre-rotulo');
+
+    await page.mouse.move(10, 10);
+    await page.waitForTimeout(200);
+
+    // Y ahora se arrastra DESDE EL RÓTULO hasta otro día.
+    const antes = await barras();
+    const hasta = await centroDeCelda(1, dia(6));   // Barra, domingo
+
+    await arrastrar({ x: caja.x + caja.width / 2, y: caja.y + caja.height / 2 }, hasta);
+    await page.waitForTimeout(2500);
+
+    const movida = await page.$eval(
+        `[data-t=barra][data-assignment-id="${corta.id}"]`,
+        (e) => e.closest('[data-celda-destino]')?.dataset.date,
+    ).catch(() => null);
+
+    ok('se ha movido arrastrando DESDE EL RÓTULO', movida === dia(6), movida ?? 'no se movió');
+    ok('y no se ha duplicado ni perdido nada', await barras() === antes, `${await barras()} (antes ${antes})`);
+}
+
+/* ── 12. CLIC SIN MOVER → LAS HORAS ────────────────────────────────────────────── */
+
+di();
+di('12. PULSAR Y SOLTAR SIN MOVER: se abre el popover con las horas ACTUALES.');
+di('    (Y arrastrar 6 px para estirar la barra está DESCARTADO: 6 px = 1 hora. Lotería.)');
+
+await ir();
+
+{
+    const iker = await page.$$eval(
+        '[data-t=carril][data-persona="Iker Blanco"] [data-t=barra][data-assignment-id]',
+        (e) => e.map((x) => x.dataset.assignmentId),
+    );
+
+    const desde = await centroDeBarra(iker[0]);
+
+    // Pulsar y soltar EN EL SITIO. Ni un píxel: es un clic.
+    await page.mouse.move(desde.x, desde.y);
+    await page.mouse.down();
+    await page.waitForTimeout(120);
+    await page.mouse.up();
+    await page.waitForTimeout(800);
+
+    ok('se abre el popover de horas', await popover().isVisible().catch(() => false));
+    ok('y está en modo EDITAR', await popover().getAttribute('data-modo') === 'editar');
+
+    const start = await page.locator('[data-t=start]').inputValue();
+    const end = await page.locator('[data-t=end]').inputValue();
+
+    di(`      trae las horas que tiene: ${start}–${end}`);
+
+    ok('y trae las horas ACTUALES rellenas', start === '12:00' && end === '20:00', `${start}–${end}`);
+
+    // ⚠️ Sin cambiar nada, no hay nada que guardar (y guardar borraría el override).
+    ok('el botón está bloqueado si no se cambia nada', await page.locator('[data-t=colocar]').isDisabled());
+
+    await page.locator('[data-t=end]').fill('18:00');
+    await page.waitForTimeout(1000);
+
+    const sev = await page.locator('[data-t=previsualizacion]').getAttribute('data-severidad');
+
+    // ⚠️ Si el turno se comparara consigo mismo, esto daría SOLAPE IMPOSIBLE. No lo da.
+    ok('la previsualización NO se compara consigo misma (no da solape)', sev !== 'impossible', sev ?? 'limpio');
+
+    await foto('12-editar-horas');
+
+    await page.locator('[data-t=colocar]').click();
+    await page.waitForTimeout(2500);
+
+    const label = await page.$eval(
+        `[data-t=barra][data-assignment-id="${iker[0]}"]`,
+        (e) => e.closest('[data-t=carril]').querySelector('[data-t=rotulo] .tabular')?.innerText,
+    ).catch(() => null);
+
+    ok('y las horas se han guardado', /12:00.*18:00/s.test(label ?? ''), label ?? 'no se leyó');
+
+    const aviso = await page.locator('[data-t=aviso-texto]').first().innerText().catch(() => '');
+
+    di(`      «${aviso}»`);
+
+    ok('y el aviso dice el cambio', /12:00/.test(aviso) && /18:00/.test(aviso), aviso.slice(0, 70));
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */

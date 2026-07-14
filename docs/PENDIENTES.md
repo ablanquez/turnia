@@ -74,6 +74,14 @@ Dice "4 turnos con incidencias · 4 tramos sin cubrir · 1 aviso de catálogo" y
 llevar a algún sitio** — un panel, un modal, un filtro que salte a las celdas afectadas.
 Falta decidir cuál. **Se decidirá**, no se improvisa.
 
+### El aviso de «lo que acaba de pasar» tapa la esquina inferior izquierda
+
+Va abajo a la izquierda —a la derecha está el panel de plantilla, del que se arrastra— y por encima
+de la papelera, para no estorbar el gesto. Pero **mientras está visible tapa una o dos celdas de la
+última fila**. Tiene botón de cerrar y se va solo a los 6 segundos (12 si lleva «deshacer»), así que
+de momento pasa. Si algún día molesta, la salida es una franja propia, no moverlo a otra esquina:
+todas las esquinas tienen dueño.
+
 ### Páginas de error propias (400 / 403 / 404 / 500)
 
 Como en Linaje. Va en el bloque de endurecimiento.
@@ -141,9 +149,19 @@ seeder no lo siembra o **el servidor se está callando un dato**.
 
 Ver `docs/ESCRIBIR.md` §8. Lo que **no** entra, y a propósito:
 
-- **Redimensionar el turno estirando el borde.** Gesto propio, geometría propia, previsualización
-  propia. Tanda propia.
-- **Deshacer / rehacer.** Necesita un modelo de historial que no existe.
+- **Redimensionar el turno estirando el borde — SOLO TENDRÍA SENTIDO EN EL ZOOM DÍA.**
+
+  En la Semana la columna mide ~150 px para 24 horas: **6 píxeles por hora**. Estirar de 20:00 a
+  21:00 exigiría mover el ratón **exactamente 6 px**, y —peor— **se acertaría por error**: un
+  temblor cambiaría un turno sin que nadie lo pidiera. **Descartado, y no por tiempo.** Las horas se
+  cambian escribiéndolas (clic sin mover → popover), que es inequívoco. Ver `ESCRIBIR.md` §9.
+
+  En el **zoom Día** son ~42 px/hora y el gesto sí sería viable. Si algún día se quiere, es ahí — y
+  con su geometría, su previsualización y su instrumento propios.
+
+- **Deshacer / rehacer EN GENERAL.** Quitar ya se puede deshacer (el aviso lleva el botón, y no
+  restaura la fila: **la vuelve a colocar por el candado**). Un historial de verdad —deshacer un
+  movimiento, encadenar varios pasos— necesita un modelo que no existe.
 - **Editar conceptos horarios y ausencias.** Tienen OTRAS reglas (un concepto cuelga de un catálogo,
   una baja consume cupo). Dejarlos arrastrar «porque están ahí» sería escribir una tabla con las
   reglas de otra.

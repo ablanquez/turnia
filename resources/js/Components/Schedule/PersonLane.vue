@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { BRAND_DARK, severityColor, severityIcon, worst } from '../../composables/useSeverity.js';
 import { ANILLO_MAX, agruparNotas, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
@@ -24,6 +24,43 @@ const editable = computed(() => !! edicion);
  */
 const arrastrable = (p) => editable.value && p.block.kind === 'shift';
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️ UN TURNO DE UNA HORA MIDE **5 PÍXELES**. AGARRAR ESO CON EL RATÓN ES UNA LOTERÍA.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Y la salida fácil —«que se pueda coger el carril entero»— ESTÁ MAL, y está mal por una razón que
+ * es la de siempre en este proyecto:
+ *
+ *     LO QUE SE ARRASTRA ES **UN TURNO**, NO UNA PERSONA.
+ *
+ * Lucía tiene 09:00–13:00 y 17:00–21:00. Si al pasar el ratón se iluminara TODO su carril, la
+ * pregunta «¿cuál de los dos voy a mover?» no tendría respuesta en la pantalla. Un asidero que no
+ * dice qué agarra es peor que un asidero pequeño: el pequeño falla, el ambiguo ACIERTA MAL.
+ *
+ * LA SALIDA ES AMPLIAR EL ASIDERO SIN AMPLIAR LA BARRA:
+ *
+ *   · EL RÓTULO DE ESE TURNO TAMBIÉN AGARRA. Y el rótulo mide ~100 px de ancho. Como cada barra
+ *     tiene YA su propio rótulo (ley 8: cada turno lleva su hora), cada rótulo agarra SU barra. Sin
+ *     ambigüedad, y sin inventarse nada nuevo en la pantalla.
+ *   · AL PASAR EL RATÓN, LA BARRA Y SU RÓTULO SE RESALTAN **JUNTOS**. Eso es lo que contesta a
+ *     «¿cuál de los dos?» antes de pulsar, no después.
+ *   · Y la barra lleva un margen de agarre invisible ARRIBA Y ABAJO (ver `data-t="agarre"`).
+ */
+const encima = ref(null);
+
+const señalar = (p) => {
+    if (arrastrable(p)) {
+        encima.value = p.key;
+    }
+};
+
+const soltarSeñal = () => {
+    encima.value = null;
+};
+
+const resaltado = (p) => encima.value === p.key;
+
 const coger = (e, p) => {
     if (! arrastrable(p)) {
         return;
@@ -32,9 +69,16 @@ const coger = (e, p) => {
     edicion.cogerBarra(e, { assignment: p.block, person: props.person });
 };
 
+/**
+ * ⚠️ LA PERSONA VA EN LA LLAMADA, Y NO SOBRA: SIN ELLA EL AVISO DECÍA «EL TURNO QUITADO DE BARRA».
+ *
+ * Sin sujeto. En la única operación DESTRUCTIVA que tiene la aplicación, y en el aviso que lleva el
+ * botón de deshacer. Quitar por la papelera sí decía el nombre (el arrastre lleva la persona en la
+ * carga); quitar con Supr, no — el mismo hecho contado de dos maneras, según el gesto. Ley 8.
+ */
 const supr = (p) => {
     if (arrastrable(p)) {
-        edicion.quitar(p.block);
+        edicion.quitar(p.block, props.person);
     }
 };
 
@@ -141,8 +185,18 @@ const repartidos = computed(() => {
  *
  * Y el `padding` no sirve aquí: un hijo posicionado en absoluto se coloca contra la caja de
  * relleno, así que el padding NO lo desplaza. Hay que sumarlo al `top` a mano.
+ *
+ * ⚠️ Y LLEVA 4 px MÁS: EL SITIO DE LA SOMBRA DEL HOVER.
+ *
+ * La pista recorta lo que se sale (`overflow-hidden`), así que sin este margen la sombra que dice
+ * «esta es la barra que vas a coger» aparecería MEDIO CORTADA justo por arriba y por abajo — que es
+ * donde se ve. Es la misma lección del anillo, otra vez: si un canal vive fuera de la barra, hay que
+ * darle el sitio, o el recorte se lo come en silencio.
+ *
+ * (Esto NO toca la paleta: AIRE y HUECO no cambian ni un píxel DENTRO de la barra, y la paleta se
+ * calcula sobre el alto, las franjas, la trama y el fondo de la pista. Ver la ley 16.)
  */
-const AIRE = ANILLO_MAX;
+const AIRE = ANILLO_MAX + 4;
 
 const altoPista = computed(() => {
     const n = repartidos.value.subcarriles;
@@ -178,17 +232,62 @@ const tambienEnOtraEmpresa = computed(() => props.blocks
  */
 const notas = computed(() => agruparNotas(pintados.value.flatMap((p) => p.notas)));
 
-const barraStyle = (p) => ({
-    ...p.relleno,
-    position: 'absolute',
-    left: `${p.block.left}%`,
-    width: `${p.block.width}%`,
-    top: `${AIRE + (p.block.subcarril ?? 0) * (ALTO + HUECO)}px`,
-    height: `${ALTO}px`,
-    // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
-    minWidth: '3px',
-    borderRadius: '3px',
-});
+/**
+ * ⚠️ EL RESALTADO DEL HOVER NO PUEDE USAR NINGÚN CANAL DE LA MATRIZ, Y NO LO USA.
+ *
+ * Relleno (identidad), densidad (cuánto cuenta), anillo (gravedad), borde (turno/concepto), muesca
+ * (forzado) y filo (medianoche) están todos ocupados. Tocar cualquiera de ellos para decir «tienes
+ * el ratón encima» sería inventarse un séptimo significado dentro de un canal que ya tiene uno.
+ *
+ * Se usa una SOMBRA PROYECTADA, difuminada y con desplazamiento. No se confunde con el anillo —que
+ * son dos franjas nítidas, sin desenfoque— y dice justo lo que hay que decir: «esta barra está
+ * levantada, se puede coger». Es el mismo lenguaje que el fantasma.
+ *
+ * ⚠️ Y LA BARRA NO SE MUEVE NI UN PÍXEL. Su posición es el EJE DEL TIEMPO: levantarla, agrandarla o
+ * desplazarla para «darle vidilla» sería mentir sobre la hora a la que empieza.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ Y ESTO CASI BORRA LA ALARMA. LO CAZÓ EL INSTRUMENTO, NO YO.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ *
+ * EL ANILLO DE GRAVEDAD **ES UN `box-shadow`** (dos franjas, arriba y abajo — ver `anilloDe`). La
+ * primera versión de esto ponía `boxShadow: SOMBRA_HOVER` en el objeto de estilo, DESPUÉS de
+ * `...p.relleno`. En JavaScript eso no compone: **SOBRESCRIBE**.
+ *
+ *     Resultado: pasar el ratón por encima de un turno IMPOSIBLE **le borraba el anillo rojo**.
+ *
+ * Un silencio falso, en el canal más importante que tiene la aplicación, causado por un efecto de
+ * ratón. Y no se ve leyendo el código: se ve porque `arrastrar.mjs` contó DOS barras con sombra
+ * donde debía haber una, y al ir a mirar por qué, la razón era esta.
+ *
+ * Por eso el hover **se concatena** con lo que ya hubiera. Y el anillo va PRIMERO: en una lista de
+ * sombras, la primera se pinta encima.
+ */
+const SOMBRA_HOVER = '0 3px 9px -1px rgb(30 26 60 / 60%)';
+
+const barraStyle = (p) => {
+    const base = {
+        ...p.relleno,
+        position: 'absolute',
+        left: `${p.block.left}%`,
+        width: `${p.block.width}%`,
+        top: `${AIRE + (p.block.subcarril ?? 0) * (ALTO + HUECO)}px`,
+        height: `${ALTO}px`,
+        // Un turno de media hora sigue siendo un turno: por estrecho que sea, se ve.
+        minWidth: '3px',
+        borderRadius: '3px',
+    };
+
+    if (! resaltado(p)) {
+        return base;
+    }
+
+    return {
+        ...base,
+        boxShadow: base.boxShadow ? `${base.boxShadow}, ${SOMBRA_HOVER}` : SOMBRA_HOVER,
+        zIndex: 2,
+    };
+};
 
 /** La muestra del rótulo usa EXACTAMENTE el mismo relleno que su barra. Por eso se emparejan. */
 const muestraStyle = (p) => ({
@@ -252,11 +351,32 @@ const title = computed(() => {
             para saber QUIÉN está CUÁNDO, un horario sin dueño no es información: es un acertijo.
         -->
         <div class="ml-[7px] mt-[3px] border-l-2 pl-[9px]" :style="{ borderColor: person.color }">
+            <!--
+                ⚠️ EL RÓTULO ES UN ASIDERO. Y por eso el turno de una hora se puede coger.
+
+                La barra mide 5 px de ancho; esto mide 100. Y agarra EXACTAMENTE su barra —no el
+                carril, no la persona— porque cada turno tiene su propio rótulo con su propia hora.
+
+                Se resalta a la vez que su barra (fondo índigo claro + la sombra de allí): antes de
+                pulsar ya se ve CUÁL de los dos turnos de Lucía se va a mover.
+
+                ⚠️ El atributo es `data-rotulo-de`, y **NO** `data-assignment-id`. Casi me cuesta el
+                instrumento: `arrastrar.mjs` localiza una barra con `[data-assignment-id="7"]` y coge
+                la PRIMERA. Si el rótulo llevara ese mismo atributo, la primera pasaría a ser el
+                rótulo —va antes en el DOM— y el test se creería que agarra la barra mientras agarra
+                otra cosa. Habría seguido pasando en verde, midiendo lo que no era.
+            -->
             <div
                 v-for="p in pintados"
                 :key="p.key"
                 data-t="rotulo"
-                class="mt-[4px] flex items-start gap-[5px] first:mt-0"
+                :data-rotulo-de="p.block.kind === 'shift' ? p.block.id : null"
+                class="-mx-[4px] mt-[4px] flex items-start gap-[5px] rounded px-[4px] py-[1px] transition-colors first:mt-0"
+                :class="arrastrable(p) ? 'cursor-grab active:cursor-grabbing touch-none' : ''"
+                :style="resaltado(p) ? { background: 'rgb(127 119 221 / 14%)' } : null"
+                @pointerenter="señalar(p)"
+                @pointerleave="soltarSeñal"
+                @pointerdown="coger($event, p)"
             >
                 <span class="relative mt-[4px] block" :style="muestraStyle(p)">
                     <span
@@ -305,6 +425,35 @@ const title = computed(() => {
                     que es el canal de identidad (ley 2). Así que quitar tiene DOS caminos: la
                     papelera que aparece al arrastrar, y la tecla Supr con la barra enfocada — que es
                     el camino sin ratón, y el que un lector de pantalla puede recorrer.
+
+                    ═══════════════════════════════════════════════════════════════════════════════
+                    ⚠️⚠️ EL MARGEN DE AGARRE ES UN **PSEUDO-ELEMENTO**, Y ESO NO ES UN DETALLE DE CSS.
+                    ═══════════════════════════════════════════════════════════════════════════════
+
+                    `before:-inset-y-1` amplía el área de puntero 4 px arriba y 4 abajo: la barra
+                    mide 16 px de alto y se agarra en una franja de 24.
+
+                    LO PRIMERO QUE ESCRIBÍ FUE UN `<span>` HIJO CON ESE MISMO INSET. Y CEGÓ A LOS
+                    INSTRUMENTOS. `pixel.mjs` busca un punto de la barra donde no haya ningún hijo
+                    encima —para no medir el color de una letra o de la muesca en vez del relleno—:
+
+                        const hijos = [...el.children].map((c) => c.getBoundingClientRect());
+
+                    Un hijo que cubre el 100 % del ancho hace que NO EXISTA ningún punto libre. La
+                    barra se descartaba entera, y con ella el anillo, la trama y la identidad. Medido:
+                    `anchos.mjs` pasó de 24 barras con anillo a **CERO**. Las diez leyes de la matriz
+                    visual dejaron de comprobarse — en silencio, sobre una página que se veía bien.
+
+                    Un pseudo-elemento NO está en `children` y `elementFromPoint` lo atribuye a su
+                    anfitrión, así que amplía el agarre sin taparle la cara a nadie.
+
+                    ⚠️ Y SOLO ARRIBA Y ABAJO, NUNCA A LOS LADOS. Es la ley 16 otra vez: la distancia
+                    entre dos barras de la misma persona NO es una constante, es TIEMPO convertido a
+                    píxeles. Los dos turnos de Marco (20:00 y 21:00) distan 1 hora ≈ 6 px. Un margen
+                    lateral de 4 px por lado se comería ese hueco, las dos zonas de agarre se
+                    pisarían, y pulsar en medio cogería la barra que decidiera el orden del DOM. Un
+                    asidero que a veces agarra el turno de al lado no es cómodo: MIENTE. Para el
+                    ancho está el rótulo, que mide 100 px y nunca se confunde de barra.
                 -->
                 <div
                     v-for="p in pintados"
@@ -312,9 +461,13 @@ const title = computed(() => {
                     data-t="barra"
                     :data-assignment-id="p.block.kind === 'shift' ? p.block.id : null"
                     :style="barraStyle(p)"
-                    :class="arrastrable(p) ? 'cursor-grab active:cursor-grabbing touch-none' : ''"
+                    :class="arrastrable(p)
+                        ? 'cursor-grab active:cursor-grabbing touch-none before:absolute before:inset-x-0 before:-inset-y-1 before:content-[\'\']'
+                        : ''"
                     :tabindex="arrastrable(p) ? 0 : null"
-                    :aria-label="arrastrable(p) ? `${person.name}, ${p.rotulo.hora}. Arrastra para mover, Supr para quitar.` : null"
+                    :aria-label="arrastrable(p) ? `${person.name}, ${p.rotulo.hora}. Arrastra para mover, pulsa para cambiar las horas, Supr para quitar.` : null"
+                    @pointerenter="señalar(p)"
+                    @pointerleave="soltarSeñal"
                     @pointerdown="coger($event, p)"
                     @keydown.delete.prevent="supr(p)"
                     @keydown.backspace.prevent="supr(p)"

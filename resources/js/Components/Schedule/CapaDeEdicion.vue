@@ -1,14 +1,16 @@
 <script setup>
 import { inject } from 'vue';
+import Avisos from './Avisos.vue';
 import DialogoDecision from './DialogoDecision.vue';
-import PopoverColocar from './PopoverColocar.vue';
+import PopoverHoras from './PopoverHoras.vue';
 
 /**
  * TODO LO QUE FLOTA POR ENCIMA DE LA PARRILLA MIENTRAS SE EDITA.
  *
- * El fantasma (lo que llevas en la mano), la papelera, el popover de horas y el diálogo de decisión.
- * Vive en la página y no dentro de la rejilla porque nada de esto pertenece a una celda: pertenece
- * al GESTO, y el gesto empieza en el panel y acaba en la rejilla.
+ * El fantasma (lo que llevas en la mano), la papelera, el popover de horas, el diálogo de decisión y
+ * los avisos de lo que acaba de pasar. Vive en la página y no dentro de la rejilla porque nada de
+ * esto pertenece a una celda: pertenece al GESTO, y el gesto empieza en el panel y acaba en la
+ * rejilla.
  *
  * Si el que mira no puede gestionar, `edicion` es `null` y aquí no se pinta absolutamente nada.
  */
@@ -61,8 +63,9 @@ const edicion = inject('edicion', null);
             </span>
         </div>
 
-        <PopoverColocar
+        <PopoverHoras
             :abierto="!! edicion.colocando.value"
+            :modo="edicion.colocando.value?.modo ?? 'colocar'"
             :persona="edicion.colocando.value?.persona"
             :celda="edicion.colocando.value?.celda"
             :sugerido="edicion.sugerido.value"
@@ -70,7 +73,7 @@ const edicion = inject('edicion', null);
             :ocupado="edicion.ocupado.value"
             @cerrar="edicion.cerrarPopover"
             @cambiar="edicion.previsualizarPopover"
-            @colocar="edicion.confirmarColocar"
+            @confirmar="edicion.confirmarPopover"
         />
 
         <DialogoDecision
@@ -79,6 +82,18 @@ const edicion = inject('edicion', null);
             :cuando="edicion.decision.value?.cuando ?? ''"
             @cerrar="edicion.cerrarDecision"
             @forzar="edicion.forzar"
+        />
+
+        <!--
+            LO QUE ACABA DE PASAR. Y con él, lo que la acción ROMPIÓ EN OTRA CELDA.
+
+            Va el último para quedar por encima de la papelera, y por debajo de los dos diálogos
+            (z-40 contra z-50): un aviso nunca puede tapar una decisión.
+        -->
+        <Avisos
+            :avisos="edicion.avisos"
+            @cerrar="edicion.cerrarAviso"
+            @deshacer="(a) => { edicion.cerrarAviso(a.id); a.deshacer(); }"
         />
     </template>
 </template>
