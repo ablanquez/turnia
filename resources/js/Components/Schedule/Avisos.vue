@@ -43,6 +43,7 @@ const tonoDe = (t) => TONO[t] ?? TONO.ok;
             :key="a.id"
             data-t="aviso"
             :data-tono="a.tono"
+            :data-comparado="a.comparado ? 'si' : 'no'"
             class="pointer-events-auto overflow-hidden rounded-xl bg-card shadow-[0_10px_36px_-8px_rgb(30_26_60/40%)]"
             :style="{ borderLeft: `4px solid ${tonoDe(a.tono).fill}` }"
         >
@@ -60,14 +61,6 @@ const tonoDe = (t) => TONO[t] ?? TONO.ok;
                     >{{ a.texto }}</div>
 
                     <!--
-                        ⚠️ EL DAÑO COLATERAL. Llega DESPUÉS, porque el informe llega después.
-
-                        No es una gravedad del turno que acabas de escribir: es un HECHO de otra
-                        celda. Por eso va en ámbar de aviso —«mira ahí»— y no en el rojo del
-                        imposible ni en el naranja del incumplimiento. Reusar esos dos aquí sería
-                        decir que este turno incumple algo, y no incumple nada.
-                    -->
-                    <!--
                         ⚠️ EL HUECO SE RESERVA, Y SE RESERVA DICIENDO LA VERDAD.
 
                         El colateral tarda ~900 ms (el informe es diferido). Sin esto, la tarjeta
@@ -78,14 +71,45 @@ const tonoDe = (t) => TONO[t] ?? TONO.ok;
                         v-if="a.comprobando"
                         data-t="aviso-comprobando"
                         class="mt-1.5 break-words text-[10.5px] font-semibold leading-snug text-ink-faint"
-                    >⋯ comprobando si esto ha roto algo en otra celda</div>
+                    >⋯ comprobando si esto ha cambiado algo en otra celda</div>
 
-                    <div
-                        v-else-if="a.detalle"
-                        data-t="aviso-colateral"
-                        class="mt-1.5 break-words text-[10.5px] font-semibold leading-snug"
-                        :style="{ color: severityColor('notice') }"
-                    >↗ {{ a.detalle }}</div>
+                    <!--
+                        ⚠️ TODO LO QUE TU ACCIÓN HA CAMBIADO. LO MALO **Y** LO BUENO.
+
+                        Lo MALO va en ámbar de aviso —«mira ahí»— y no en el rojo del imposible ni en
+                        el naranja del incumplimiento: no es una gravedad del turno que acabas de
+                        escribir, es un HECHO de otra celda. Reusar esos dos aquí sería decir que este
+                        turno incumple algo, y no incumple nada.
+
+                        Y lo BUENO va en verde, porque **también es consecuencia de tu acción**. Un
+                        sistema que solo cuenta las malas noticias enseña a temer los cambios.
+                    -->
+                    <template v-else-if="a.delta">
+                        <div
+                            v-for="(linea, i) in a.delta.malas"
+                            :key="`m${i}`"
+                            data-t="aviso-colateral"
+                            data-tipo="mala"
+                            class="mt-1.5 break-words text-[10.5px] font-semibold leading-snug"
+                            :style="{ color: severityColor('notice') }"
+                        >↗ Ojo: {{ linea }}</div>
+
+                        <div
+                            v-for="(linea, i) in a.delta.buenas"
+                            :key="`b${i}`"
+                            data-t="aviso-colateral"
+                            data-tipo="buena"
+                            class="mt-1.5 break-words text-[10.5px] font-semibold leading-snug"
+                            :style="{ color: OK_TEXT }"
+                        >✓ {{ linea }}</div>
+
+                        <!-- ⚠️ NUNCA UN RECORTE SILENCIOSO: si algo no cabe, se dice cuánto. -->
+                        <div
+                            v-if="a.delta.mas"
+                            data-t="aviso-mas"
+                            class="mt-1 text-[10.5px] font-bold text-ink-faint"
+                        >… y {{ a.delta.mas }} cambio{{ a.delta.mas > 1 ? 's' : '' }} más</div>
+                    </template>
 
                     <button
                         v-if="a.deshacer"

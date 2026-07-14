@@ -1,7 +1,8 @@
 import { computed, ref, watch } from 'vue';
 import { useArrastre } from './useArrastre.js';
 import { useEscritura } from './useEscritura.js';
-import { huecosNuevos, huecosPorCelda, useAvisos } from './useAvisos.js';
+import { delta, fotoDelInforme, useAvisos } from './useAvisos.js';
+import { shortText } from './useSeverity.js';
 
 /**
  * LA CAPA QUE EDITA. Une el arrastre (useArrastre) con la escritura (useEscritura) y no hace más.
@@ -31,10 +32,10 @@ import { huecosNuevos, huecosPorCelda, useAvisos } from './useAvisos.js';
  * Los tres acaban en el MISMO sitio: previsualización en vivo → confirmar → CANDADO. No hay un
  * cuarto mecanismo escondido en ninguno.
  */
-export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
+export function useEdicion(company, calendar, { ventana, puestos, coverage, violations, turnos, gente }) {
     const arrastre = useArrastre();
     const api = useEscritura(company, calendar);
-    const { avisos, avisar, añadirDetalle, cerrar: cerrarAviso } = useAvisos();
+    const { avisos, avisar, contarCambios, cerrar: cerrarAviso } = useAvisos();
 
     // El diálogo de «no puedo» / «¿fuerzas?». null = no hay nada que decidir.
     const decision = ref(null);
@@ -62,51 +63,49 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
 
     const donde = (positionId, date) => `${puestoDe(positionId)?.name ?? 'el puesto'} · ${nombreDelDia(date)}`;
 
-    /* ── EL DAÑO COLATERAL: SE MIDE, NO SE PREDICE ─────────────────────────────── */
+    const nombreDe = (personId) => gente().find((p) => p.id === personId)?.name ?? 'Alguien';
+
+    /* ── EL COLATERAL: SE MIDE, NO SE PREDICE ──────────────────────────────────── */
 
     /*
-     * ⚠️ MOVER UN TURNO PUEDE ROMPER OTRO, Y EN UNA CELDA QUE NO ESTÁS MIRANDO.
+     * ⚠️ TU ACCION CAMBIA COSAS EN CELDAS QUE NO ESTAS MIRANDO. **TODAS** ELLAS.
      *
-     * Aquí se guarda la foto de los huecos de ANTES y el aviso al que hay que colgarle la noticia.
-     * El informe es diferido (719 ms), así que la comparación no puede hacerse en el momento de
-     * escribir: se hace cuando el informe vuelve. Ver el `watch` de abajo.
+     * Aqui se guarda la foto del informe de ANTES y el aviso al que hay que colgarle la noticia. El
+     * informe es diferido (719 ms), asi que la comparacion no puede hacerse al escribir: se hace
+     * cuando el informe vuelve. Ver el `watch` de abajo.
+     *
+     * ⚠️ Y `excluir` es el turno que acabas de tocar: lo que le pasa a EL ya te lo dijo el candado
+     * a la cara. Colateral es lo que le pasa a los DEMAS.
      */
     let colateral = null;
 
-    watch(coverage, (nueva) => {
-        // La prop diferida pasa por `undefined` mientras se recarga. Eso no es «no hay huecos».
-        if (! colateral || ! nueva) {
+    /*
+     * ⚠️ SE VIGILAN LAS **DOS** PROPS DIFERIDAS, NO SOLO LA COBERTURA.
+     *
+     * `violations` y `coverage` viajan en el MISMO grupo diferido -- llegan juntas -- pero Vue las
+     * entrega como dos props distintas. Vigilar solo una y leer la otra funcionaba POR SUERTE: el
+     * dia que el orden cambie, la foto se tomaria con media verdad.
+     */
+    watch([coverage, violations], ([cov, vio]) => {
+        // Las props diferidas pasan por `undefined` mientras se recargan. Eso NO es "no hay nada".
+        if (! colateral || ! cov || ! vio) {
             return;
         }
 
-        const { avisoId, antes } = colateral;
+        const { avisoId, antes, excluir } = colateral;
 
         colateral = null;
 
-        const rotos = huecosNuevos(antes, huecosPorCelda(nueva));
-
-        // ⚠️ Aunque NO haya roto nada, hay que apagar el «comprobando…»: si no, el aviso se quedaría
-        // diciendo que sigue mirando algo que ya ha terminado de mirar.
-        if (! rotos.length) {
-            añadirDetalle(avisoId, null);
-
-            return;
-        }
-
-        // Nada se resume en «hay 3 celdas afectadas»: se dicen las celdas. Un número sin sujeto no
-        // se puede ir a mirar.
-        const celdas = rotos.map((r) => donde(r.positionId, r.date));
-
-        añadirDetalle(
-            avisoId,
-            celdas.length === 1
-                ? `Ojo: ahora queda un hueco sin cubrir en ${celdas[0]}.`
-                : `Ojo: ahora quedan huecos sin cubrir en ${celdas.join(', y en ')}.`,
-        );
+        contarCambios(avisoId, delta(antes, foto(), {
+            nombreDe,
+            donde,
+            corto: shortText,
+            excluir,
+        }));
     });
 
-    /** La foto de los huecos justo antes de escribir. `null` si el informe aún no había llegado. */
-    const fotoDeHuecos = () => huecosPorCelda(coverage());
+    /** La foto del informe AHORA. `null` si el informe todavia no habia llegado. */
+    const foto = () => fotoDelInforme(coverage(), violations(), turnos());
 
     /* ── LO QUE SE ARRASTRA ────────────────────────────────────────────────────── */
 
@@ -334,7 +333,7 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
      * puede permitir uno.
      */
     const quitar = async (assignment, persona) => {
-        const antes = fotoDeHuecos();
+        const antes = foto();
 
         ocupado.value = true;
 
@@ -388,7 +387,14 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
             deshacer: () => devolver(rehacer, persona),
         });
 
-        colateral = { avisoId, antes };
+        /*
+         * ⚠️ EL TURNO QUE ACABAS DE BORRAR TAMPOCO ES UN COLATERAL.
+         *
+         * Al quitarlo desaparecen SUS violaciones, y sin esta linea el aviso cantaria "Iker ya no
+         * tiene un solape imposible" como si fuera una buena noticia inesperada. Lo es, pero es
+         * TRIVIAL: acabas de borrar el turno tu mismo. Colateral es lo que le pasa a los DEMAS.
+         */
+        colateral = { avisoId, antes, excluir: assignment.id };
 
         api.repintar();
     };
@@ -417,7 +423,7 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
      * aplicación da. Un aviso que se va solo sirve para confirmar; no sirve para negar.
      */
     const escribir = async (llamada, { accion, persona, cuando, hecho }) => {
-        const antes = fotoDeHuecos();
+        const antes = foto();
 
         ocupado.value = true;
 
@@ -439,7 +445,7 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
                     : hecho,
             });
 
-            colateral = { avisoId, antes };
+            colateral = { avisoId, antes, excluir: r.assignmentId ?? null };
 
             /*
              * ⚠️ «IBAS A FORZAR Y, PARA CUANDO LLEGASTE, YA NO HACÍA FALTA.» Se dice.

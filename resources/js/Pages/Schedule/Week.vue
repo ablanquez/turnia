@@ -63,7 +63,18 @@ const props = defineProps({
 const edicion = useEdicion(props.company, props.calendar, {
     ventana: () => props.window,
     puestos: () => props.positions,
+    gente: () => props.people,
+    turnos: () => props.assignments,
+
+    /*
+     * ⚠️ LAS DOS PROPS DIFERIDAS, Y LAS DOS HACEN FALTA.
+     *
+     * El colateral no son solo los HUECOS (`coverage`): es TODO lo que tu accion ha cambiado -- un
+     * exceso nuevo, un tope semanal que salta en OTRA persona, un descanso roto en OTRA celda --, y
+     * eso vive en `violations`. Con solo la cobertura, el aviso contaba la mitad de la verdad.
+     */
     coverage: () => props.coverage,
+    violations: () => props.violations,
 });
 
 provide('edicion', props.can.manage ? edicion : null);
