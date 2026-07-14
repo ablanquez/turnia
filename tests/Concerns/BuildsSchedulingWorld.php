@@ -113,6 +113,9 @@ trait BuildsSchedulingWorld
         string $endLocal,
         ?string $endDate = null,
         ?int $ignoreAssignmentId = null,
+        // Ninguna regla lo mira, pero ESCRIBIR sí lo necesita. Va al final para no tocar los
+        // cientos de drafts que solo validan.
+        ?Calendar $calendar = null,
     ): AssignmentDraft {
         $company = $employment->company;
 
@@ -123,6 +126,7 @@ trait BuildsSchedulingWorld
             startsAt: $company->toUtc($workDate, $startLocal),
             endsAt: $company->toUtc($endDate ?? $workDate, $endLocal),
             ignoreAssignmentId: $ignoreAssignmentId,
+            calendarId: $calendar?->id,
         );
     }
 

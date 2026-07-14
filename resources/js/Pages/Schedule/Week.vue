@@ -1,13 +1,16 @@
 <script setup>
+import { provide } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import AvisoEstrecho from '../../Components/Schedule/AvisoEstrecho.vue';
 import CatalogueConflicts from '../../Components/Schedule/CatalogueConflicts.vue';
+import CapaDeEdicion from '../../Components/Schedule/CapaDeEdicion.vue';
 import Legend from '../../Components/Schedule/Legend.vue';
 import ScheduleHeader from '../../Components/Schedule/ScheduleHeader.vue';
 import WeekGrid from '../../Components/Schedule/WeekGrid.vue';
 import StaffPanel from '../../Components/Staff/StaffPanel.vue';
+import { useEdicion } from '../../composables/useEdicion.js';
 
-defineProps({
+const props = defineProps({
     company: { type: Object, required: true },
     calendar: { type: Object, required: true },
     window: { type: Object, required: true },
@@ -26,6 +29,31 @@ defineProps({
     violations: { type: Object, default: undefined },
     coverage: { type: Object, default: undefined },
 });
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ * LA CAPA QUE EDITA VIVE EN LA PÁGINA, Y NO EN LA REJILLA. Y no es una manía de arquitecto.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Un arrastre empieza en el PANEL DE PLANTILLA y acaba en la REJILLA. Son dos componentes hermanos:
+ * ninguno de los dos contiene al otro, así que ninguno de los dos puede ser el dueño del gesto. El
+ * único sitio que los tiene a los dos es la página.
+ *
+ * Se pasa por `provide` y no por props porque tendría que atravesar tres niveles (rejilla → celda →
+ * carril → barra) por componentes que no tienen NADA que decir sobre el arrastre.
+ *
+ * ⚠️ Y SI EL QUE MIRA NO PUEDE GESTIONAR, AQUÍ SE PROVEE `null`.
+ *
+ * No se «esconde el botón»: es que el gesto NO EXISTE para él. Las barras no se pueden coger, el
+ * panel no arranca nada, y la papelera no aparece. Y aun así, la Policy lo vuelve a decir en el
+ * servidor — porque una interfaz que no ofrece un gesto NO ES una autorización: es una cortesía.
+ */
+const edicion = useEdicion(props.company, props.calendar, {
+    window: props.window,
+    positions: props.positions,
+});
+
+provide('edicion', props.can.manage ? edicion : null);
 </script>
 
 <template>
@@ -76,5 +104,8 @@ defineProps({
                 :violations="violations ?? null"
             />
         </div>
+
+        <!-- El fantasma, la papelera y los dos diálogos. Todo lo que flota POR ENCIMA de la página. -->
+        <CapaDeEdicion />
     </AppLayout>
 </template>

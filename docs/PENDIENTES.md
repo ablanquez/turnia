@@ -137,6 +137,29 @@ seeder no lo siembra o **el servidor se está callando un dato**.
 
 ---
 
+## Lo que la tanda de ESCRIBIR deja abierto
+
+Ver `docs/ESCRIBIR.md` §8. Lo que **no** entra, y a propósito:
+
+- **Redimensionar el turno estirando el borde.** Gesto propio, geometría propia, previsualización
+  propia. Tanda propia.
+- **Deshacer / rehacer.** Necesita un modelo de historial que no existe.
+- **Editar conceptos horarios y ausencias.** Tienen OTRAS reglas (un concepto cuelga de un catálogo,
+  una baja consume cupo). Dejarlos arrastrar «porque están ahí» sería escribir una tabla con las
+  reglas de otra.
+- **Editar en el zoom Día.** Allí solo hay un día, así que el gesto principal —mover a otro día— no
+  existe. Lo que tendría sentido es ajustar las horas arrastrando el borde… que es lo que está fuera.
+
+Y lo que **no está probado**:
+
+- **La concurrencia con MÁS DE DOS escritores, y bajo carga sostenida.** Con dos navegadores está
+  medido y cerrado (`tests/Visual/concurrencia.mjs`). Con veinte, no.
+- **El arrastre CON EL DEDO.** Pointer Events lo soporta y `touch-none` está puesto, pero **no se ha
+  abierto en un móvil ni en una tableta**. Y la vista móvil del empleado sigue siendo otra tanda.
+- **El arrastre en Firefox y Safari.** Como todo lo demás: solo Chromium.
+
+---
+
 ## Despliegue
 
 ### `/public/build` está en `.gitignore` y Hostinger no tiene Node

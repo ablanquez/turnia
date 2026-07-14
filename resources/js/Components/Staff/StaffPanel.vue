@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { shortText } from '../../composables/useSeverity.js';
 import { alternarPanel, panelAbierto } from '../../composables/useStaffPanel.js';
 
@@ -15,6 +15,17 @@ import { alternarPanel, panelAbierto } from '../../composables/useStaffPanel.js'
  * Y lleva contadores de horas, que son dato laboral: "Sara lleva 42 de 40" es una
  * conversación entre Sara y su encargado, no un anuncio.
  */
+/**
+ * ⚠️ DESDE AQUÍ SE ARRASTRA UNA PERSONA A LA PARRILLA.
+ *
+ * Y si el que mira no puede gestionar, `edicion` es `null` y la ficha no se coge: el gesto NO EXISTE
+ * para él. No es que se le esconda un botón — es que no hay nada que coger. (Y la Policy lo vuelve a
+ * decir en el servidor, porque una interfaz que no ofrece un gesto no es una autorización.)
+ */
+const edicion = inject('edicion', null);
+
+const coger = (e, persona) => edicion?.cogerPersona(e, persona);
+
 const props = defineProps({
     staff: { type: Array, required: true },
     // Hacen falta para saber QUÉ turno es de QUIÉN al cruzar las violaciones.
@@ -188,7 +199,11 @@ const visibles = computed(() => {
         <div
             v-for="persona in visibles"
             :key="persona.employmentId"
+            data-t="ficha"
+            :data-persona="persona.name"
             class="bg-card flex flex-col gap-[7px] rounded-[9px] border border-line px-2.5 py-[9px] shadow-[0_1px_3px_-1px_rgb(40_36_80/10%)]"
+            :class="edicion ? 'cursor-grab touch-none select-none active:cursor-grabbing hover:border-brand-300' : ''"
+            @pointerdown="coger($event, persona)"
         >
             <div class="flex items-center gap-[9px]">
                 <span class="relative flex shrink-0">

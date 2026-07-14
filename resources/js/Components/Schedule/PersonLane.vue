@@ -1,8 +1,42 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import { BRAND_DARK, severityColor, severityIcon, worst } from '../../composables/useSeverity.js';
 import { ANILLO_MAX, agruparNotas, pintarBloque, tintaSobre, violacionesDe } from '../../composables/useMatrizVisual.js';
 import { gridEvery } from '../../composables/useAxis.js';
+
+/**
+ * LA BARRA SE PUEDE COGER, Y SE PUEDE QUITAR CON Supr.
+ *
+ * ⚠️ Y SI EL QUE MIRA NO PUEDE EDITAR, ESTO ES `null` Y AQUÍ NO PASA NADA. La rejilla no lo provee
+ * (ver WeekGrid): un empleado no arrastra nada, y no porque se le esconda el botón — porque el
+ * gesto no existe para él. La Policy lo vuelve a decir en el servidor, que es donde manda.
+ */
+const edicion = inject('edicion', null);
+
+const editable = computed(() => !! edicion);
+
+/**
+ * ⚠️ SOLO SE COGEN LOS TURNOS. Un concepto (una hora médica, una hora extra) NO se arrastra.
+ *
+ * No es una limitación: es que editar conceptos y ausencias es OTRA tanda, con sus propias reglas
+ * (un concepto cuelga de un catálogo, una baja consume cupo). Dejar que se arrastraran «porque
+ * están ahí» sería escribir una tabla con las reglas de otra.
+ */
+const arrastrable = (p) => editable.value && p.block.kind === 'shift';
+
+const coger = (e, p) => {
+    if (! arrastrable(p)) {
+        return;
+    }
+
+    edicion.cogerBarra(e, { assignment: p.block, person: props.person });
+};
+
+const supr = (p) => {
+    if (arrastrable(p)) {
+        edicion.quitar(p.block);
+    }
+};
 
 /**
  * UN CARRIL: una persona, dentro de un puesto, dentro de un día.
@@ -263,7 +297,28 @@ const title = computed(() => {
                     backgroundSize: gridEvery(axis, 6),
                 }"
             >
-                <div v-for="p in pintados" :key="p.key" data-t="barra" :style="barraStyle(p)">
+                <!--
+                    ⚠️ LA BARRA SE COGE, Y TAMBIÉN SE ENFOCA. Dos caminos, y el segundo no es adorno.
+
+                    Arrastrar es el gesto natural con ratón. Pero un botón «×» dentro de la barra NO
+                    cabe —un turno de una hora mide 5 px de ancho— y si cupiera taparía el relleno,
+                    que es el canal de identidad (ley 2). Así que quitar tiene DOS caminos: la
+                    papelera que aparece al arrastrar, y la tecla Supr con la barra enfocada — que es
+                    el camino sin ratón, y el que un lector de pantalla puede recorrer.
+                -->
+                <div
+                    v-for="p in pintados"
+                    :key="p.key"
+                    data-t="barra"
+                    :data-assignment-id="p.block.kind === 'shift' ? p.block.id : null"
+                    :style="barraStyle(p)"
+                    :class="arrastrable(p) ? 'cursor-grab active:cursor-grabbing touch-none' : ''"
+                    :tabindex="arrastrable(p) ? 0 : null"
+                    :aria-label="arrastrable(p) ? `${person.name}, ${p.rotulo.hora}. Arrastra para mover, Supr para quitar.` : null"
+                    @pointerdown="coger($event, p)"
+                    @keydown.delete.prevent="supr(p)"
+                    @keydown.backspace.prevent="supr(p)"
+                >
                     <!-- LA MUESCA: se forzó. Una decisión tomada, no un aviso desatendido. -->
                     <span
                         v-if="p.forzado"

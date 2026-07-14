@@ -26,6 +26,21 @@ final readonly class AssignmentDraft
         public CarbonImmutable $endsAt,
         /** Al MOVER una asignación existente, hay que ignorarla al comparar consigo misma. */
         public ?int $ignoreAssignmentId = null,
+        /**
+         * ⚠️ EL CALENDARIO NO LO USA NINGUNA REGLA, Y AUN ASÍ VIVE AQUÍ.
+         *
+         * Ninguna de las diez reglas lo mira: el solape y el descanso son de la PERSONA (cruzan
+         * calendarios y hasta empresas), y el tope de horas es del CONTRATO. Un turno no incumple
+         * nada por estar en un calendario o en otro.
+         *
+         * Pero ESCRIBIR sí lo necesita, y el draft es lo que viaja de la petición al candado. La
+         * alternativa —pasarlo por separado, al lado del draft— es peor: dos cosas que hay que
+         * mantener de acuerdo a mano, y el día que se desincronicen el turno acaba en el calendario
+         * equivocado sin que ninguna regla lo note.
+         *
+         * Va al final y con default nulo para no obligar a los cientos de drafts que solo validan.
+         */
+        public ?int $calendarId = null,
     ) {}
 
     /** Re-validar una asignación ya guardada: se ignora a sí misma. */
@@ -38,6 +53,7 @@ final readonly class AssignmentDraft
             startsAt: CarbonImmutable::parse($assignment->starts_at),
             endsAt: CarbonImmutable::parse($assignment->ends_at),
             ignoreAssignmentId: $assignment->id,
+            calendarId: $assignment->calendar_id,
         );
     }
 

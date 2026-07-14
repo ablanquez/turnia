@@ -1,9 +1,10 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import CoverageStrip from './CoverageStrip.vue';
 import PersonLane from './PersonLane.vue';
 import { cartelesDe, gritadasDe, pintarBanda } from '../../composables/useMatrizVisual.js';
+import { severityFill } from '../../composables/useSeverity.js';
 
 /**
  * LA REJILLA: 7 días × puestos, y EL TIEMPO EN EL EJE X.
@@ -42,6 +43,45 @@ const props = defineProps({
     coverage: { type: Object, default: null },
     violations: { type: Object, default: null },
 });
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * LA CAPA QUE EDITA — se INYECTA, no se crea aquí.
+ *
+ * El dueño del gesto es la página (Week.vue): un arrastre empieza en el panel de plantilla y acaba
+ * en esta rejilla, y esos dos son hermanos. Si `edicion` es null, el que mira no puede gestionar y
+ * aquí no hay ni celdas de destino ni nada que coger.
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+const edicion = inject('edicion', null);
+
+const puedeEditar = computed(() => !! edicion);
+
+const esDestino = (positionId, date) => edicion?.destinoActual?.value?.positionId === positionId
+    && edicion?.destinoActual?.value?.date === date;
+
+/**
+ * EL COLOR DE LA CELDA DE DESTINO: LA MISMA ESCALA DE GRAVEDAD QUE LA PARRILLA.
+ *
+ * ⚠️ Y ES UNA PREVISUALIZACIÓN. Lo que se pinta aquí NO decide si se puede soltar: al soltar se
+ * vuelve a preguntar DENTRO DEL CANDADO, y esa respuesta manda aunque contradiga a esta.
+ *
+ * Si aquí el naranja significara otra cosa que en la barra, habría que aprender dos idiomas para
+ * leer la misma pantalla. Es la ley 0, aplicada al arrastre.
+ */
+const marcaDeDestino = (positionId, date) => {
+    if (! esDestino(positionId, date)) {
+        return null;
+    }
+
+    const s = edicion.previa.value?.severidad ?? null;
+    const color = s ? severityFill(s) : '#15803D';
+
+    return {
+        // Un anillo POR DENTRO: no mueve ni un píxel del contenido de la celda.
+        boxShadow: `inset 0 0 0 2px ${color}`,
+        background: `${color}14`,
+    };
+};
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((p) => [p.id, p])));
 
@@ -319,6 +359,9 @@ const esPar = (i) => i % 2 === 0;
                     :key="`${position.id}-${day.date}`"
                     data-t="celda"
                     :data-celda="`${position.name}|${day.date}`"
+                    :data-celda-destino="puedeEditar ? '' : null"
+                    :data-position-id="position.id"
+                    :data-date="day.date"
                     class="relative flex min-h-[92px] flex-col"
                     :class="[
                         i < 6 ? 'border-r border-line' : '',
@@ -326,6 +369,7 @@ const esPar = (i) => i % 2 === 0;
                         esPar(p) ? 'bg-card' : 'bg-band',
                     ]"
                     style="padding: 10px 11px 12px"
+                    :style="marcaDeDestino(position.id, day.date)"
                 >
                     <!--
                         LA BANDA DE LA BAJA: atraviesa los días, rotula solo en el primero.
@@ -439,5 +483,6 @@ const esPar = (i) => i % 2 === 0;
             </template>
             </div>
         </div>
+
     </div>
 </template>

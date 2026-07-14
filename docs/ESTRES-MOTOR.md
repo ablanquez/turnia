@@ -201,9 +201,29 @@ DB::transaction(function () use ($draft) {
 
 **Por qué la persona es el candado correcto:** el solape y el descanso —las dos reglas que la concurrencia puede romper— se validan **a nivel de persona**. Bloquear la persona serializa exactamente las escrituras que pueden interferir, y **deja pasar en paralelo** las que afectan a personas distintas. Bloquear la empresa serializaría de más; bloquear la asignación, de menos.
 
-**NO está implementado**, y es deliberado: pertenece a la capa que escribe, que es la tanda de la parrilla. Está demostrado que funciona en `ConcurrencyTest::validar_dentro_de_una_transaccion_con_bloqueo_cierra_la_carrera`.
-
 ⚠️ **Corolario para la parrilla:** la validación que se enseña al arrastrar es **una previsualización**. La validación que decide es la que corre **dentro del candado**. No son la misma llamada, y confundirlas reabre el agujero.
+
+### ✅ IMPLEMENTADO, Y PROBADO CON DOS NAVEGADORES DE VERDAD
+
+Vive en `AssignmentWriter`, y **es el único sitio de Turnia que escribe un turno**. Su firma **no admite un `ValidationResult` de fuera**: no se le puede decir «ya lo validé, escribe». El tipo no lo permite, así que la separación deja de depender de que alguien se acuerde.
+
+Y la previsualización vive en **otro controlador** (`AssignmentPreviewController`), a propósito: si estuvieran en el mismo, el día que alguien «refactorice para no repetir» las fundiría y reabriría el agujero — con las mejores intenciones y en un commit que parecería una limpieza.
+
+**Probado con DOS CONTEXTOS DE CHROMIUM, dos sesiones, dos procesos de PHP y una fila de InnoDB** (`tests/Visual/concurrencia.mjs`). El caso peor, no el fácil: dos turnos distintos, en días distintos, que individualmente cumplen el descanso y juntos lo rompen.
+
+| | navegador 1 | navegador 2 |
+|---|---|---|
+| **previsualización** | `limpio` | `limpio` ← ⚠️ **la previsualización miente, por construcción** |
+| **escritura (con candado)** | `200 escrito` | `409` · *«solo descansa 8 h, y el mínimo es 12»* |
+| **escritura (SIN candado)** | `200 escrito` | `200 escrito` ← 💀 **el agujero, reproducido** |
+
+> ⚠️ **Y la segunda fila de esa tabla es la que hace que la primera valga algo.**
+>
+> Si el servidor SERIALIZARA las dos peticiones, la segunda correría después de la primera, vería su escritura y la cazaría igual — **y el test pasaría sin que hubiera habido carrera**. Un verde sobre una carrera que nunca ocurrió no dice nada del candado.
+>
+> Por eso la prueba se hace **dos veces**, y quitar el candado tiene que hacer que **los dos ganen**. Si no lo hiciera, el instrumento lo dice: *«el servidor SERIALIZÓ las peticiones: esta prueba NO ha probado nada»*.
+
+**El riesgo número uno que quedaba vivo deja de estarlo.**
 
 ---
 
@@ -212,7 +232,7 @@ DB::transaction(function () use ($draft) {
 | Hueco | Por qué no está cubierto |
 |---|---|
 | **`requiredReductionMinutes()` sigue sin consumidor** | Deuda consciente de la tanda 4. El modelo no tiene campo de *jornada exigible* contra el que restar. Es una pieza de negocio sin definir, no un olvido. |
-| **La concurrencia real (dos procesos PHP simultáneos)** | Se ha reproducido la **carrera lógica** en un solo proceso, y se ha demostrado que el candado la cierra. **No se ha probado con dos procesos peleándose de verdad** contra InnoDB. Eso solo se sabrá con carga real. |
+| ~~**La concurrencia real (dos procesos PHP simultáneos)**~~ | ✅ **CERRADO.** Dos contextos de Chromium, dos procesos de PHP, una fila de InnoDB (`tests/Visual/concurrencia.mjs`). Y con la contraprueba: sin el candado, **los dos escriben**. |
 | **Empresas con miles de empleados** | El tope medido es 60 empleados y 32.000 asignaciones/año. Una cadena de 500 empleados no está probada. La validación no depende del tamaño de la empresa (todas sus consultas van por índices selectivos), así que **debería** escalar — pero "debería" no es "está medido". |
 | **La cobertura con muchos puestos y ventanas largas** | `CoverageCalculator` hace O(días × puestos con requisitos) consultas. Un mes con 12 puestos: 91 consultas, 103 ms. Un trimestre con 30 puestos sería ~700 consultas. No se ha medido. |
 | **El comportamiento con la caché de MySQL fría** | Todas las medidas son tras calentamiento. El primer golpe del día será peor. |
@@ -235,7 +255,7 @@ DB::transaction(function () use ($draft) {
 
 ### Lo que se ASUME y solo se sabrá en producción
 
-- **Que la concurrencia real se comporta como la simulada.** El candado es el correcto en teoría y funciona en un proceso. Con dos encargados de verdad, en dos navegadores, contra InnoDB, aún no lo sabemos. **Es el riesgo número uno que queda vivo.**
+- ~~**Que la concurrencia real se comporta como la simulada.**~~ ✅ **Ya no se asume: se ha medido.** Dos navegadores, dos procesos de PHP, una fila de InnoDB. Uno gana, el otro pierde y sabe por qué. Y sin el candado, los dos escriben — así que la carrera era de verdad. Lo que sigue sin probarse es la concurrencia **con más de dos** escritores y bajo carga sostenida.
 - **Que 60 empleados es representativo.** Si aparece un cliente con 500, hay que volver a medir. No hay razón teórica para que se degrade, pero no está medido.
 - **Que 2,9 segundos de informe son tolerables.** Depende de cómo se use. Si alguien lo pone en el camino de la petición, la app se sentirá rota, y no será culpa del motor sino de dónde se colocó.
 - **Que el reloj del servidor y el de MySQL están de acuerdo.** Todo el motor descansa en instantes UTC. Un servidor con la zona mal configurada mentiría de forma silenciosa y sistemática. **Merece una comprobación en el arranque del despliegue.**
