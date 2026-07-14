@@ -324,3 +324,27 @@ Cinco cosas, todas encontradas **arrastrando**, no leyendo:
 Y una sexta, **que no se ve ni arrastrando ni leyendo, y solo la vio el instrumento**: el margen de
 agarre que puse dentro de la barra **cegó a `pixel.mjs`** y dejó las diez leyes de la matriz visual
 sin comprobar, en silencio. Ver `COTEJO-VISUAL.md` §18.
+
+---
+
+## 11. La app no podía escribir, y todo estaba en verde
+
+El token CSRF salía del `<meta>`, que se renderiza una vez y **en una SPA no se refresca jamás**.
+En cuanto la sesión se renovaba, **todas las peticiones daban 419** — y el cliente se lo tragaba en
+silencio, porque solo miraba 200/409/422/403.
+
+Tres arreglos, y el tercero es el que de verdad importa:
+
+1. **El token sale de la cookie `XSRF-TOKEN`**, que Laravel reescribe en cada respuesta. Es lo que
+   hace Axios; el bug fue usar `fetch` a pelo copiando el patrón de un formulario.
+2. **Ninguna respuesta cae en el vacío.** 419/401 → «tu sesión ha caducado» **con botón de recargar**
+   (cerrar no arreglaría nada: todo seguiría fallando). 5xx → «el servidor ha fallado». Red caída →
+   «no se ha podido hablar con el servidor». Y **siempre**: «no se ha escrito nada». Va por el
+   DIÁLOGO, no por un aviso que se desvanece: no ha pasado lo que el usuario pidió.
+3. **La celda de destino ya no pinta verde cuando no sabe.** Ver la **ley 20**: «no sé» y «sí» eran
+   el mismo píxel, y eso es el silencio falso más caro que puede cometer esta aplicación.
+
+Y la lección, que está en `COTEJO-VISUAL.md` §19: **los tests de Laravel no pasan por CSRF** (está
+desactivado en testing) y **todos mis instrumentos de navegador vuelven a entrar antes de cada
+caso**, así que ninguno puede tener el token caducado. Probaban que la app funciona cuando todo va
+bien. `tests/Visual/errores.mjs` prueba lo otro.

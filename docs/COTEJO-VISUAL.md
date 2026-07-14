@@ -610,3 +610,54 @@ cara a nadie** — ni al ojo, ni a quien mide.
 
 **La regla que queda:** *lo que se pone ENCIMA de un canal lo tapa. También para quien lo mide.*
 Antes de meter un hijo dentro de una barra, hay que preguntarse qué instrumento vive de mirarla.
+
+---
+
+## 19. POR QUÉ 229 TESTS Y 12 CASOS DE ARRASTRE ESTABAN EN VERDE SOBRE UNA APP QUE NO PODÍA ESCRIBIR
+
+El usuario abrió la app, arrastró un turno, y **no pasó nada**. En la consola: `419` en todas las
+peticiones. La aplicación **no podía escribir ni una línea**, y yo tenía todo en verde.
+
+Esto es lo que hay que entender, y es más importante que el bug.
+
+### El bug era real, y era mío
+
+El token CSRF salía del `<meta name="csrf-token">`. **Ese meta se renderiza UNA VEZ, en la carga del
+documento.** Y esto es una SPA de Inertia: el documento **no se recarga nunca**. El día que la
+sesión se renueva —`SESSION_LIFETIME`, un despliegue, o (en desarrollo) un `migrate:fresh` que vacía
+la tabla `sessions`—, ese token deja de valer y **todo da 419**.
+
+La cookie `XSRF-TOKEN`, en cambio, **Laravel la reescribe en cada respuesta**. Siempre está fresca.
+Es lo que hace Axios, el cliente que Laravel trae de fábrica. **El bug lo introduje yo al usar
+`fetch` a pelo y copiar el patrón del meta, que es el de un formulario, no el de una SPA.**
+
+### Y ahora lo que importa: **por qué nadie lo vio**
+
+| instrumento | por qué no lo vio |
+|---|---|
+| **229 tests PHP** | Laravel **desactiva el CSRF en el entorno de testing**. Por construcción, un test de Feature **no puede** descubrir esto. |
+| **`arrastrar.mjs`** (12 casos) | Sí comprobaba el resultado real (contaba barras tras `router.reload()`, o sea contra la base). Pero **hace `migrate:fresh` y VUELVE A ENTRAR antes de cada caso** — así que siempre tiene una sesión recién creada y un meta recién renderizado. **Nunca puede tener el token caducado.** |
+| **`concurrencia.mjs`** | Escribe de verdad desde dos navegadores, y lee `res.status`. Pero también entra de cero. Mismo punto ciego. |
+
+> **Todos mis instrumentos entran bien. Y un instrumento que solo sabe entrar bien no puede
+> descubrir qué pasa cuando se entra mal.**
+
+Los doce casos del arrastre probaban que **la aplicación funciona cuando todo va bien**. Ni uno
+preguntaba qué pasa cuando el servidor contesta otra cosa. Y la respuesta era **nada**: el `fetch`
+devolvía `{status: 419}`, el cliente miraba 200/409/422/403, y el 419 **caía por abajo con un
+`return` implícito**. Silencio.
+
+### Y el silencio destapó algo peor
+
+Mientras arrastrabas, **la celda de destino se pintaba VERDE**. Porque pintaba verde siempre que no
+hubiera una gravedad… y una respuesta fallida tampoco tiene gravedad. → **Ley 20** de la matriz.
+
+### La contraprueba, ahora: `tests/Visual/errores.mjs`
+
+Cuatro caminos que no existían: **419**, **500**, **red caída**, y **la petición todavía en vuelo**.
+Y ojo con cómo se provocan:
+
+> ⚠️ **Su primera versión rompía el `<meta>`.** En cuanto el token pasó a salir de la cookie —el
+> arreglo—, romper el meta **dejó de romper nada**, y el instrumento se quedó **en verde midiendo un
+> fallo que ya no podía ocurrir**. Otra vez. Ahora las respuestas se **interceptan** (`page.route`):
+> el fallo se PROVOCA, no se espera a que caiga.

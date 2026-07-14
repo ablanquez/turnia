@@ -72,7 +72,7 @@ export function useAvisos() {
      * @param {string} o.texto      Qué ha pasado. Con sujeto, puesto, día y hora: ley 8.
      * @param {Function} [o.deshacer]  Si se pasa, el aviso lleva botón. Y vive más: hay que decidir.
      */
-    const avisar = ({ tono = 'ok', texto, deshacer = null, persistente = false }) => {
+    const avisar = ({ tono = 'ok', texto, deshacer = null, persistente = false, comprueba = false }) => {
         const aviso = reactive({
             id: ++siguiente,
             tono,
@@ -81,6 +81,18 @@ export function useAvisos() {
             persistente,
             // Un aviso con botón vive el doble: leerlo es rápido, decidir no lo es.
             vida: deshacer ? 12000 : 6000,
+            /*
+             * ⚠️ «COMPROBANDO» OCUPA EL SITIO QUE VA A OCUPAR EL COLATERAL. Y no es maquillaje.
+             *
+             * El detalle llega ~900 ms después (el informe es diferido), así que el aviso CRECÍA y
+             * DABA UN SALTO justo cuando el ojo se había posado en él. Reservar el hueco con una
+             * línea vacía sería una mentirijilla; llenarlo con lo que de verdad está pasando —«estoy
+             * mirando el resto del cuadrante»— cuesta lo mismo y encima informa.
+             *
+             * Es el mismo criterio que el fallback de las props diferidas: «comprobando el
+             * cuadrante…», NUNCA un verde prematuro.
+             */
+            comprobando: comprueba,
             detalle: null,
             reloj: null,
         });
@@ -95,12 +107,18 @@ export function useAvisos() {
     const añadirDetalle = (id, detalle) => {
         const aviso = avisos.find((a) => a.id === id);
 
-        if (! aviso || ! detalle) {
+        if (! aviso) {
             return;
         }
 
-        aviso.detalle = detalle;
-        armar(aviso);
+        aviso.comprobando = false;
+        aviso.detalle = detalle || null;
+
+        // Solo se rearma el reloj si hay algo NUEVO que leer. Si el informe dice «no has roto
+        // nada», el aviso sigue su curso: no hay por qué retenerlo más.
+        if (detalle) {
+            armar(aviso);
+        }
     };
 
     return { avisos, avisar, añadirDetalle, cerrar };

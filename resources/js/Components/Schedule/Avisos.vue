@@ -67,8 +67,21 @@ const tonoDe = (t) => TONO[t] ?? TONO.ok;
                         imposible ni en el naranja del incumplimiento. Reusar esos dos aquí sería
                         decir que este turno incumple algo, y no incumple nada.
                     -->
+                    <!--
+                        ⚠️ EL HUECO SE RESERVA, Y SE RESERVA DICIENDO LA VERDAD.
+
+                        El colateral tarda ~900 ms (el informe es diferido). Sin esto, la tarjeta
+                        crecía y PEGABA UN SALTO justo cuando ibas a leerla. Y el relleno no es una
+                        línea en blanco: es lo que de verdad está pasando.
+                    -->
                     <div
-                        v-if="a.detalle"
+                        v-if="a.comprobando"
+                        data-t="aviso-comprobando"
+                        class="mt-1.5 break-words text-[10.5px] font-semibold leading-snug text-ink-faint"
+                    >⋯ comprobando si esto ha roto algo en otra celda</div>
+
+                    <div
+                        v-else-if="a.detalle"
                         data-t="aviso-colateral"
                         class="mt-1.5 break-words text-[10.5px] font-semibold leading-snug"
                         :style="{ color: severityColor('notice') }"

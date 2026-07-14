@@ -48,6 +48,9 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
     // forzando. NO guarda ninguna validación: solo el QUÉ, nunca el resultado.
     let pendiente = null;
 
+    // El aviso de «el servidor no contesta». Uno, no uno por celda sobrevolada.
+    let avisoDeFallo = null;
+
     const diaDe = (date) => ventana().days.find((d) => d.date === date);
     const puestoDe = (id) => puestos().find((p) => p.id === id);
 
@@ -82,7 +85,11 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
 
         const rotos = huecosNuevos(antes, huecosPorCelda(nueva));
 
+        // ⚠️ Aunque NO haya roto nada, hay que apagar el «comprobando…»: si no, el aviso se quedaría
+        // diciendo que sigue mirando algo que ya ha terminado de mirar.
         if (! rotos.length) {
+            añadirDetalle(avisoId, null);
+
             return;
         }
 
@@ -125,11 +132,27 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
 
             const r = await api.previsualizar(cuerpoDe(assignment, destino), assignment.id);
 
-            // Puede haber cambiado de celda mientras el servidor contestaba. Si la respuesta ya no
-            // es de donde estamos, se tira: pintar una previsualización de otra celda sería mentir.
+            /*
+             * ⚠️ SI LA PREVISUALIZACIÓN FALLÓ, LA CELDA NO PUEDE DECIR «SE PUEDE».
+             *
+             * Esto guardaba la respuesta fuera cual fuera. Con un 419 (sesión caducada) el objeto no
+             * traía `severidad`, y la celda —que pinta VERDE cuando no hay severidad— se iluminaba
+             * como si el motor hubiera dicho que sí. **El motor ni se había enterado.**
+             *
+             * La interfaz diciendo «adelante» sobre una comprobación que nunca ocurrió es el
+             * silencio falso más caro que puede cometer esta aplicación, y estaba en el gesto que
+             * más se usa. Ahora el fallo VIAJA hasta la celda, y la celda lo pinta como lo que es:
+             * «no lo sé». Ver WeekGrid::marcaDeDestino.
+             */
             if (arrastre.estado.destino?.positionId === destino.positionId
                 && arrastre.estado.destino?.date === destino.date) {
                 arrastre.previsualizar(r);
+            }
+
+            // Y se dice. Una vez, no siete: sobrevolar celdas dispara una petición por celda, y
+            // siete avisos idénticos apilados son ruido, no información.
+            if (r.fallo && ! avisoDeFallo) {
+                avisoDeFallo = avisar({ tono: 'info', texto: r.mensaje, persistente: true });
             }
         },
 
@@ -162,7 +185,7 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
                 cuando: donde(destino.positionId, destino.date),
                 // «Movido DE dónde A dónde» — el origen es la mitad del dato, y es justo la celda
                 // que el usuario ha dejado de mirar.
-                hecho: `${carga.person.name} movido de ${desde} a ${donde(destino.positionId, destino.date)} · ${cuerpo.start}–${cuerpo.end}`,
+                hecho: `${carga.person.name} pasa de ${desde} a ${donde(destino.positionId, destino.date)} · ${cuerpo.start}–${cuerpo.end}`,
             });
         },
     });
@@ -296,7 +319,7 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
             accion: (f) => api.colocar({ ...cuerpo, force: f }),
             persona: c.persona.name,
             cuando: donde(c.celda.positionId, c.celda.date),
-            hecho: `${c.persona.name} añadido a ${donde(c.celda.positionId, c.celda.date)} · ${start}–${end}`,
+            hecho: `${c.persona.name} entra en ${donde(c.celda.positionId, c.celda.date)} · ${start}–${end}`,
         });
     };
 
@@ -359,7 +382,8 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
 
         const avisoId = avisar({
             tono: 'ok',
-            texto: `${persona?.name ?? 'El turno'} quitado de ${donde(assignment.positionId, assignment.workDate)} · ${assignment.label}`
+            comprueba: antes !== null,
+            texto: `${persona?.name ?? 'El turno'} sale de ${donde(assignment.positionId, assignment.workDate)} · ${assignment.label}`
                 + (assignment.forced ? '. Estaba forzado: si lo devuelves, habrá que justificarlo otra vez.' : ''),
             deshacer: () => devolver(rehacer, persona),
         });
@@ -374,7 +398,7 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
             accion: (f) => api.colocar({ ...cuerpo, force: f }),
             persona: persona?.name ?? '',
             cuando: donde(cuerpo.positionId, cuerpo.workDate),
-            hecho: `${persona?.name ?? 'El turno'} devuelto a ${donde(cuerpo.positionId, cuerpo.workDate)} · ${cuerpo.start}–${cuerpo.end}`,
+            hecho: `${persona?.name ?? 'El turno'} vuelve a ${donde(cuerpo.positionId, cuerpo.workDate)} · ${cuerpo.start}–${cuerpo.end}`,
         });
     };
 
@@ -407,6 +431,9 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
 
             const avisoId = avisar({
                 tono: r.forzado ? 'breach' : 'ok',
+                // Si el informe no había llegado, no hay «antes» con el que comparar: no se promete
+                // una comprobación que no se va a poder hacer.
+                comprueba: antes !== null,
                 texto: r.forzado
                     ? `${hecho}. Forzado: queda registrado con tu nombre.`
                     : hecho,
@@ -470,7 +497,39 @@ export function useEdicion(company, calendar, { ventana, puestos, coverage }) {
                 persona,
                 cuando,
             };
+
+            return;
         }
+
+        /*
+         * ═══════════════════════════════════════════════════════════════════════════════════
+         * ⚠️ TODO LO DEMÁS. Y ESTA RAMA **NO EXISTÍA**: EL FALLO CAÍA EN EL VACÍO.
+         * ═══════════════════════════════════════════════════════════════════════════════════
+         *
+         * Se miraban 200, 409, 422 y 403, y ya. Un 419 (sesión caducada), un 500, o la red caída
+         * salían por abajo con un `return` implícito: **el usuario arrastraba, soltaba, y no pasaba
+         * absolutamente nada**. Ni se movía el turno, ni salía un error. Silencio.
+         *
+         * Y el silencio es lo peor que puede contestar esta aplicación, porque **se parece a que ha
+         * funcionado**. Una petición que falla callando es una regla que no se comprueba.
+         *
+         * Va por el DIÁLOGO —no por un aviso que se desvanece— porque no ha pasado lo que el usuario
+         * pidió, y de eso hay que enterarse sí o sí.
+         */
+        cerrarPopover();
+
+        decision.value = {
+            resultado: 'imposible',
+            violations: [{
+                code: r.fallo ?? 'inesperado',
+                severity: 'impossible',
+                message: r.mensaje ?? `El servidor ha contestado ${r.status} y no se ha escrito nada.`,
+            }],
+            // Si la sesión ha caducado, no basta con cerrar: hay que recargar. Se ofrece.
+            recargar: r.fallo === 'sesion',
+            persona,
+            cuando,
+        };
     };
 
     /** El usuario decidió forzar. Se vuelve a llamar — y el candado VUELVE A VALIDAR. */

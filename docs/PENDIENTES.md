@@ -82,6 +82,27 @@ de la papelera, para no estorbar el gesto. Pero **mientras está visible tapa un
 de momento pasa. Si algún día molesta, la salida es una franja propia, no moverlo a otra esquina:
 todas las esquinas tienen dueño.
 
+### ⚠️ UN 500 INTERMITENTE EN LARAGON: «No application encryption key has been specified»
+
+Apareció **21 veces** durante las pasadas de los instrumentos, siempre bajo la ráfaga de peticiones
+que dispara un arrastre (una previsualización por celda sobrevolada). El log lo registra como
+`production.ERROR` **teniendo `APP_ENV=local`**, o sea que **en esa petición el `.env` no llegó a
+leerse**: sin `.env`, Laravel cae a los valores por defecto (entorno `production`, sin `APP_KEY`) y
+revienta al encriptar la cookie.
+
+No es de la parrilla: es del entorno (PHP-CGI de Laragon leyendo el `.env` bajo concurrencia en
+Windows). **No se ha reproducido fuera de la ráfaga.** Queda apuntado porque:
+
+- Ahora **el usuario se entera** (antes, un 500 caía en el mismo silencio que el 419).
+- Si aparece en el servidor de verdad, la causa será otra y hay que mirarla en serio.
+
+### La justificación de un forzado admite «asdf»
+
+El mínimo son 3 caracteres. `«as»` se bloquea; `«asdf»` **pasa**. Y ningún código puede distinguir
+una justificación real de un tecleo. Las salidas posibles —mínimo más largo, motivos predefinidos +
+texto, o asumirlo y fiarlo a que queda firmado con nombre y fecha— **son una decisión de producto, y
+la toma el usuario.** No se toca hasta entonces.
+
 ### Páginas de error propias (400 / 403 / 404 / 500)
 
 Como en Linaje. Va en el bloque de endurecimiento.

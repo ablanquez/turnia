@@ -539,6 +539,49 @@ La salida es **ampliar el asidero sin ampliar la barra**:
 
 ---
 
+### Ley 20 — **UN CANAL NO PUEDE TENER UN VALOR POR DEFECTO OPTIMISTA. SI NO SE SABE, SE DICE.**
+
+La ley que más caro ha salido, y estaba en una sola línea:
+
+```js
+const color = s ? severityFill(s) : '#15803D';   // ← VERDE si no hay severidad
+```
+
+Es el color de la celda de destino mientras arrastras. Y con esa línea, **tres cosas distintas se
+pintaban con el mismo píxel**:
+
+| lo que pasa de verdad | lo que pintaba la celda |
+|---|---|
+| el servidor dijo «limpio» | 🟢 verde — correcto |
+| la petición **va en vuelo**, aún no ha contestado | 🟢 verde — **se lo inventa** |
+| la petición **falló** (419, 500, red caída) | 🟢 verde — **el motor NI SE HA ENTERADO** |
+
+> **«No sé» y «sí» eran el mismo color.**
+
+La celda decía *«adelante, suelta aquí»* sobre una comprobación que **no había ocurrido**, y lo
+decía en el gesto que más se usa de la aplicación. Es el silencio falso del que este proyecto se
+defiende, en el sitio más caro que existe: **el cliente pintando lo que el servidor no ha
+confirmado.**
+
+**Cuatro estados, no dos:**
+
+```
+  comprobando   gris liso     · la petición va en vuelo. Espera.
+  no-se-pudo    gris RAYADO   · no se pudo preguntar. Esto no es un estado del cuadrante: es una avería.
+  limpio        verde         · el motor contestó, y dijo que sí.
+  gravedad      su color      · el motor contestó, y dijo qué pasa.
+```
+
+Y el rayado no es decorativo: **una avería tiene que distinguirse a simple vista de los cuatro
+colores que sí significan algo.** Un gris liso podría confundirse con «no se pide a nadie».
+
+> ⚠️ **La regla, generalizada:** cuando un canal se alimenta de una respuesta asíncrona, **el estado
+> «todavía no ha llegado» y el estado «llegó y todo bien» NO PUEDEN COMPARTIR PÍXEL.** Es lo mismo
+> que el fallback de las props diferidas —«comprobando el cuadrante…», nunca verde— y aquí se había
+> olvidado.
+
+---
+
 ## 3. El mapa de canales
 
 | Canal | Dimensión que lleva | Y ninguna otra |

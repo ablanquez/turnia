@@ -60,20 +60,62 @@ const esDestino = (positionId, date) => edicion?.destinoActual?.value?.positionI
     && edicion?.destinoActual?.value?.date === date;
 
 /**
- * EL COLOR DE LA CELDA DE DESTINO: LA MISMA ESCALA DE GRAVEDAD QUE LA PARRILLA.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
+ * EL COLOR DE LA CELDA DE DESTINO. Y AQUÍ VIVÍA EL PEOR BUG QUE HA TENIDO ESTA APLICACIÓN.
+ * ═══════════════════════════════════════════════════════════════════════════════════════
  *
- * ⚠️ Y ES UNA PREVISUALIZACIÓN. Lo que se pinta aquí NO decide si se puede soltar: al soltar se
- * vuelve a preguntar DENTRO DEL CANDADO, y esa respuesta manda aunque contradiga a esta.
+ * Esto era una línea:
  *
- * Si aquí el naranja significara otra cosa que en la barra, habría que aprender dos idiomas para
- * leer la misma pantalla. Es la ley 0, aplicada al arrastre.
+ *     const color = s ? severityFill(s) : '#15803D';   // ← VERDE si no hay severidad
+ *
+ * Y con ella, **TRES COSAS DISTINTAS SE PINTABAN CON EL MISMO PÍXEL**:
+ *
+ *     el servidor dijo «limpio»              → VERDE   ✔ correcto
+ *     la petición VA EN VUELO, aún no llegó  → VERDE   ✘ no lo sabe: se lo está inventando
+ *     la petición FALLÓ (419, 500, red)      → VERDE   ✘ el motor NI SE HA ENTERADO
+ *
+ * **«No sé» y «sí» eran el mismo color.** La celda decía «adelante, suelta aquí» sobre una
+ * comprobación que no había ocurrido — y lo decía en el gesto que más se usa de la aplicación.
+ *
+ * Es exactamente el silencio falso del que este proyecto se defiende, y estaba en el sitio más caro:
+ * **el cliente pintando lo que el servidor no ha confirmado.**
+ *
+ *     UN CANAL NO PUEDE TENER UN VALOR POR DEFECTO OPTIMISTA.
+ *     SI NO SE SABE, SE DICE QUE NO SE SABE.
+ *
+ * Ahora hay CUATRO estados, y el gris no es un color de relleno: es una respuesta.
+ *
+ * ⚠️ Y sigue siendo una PREVISUALIZACIÓN. Lo que se pinta aquí NO decide si se puede soltar: al
+ * soltar se vuelve a preguntar DENTRO DEL CANDADO, y esa respuesta manda aunque contradiga a esta.
  */
+const GRIS = '#8A8598';
+
 const marcaDeDestino = (positionId, date) => {
     if (! esDestino(positionId, date)) {
         return null;
     }
 
-    const s = edicion.previa.value?.severidad ?? null;
+    const p = edicion.previa.value;
+
+    // ⚠️ TODAVÍA NO HA CONTESTADO. No es «se puede»: es «espera».
+    if (! p) {
+        return {
+            boxShadow: `inset 0 0 0 2px ${GRIS}`,
+            background: `${GRIS}10`,
+        };
+    }
+
+    // ⚠️ NO SE PUDO PREGUNTAR (sesión caducada, servidor caído, red). Rayado: esto NO es un estado
+    // del cuadrante, es una avería. Y se distingue a simple vista de los cuatro colores que sí
+    // significan algo.
+    if (p.fallo) {
+        return {
+            boxShadow: `inset 0 0 0 2px ${GRIS}`,
+            backgroundImage: `repeating-linear-gradient(45deg, ${GRIS}33 0 4px, transparent 4px 10px)`,
+        };
+    }
+
+    const s = p.severidad ?? null;
     const color = s ? severityFill(s) : '#15803D';
 
     return {
@@ -81,6 +123,20 @@ const marcaDeDestino = (positionId, date) => {
         boxShadow: `inset 0 0 0 2px ${color}`,
         background: `${color}14`,
     };
+};
+
+/** Lo que la celda de destino está diciendo, para poder MEDIRLO. Ver tests/Visual/errores.mjs. */
+const estadoDeDestino = (positionId, date) => {
+    if (! esDestino(positionId, date)) {
+        return null;
+    }
+
+    const p = edicion.previa.value;
+
+    if (! p) return 'comprobando';
+    if (p.fallo) return 'no-se-pudo';
+
+    return p.severidad ?? 'limpio';
 };
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((p) => [p.id, p])));
@@ -362,6 +418,7 @@ const esPar = (i) => i % 2 === 0;
                     :data-celda-destino="puedeEditar ? '' : null"
                     :data-position-id="position.id"
                     :data-date="day.date"
+                    :data-previa="estadoDeDestino(position.id, day.date)"
                     class="relative flex min-h-[92px] flex-col"
                     :class="[
                         i < 6 ? 'border-r border-line' : '',

@@ -31,6 +31,9 @@ const severidad = computed(() => (esImposible.value ? 'impossible' : 'breach'));
 
 const codigos = computed(() => [...new Set((props.decision?.violations ?? []).map((v) => v.code))]);
 
+/** Recarga de verdad el documento: es lo único que renueva un token de sesión caducado. */
+const recargar = () => window.location.reload();
+
 // ⚠️ El motivo es OBLIGATORIO. Si se pudiera saltar, en tres semanas todas las justificaciones
 // estarían vacías y el registro no valdría nada: una firma sin contrato.
 const puedeForzar = computed(() => motivo.value.trim().length >= 3);
@@ -135,6 +138,22 @@ watch(() => props.decision, async (d) => {
                     @click="emit('cerrar')"
                 >
                     {{ esImposible ? 'Entendido' : 'Cancelar' }}
+                </button>
+
+                <!--
+                    ⚠️ LA SESIÓN HA CADUCADO: «Entendido» NO ARREGLA NADA.
+
+                    Con el token caducado, TODAS las peticiones siguientes van a fallar igual. Cerrar
+                    el diálogo devolvería al usuario a una parrilla que parece que funciona y en la
+                    que no se puede escribir ni una línea. Se ofrece lo único que sirve.
+                -->
+                <button
+                    v-if="decision.recargar"
+                    data-t="recargar"
+                    class="rounded-lg bg-brand-600 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-brand-800"
+                    @click="recargar()"
+                >
+                    Recargar la página
                 </button>
 
                 <button

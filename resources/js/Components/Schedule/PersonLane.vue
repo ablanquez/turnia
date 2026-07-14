@@ -265,6 +265,21 @@ const notas = computed(() => agruparNotas(pintados.value.flatMap((p) => p.notas)
  */
 const SOMBRA_HOVER = '0 3px 9px -1px rgb(30 26 60 / 60%)';
 
+/**
+ * ⚠️ EL RESALTE DEL RÓTULO ESTABA AL 14 % DE OPACIDAD, Y NO SE VEÍA.
+ *
+ * «Se ve poco» no es una medida, pero «hay que buscarlo en la captura» sí es un veredicto: un canal
+ * que dice CUÁL DE LOS DOS TURNOS vas a mover y que hay que buscar **no está haciendo su trabajo**.
+ *
+ * Sube al 22 % y se le añade un borde de marca a la izquierda —la misma línea índigo que ya agrupa
+ * el carril—, para que el resalte tenga FORMA además de color: si algún día alguien mira esto en
+ * escala de grises, el borde sigue estando (ley 6).
+ */
+const RESALTE = {
+    background: 'rgb(127 119 221 / 22%)',
+    boxShadow: `inset 2px 0 0 0 ${BRAND_DARK}`,
+};
+
 const barraStyle = (p) => {
     const base = {
         ...p.relleno,
@@ -373,7 +388,7 @@ const title = computed(() => {
                 :data-rotulo-de="p.block.kind === 'shift' ? p.block.id : null"
                 class="-mx-[4px] mt-[4px] flex items-start gap-[5px] rounded px-[4px] py-[1px] transition-colors first:mt-0"
                 :class="arrastrable(p) ? 'cursor-grab active:cursor-grabbing touch-none' : ''"
-                :style="resaltado(p) ? { background: 'rgb(127 119 221 / 14%)' } : null"
+                :style="resaltado(p) ? RESALTE : null"
                 @pointerenter="señalar(p)"
                 @pointerleave="soltarSeñal"
                 @pointerdown="coger($event, p)"
