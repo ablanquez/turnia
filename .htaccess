@@ -1,0 +1,10 @@
+# Fallback SPA (Apache/Hostinger): toda ruta que no sea un fichero o carpeta real se sirve como
+# index.html, para que las rutas de Vue Router (p. ej. /estilo) funcionen al recargar en producción.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteRule ^index\.html$ - [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . /index.html [L]
+</IfModule>
