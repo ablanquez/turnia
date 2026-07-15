@@ -53,3 +53,14 @@
 **Commit:** (este commit)
 **Ley que sale de aquí:** Lo mínimo funcionando perfecto primero; las capas encima, sobre cimientos firmes. Y se heredan las decisiones, no el código.
 **Traza:** todo el andamiaje del Bloque 1; `docs/PLAN-ARRANQUE.md`.
+
+## [2026-07-15] — La rama produccion arrastraba cirílico, griego y vietnamita
+**Categoría:** despliegue
+**Síntoma:** `produccion` subió ~80 ficheros de fuente (todos los subsets de IBM Plex Sans y Mono: cirílico, griego, vietnamita, latin-ext…) para un prototipo en español que solo necesita latin.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ El build, el deploy y el tablero `/estilo` pasaron todos en verde en el Bloque 2. Nadie miró el peso de `produccion`, así que los 80 ficheros subieron sin que saltara nada; se descubrió al LISTAR el contenido de la rama tras el deploy.
+**Causa raíz:** `import '@fontsource/ibm-plex-sans/400.css'` trae TODOS los subsets del peso. El subset se pide explícito con `latin-400.css`.
+**Cómo se cazó:** ojo humano (revisión del `git ls-tree` de `produccion` al cerrar el Bloque 2).
+**Arreglo aplicado:** Imports cambiados a `latin-400/500/600/700` (sans) y `latin-400/500/600` (mono). De ~80 ficheros de fuente a 14. Verificado que la ñ y los acentos siguen en IBM Plex Sans (el subset latin cubre U+0000–00FF).
+**Commit:** (este commit)
+**Ley que sale de aquí:** `@fontsource/…/PESO.css` importa el mundo entero; se pide el subset explícito (`latin-PESO.css`). Y el peso de lo desplegado se mira, no se supone.
+**Traza:** `src/main.js`.
