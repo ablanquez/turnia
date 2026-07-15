@@ -1,0 +1,8 @@
+/*
+ * Punto de entrada de estilos.
+ *
+ * Bloque 1 (andamiaje): solo Tailwind 4.
+ * Bloque 2 (sistema de diseño): aquí se añadirá `@import './tokens.css'` con las cuatro
+ * familias de color (identidad · semántica · marca · composición) como fuente única.
+ */
+@import 'tailwindcss';

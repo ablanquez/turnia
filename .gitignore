@@ -1,0 +1,15 @@
+# Dependencias y artefactos de build — nunca en main (lo compilado vive en la rama produccion)
+node_modules/
+dist/
+.deploy-produccion/
+
+# Docs internos: se ignoran TODOS los .md sueltos de docs/, y se dejan pasar solo los que
+# pertenecen al repo. (No afecta a subcarpetas de docs/.)
+/docs/*.md
+!docs/BITACORA.md
+!docs/ESTILO.md
+!docs/PLAN-ARRANQUE.md
+
+# Sistema
+.DS_Store
+*.log

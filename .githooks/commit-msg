@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# La bitácora es obligatoria en cada `fix:`. Si falta, NO se bloquea a secas: se AUTOGENERA el
+# esqueleto (todo NO CONSTA) y se deja en el stage, para que cumplir sea fácil, no solo incumplir
+# difícil. Y si el commit toca la paleta/tokens, el contraste de color tiene que pasar.
+#
+# Se activa con:  git config core.hooksPath .githooks
+#
+set -u
+
+MSG_FILE="$1"
+SUBJECT="$(head -n1 "$MSG_FILE")"
+BITACORA="docs/BITACORA.md"
+
+es_fix() { printf '%s' "$SUBJECT" | grep -qE '^fix(\(.+\))?!?:'; }
+esta_en_stage() { git diff --cached --name-only | grep -qx "$1"; }
+
+# ── 1. Todo fix: lleva su entrada de bitácora ───────────────────────────────────────────
+if es_fix && ! esta_en_stage "$BITACORA"; then
+    FECHA="$(date +%F)"
+    TITULO="$(printf '%s' "$SUBJECT" | sed -E 's/^fix(\(.+\))?!?:[[:space:]]*//')"
+
+    {
+        printf '\n## [%s] — %s\n' "$FECHA" "$TITULO"
+        printf '**Categoría:** NO CONSTA\n'
+        printf '**Síntoma:** NO CONSTA\n'
+        printf '**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** NO CONSTA\n'
+        printf '**Causa raíz:** NO CONSTA\n'
+        printf '**Cómo se cazó:** NO CONSTA\n'
+        printf '**Arreglo aplicado:** NO CONSTA\n'
+        printf '**Commit:** (este commit)\n'
+        printf '**Ley que sale de aquí:** NO CONSTA\n'
+        printf '**Traza:** NO CONSTA\n'
+    } >> "$BITACORA"
+
+    git add "$BITACORA"
+
+    {
+        echo '───────────────────────────────────────────────────────────────'
+        echo '⚠️  fix: sin entrada de bitácora.'
+        echo "    He AUTOGENERADO el esqueleto en $BITACORA (todo NO CONSTA) y lo he añadido al stage."
+        echo '    Rellena lo que sepas (el ⭐ es el dato perecedero; si no hubo verde que mintiera,'
+        echo '    déjalo en NO CONSTA sin paja) y vuelve a commitear.'
+        echo '───────────────────────────────────────────────────────────────'
+    } >&2
+    exit 1
+fi
+
+# ── 2. Si el commit toca la paleta/tokens, el color no puede colisionar ──────────────────
+if git diff --cached --name-only | grep -qE 'src/datos/paleta\.js|src/estilo/tokens\.css'; then
+    if [ -f src/estilo/contraste.check.mjs ]; then
+        if ! node src/estilo/contraste.check.mjs >&2; then
+            echo '⚠️  contraste.check FALLÓ: un color colisiona con otra familia. No se cierra el commit.' >&2
+            exit 1
+        fi
+    fi
+fi
+
+exit 0
