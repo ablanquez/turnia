@@ -59,3 +59,11 @@
     --color-ink-soft: #5f5d70;
     --color-ink-faint: #8f8da0;
 }
+
+/*
+ * BREAKPOINTS COMO TOKEN — un solo sitio, nunca un ancho cableado en un .vue.
+ * El umbral gestión/consulta lo lee useDispositivo (getComputedStyle) para su matchMedia.
+ */
+:root {
+    --umbral-gestion: 64rem; /* ≥ esto + puntero fino = gestión (PC, arrastra); si no, consulta */
+}

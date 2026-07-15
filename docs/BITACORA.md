@@ -64,3 +64,27 @@
 **Commit:** (este commit)
 **Ley que sale de aquí:** `@fontsource/…/PESO.css` importa el mundo entero; se pide el subset explícito (`latin-PESO.css`). Y el peso de lo desplegado se mira, no se supone.
 **Traza:** `src/main.js`.
+
+# 2026-07-15 — Bloque 3: la parrilla estática
+
+## [2026-07-15] — El rótulo pintaba el fin en minutos: "08:00–960"
+**Categoría:** datos
+**Síntoma:** Los rótulos de las barras mostraban el fin en MINUTOS en vez de HH:MM: "08:00–960", "15:00–960", "04:00–720". El color y la posición eran correctos; solo el número mentía.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ El build y los dos checkers (sin-hex, contraste) pasaron en verde, y cada barra se pintaba en su sitio con su color de identidad exacto. Nada automático mira el TEXTO del rótulo, así que la mentira viajó entera hasta la captura; se cazó al leerla con los ojos a 1366.
+**Causa raíz:** `normaliza()` devolvía `{ ...turno, ini, fin }` con los minutos en la clave `fin`, pisando la cadena `"16:00"` del turno. El rótulo leía `turno.fin` y encontraba `960`.
+**Cómo se cazó:** ojo humano (lectura de la captura a 1366).
+**Arreglo aplicado:** Los minutos derivados van en claves PROPIAS (`iniMin`/`finMin`); los campos originales `inicio`/`fin` en HH:MM quedan intactos. Actualizados `calcularEje`, `posicion`, `carriles` y la `key` de `Celda.vue`. (El dato sigue vivo: tras la opción A el rótulo se movió al tooltip, que lee `turno.inicio`/`turno.fin` — sin el arreglo el tooltip diría "15:00–960".)
+**Commit:** (este commit)
+**Ley que sale de aquí:** Un campo calculado NO comparte nombre con el dato del que sale. Si lo pisa, es una mentira pintada esperando a que alguien la lea; y nada automático lee texto de rótulos, solo el ojo.
+**Traza:** `src/composables/useEje.js` (normaliza, calcularEje, posicion, carriles); `src/components/Celda.vue`.
+
+## [2026-07-15] — El rótulo dentro de la barra: una spec mía mala, ejecutada sin rechistar
+**Categoría:** carencia
+**Síntoma:** Se construyó "nombre · horas" DENTRO de cada barra (la spec del bloque lo pedía). A 1366 el texto era más ancho que la barra: los rótulos se amontonaban ("Ele00Gil · 15:00", ilegible), el color de identidad quedaba enterrado bajo el texto, y todas las barras parecían igual de anchas porque mandaba el rótulo, no la geometría. Justo lo que la guía prohíbe: "que las cosas se vean, no que se lean"; y choca con la Ley 2 de la Semana del viejo, que el propio usuario había citado.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ La medición automática "¿el rótulo de la barra estrecha pisa otra barra?" dio **0 (verde)** — porque solo comparaba el rótulo contra el RECTÁNGULO de otras barras, no contra otros rótulos ni contra el concepto. El píxel y el color también daban verde: lo correcto era el color, lo roto era la idea, y ninguna medición de píxel caza una idea rota.
+**Causa raíz:** DOBLE. (a) La spec original ("rótulo nombre+horas en cada barra") contradecía una ley ya probada del proyecto: la barra de la Semana es un bloque de color, la identidad la da el COLOR, no el nombre. (b) El ejecutor la construyó al pie de la letra en vez de PARAR y avisar del choque antes de montar — cuando la regla del proyecto es que el ejecutor DISCUTE el diseño, no lo obedece.
+**Cómo se cazó:** usuario (comparó la captura nueva contra la del viejo y detectó el incumplimiento de la Ley 2).
+**Arreglo aplicado:** Se montó el viejo (Laravel) como referencia visual de solo lectura y se copió su ESTRUCTURA: cada turno es una FICHA vertical —insignia de iniciales + nombre arriba, hora debajo, barra al pie— con el texto ENCIMA de la barra, visible (no en un tooltip). La barra queda como bloque de color puro (Ley 2), fiel a su ancho (1 h = 6,7 px, ratio 0,125 = 1/8), sin ancho mínimo que mienta sobre la duración. Dos turnos de una persona = dos fichas apiladas; el viejo los apelmazaba como dos barras en una pista, y ese defecto NO se clona.
+**Commit:** (este commit)
+**Ley que sale de aquí:** Cuando una spec del usuario contradiga una ley ya probada del proyecto, PARAR Y AVISAR antes de construir, no después de medir el destrozo. Y ninguna medición de píxel caza un error de concepto: para eso está montar la referencia y comparar con el ojo. La referencia manda en la estructura, no en sus bugs (el apelmazamiento de dos barras no se hereda).
+**Traza:** `src/components/Barra.vue` (color puro, sin texto ni padding); `src/components/FichaTurno.vue` (nuevo, el texto encima); `src/components/Celda.vue` (apila fichas); `src/components/Parrilla.vue` (cajetín, filas alternas, marco).

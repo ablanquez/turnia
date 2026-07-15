@@ -1,0 +1,68 @@
+/*
+ * LA SEMANA A FUEGO — personas, puestos y turnos de ejemplo.
+ *
+ * Sin motor, sin login, sin BD. Solo lo justo para ver la parrilla poblada y medir la geometría.
+ *
+ * ⚠️ EL PEOR CASO GEOMÉTRICO NACE SEMBRADO (ESTILO.md lo dejó anotado):
+ *   · Elena Gil = Persona 05 (#C484FC), la del margen más ajustado del sistema, lleva en la MISMA
+ *     celda (Barra · Lun) un turno de 8 h y otro de 1 h. Mismo color en ancho y en estrecho, listo
+ *     para comparar el píxel real.
+ *   · Carlos entra a las 04:00 (panadería): antes del inicio del eje 06:00 → el eje SE ENSANCHA,
+ *     no se recorta.
+ *
+ * En este bloque el relleno es plano (sin borde de gravedad): R = 0. La barra estrecha ya está en
+ * pantalla, pero el peor caso DE VERDAD —barra estrecha CON borde que se come el ancho— no existe
+ * hasta que llegue el motor.
+ */
+import { colorDe } from './paleta.js';
+
+export const DIAS = [
+    { clave: '2026-07-13', etiqueta: 'Lun', numero: 13 },
+    { clave: '2026-07-14', etiqueta: 'Mar', numero: 14 },
+    { clave: '2026-07-15', etiqueta: 'Mié', numero: 15 },
+    { clave: '2026-07-16', etiqueta: 'Jue', numero: 16 },
+    { clave: '2026-07-17', etiqueta: 'Vie', numero: 17 },
+    { clave: '2026-07-18', etiqueta: 'Sáb', numero: 18 },
+    { clave: '2026-07-19', etiqueta: 'Dom', numero: 19 },
+];
+
+export const PUESTOS = [
+    { id: 'barra', nombre: 'Barra' },
+    { id: 'cocina', nombre: 'Cocina' },
+    { id: 'caja', nombre: 'Caja' },
+    { id: 'sala', nombre: 'Sala' },
+];
+
+const PERSONAS = [
+    { id: 'ana', nombre: 'Ana Ruiz', indice: 0 },
+    { id: 'bea', nombre: 'Bea Soler', indice: 1 },
+    { id: 'carlos', nombre: 'Carlos Vega', indice: 2 },
+    { id: 'diego', nombre: 'Diego Mora', indice: 3 },
+    { id: 'elena', nombre: 'Elena Gil', indice: 4 }, // Persona 05 · #C484FC · el peor caso
+    { id: 'iker', nombre: 'Iker Blanco', indice: 5 },
+];
+
+export const PERSONAS_POR_ID = Object.fromEntries(
+    PERSONAS.map((p) => [p.id, { ...p, color: colorDe(p.indice) }]),
+);
+
+export const TURNOS = [
+    // ── EL PEOR CASO: Elena (Persona 05) con 8 h y 1 h en la misma celda ──────────────
+    { persona: 'elena', puesto: 'barra', dia: '2026-07-13', inicio: '06:00', fin: '14:00' },
+    { persona: 'elena', puesto: 'barra', dia: '2026-07-13', inicio: '15:00', fin: '16:00' }, // 1 h
+
+    // ── LA PANADERÍA: 04:00, antes del eje → lo ensancha ──────────────────────────────
+    { persona: 'carlos', puesto: 'cocina', dia: '2026-07-13', inicio: '04:00', fin: '12:00' },
+
+    // ── El resto, 8 h, para poblar la rejilla ─────────────────────────────────────────
+    { persona: 'ana', puesto: 'barra', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
+    { persona: 'bea', puesto: 'barra', dia: '2026-07-16', inicio: '14:00', fin: '22:00' },
+    { persona: 'iker', puesto: 'cocina', dia: '2026-07-14', inicio: '10:00', fin: '18:00' },
+    { persona: 'diego', puesto: 'cocina', dia: '2026-07-15', inicio: '12:00', fin: '20:00' },
+    { persona: 'ana', puesto: 'caja', dia: '2026-07-13', inicio: '09:00', fin: '17:00' },
+    { persona: 'bea', puesto: 'caja', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
+    { persona: 'iker', puesto: 'caja', dia: '2026-07-17', inicio: '13:00', fin: '21:00' },
+    { persona: 'diego', puesto: 'sala', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
+    { persona: 'elena', puesto: 'sala', dia: '2026-07-17', inicio: '10:00', fin: '18:00' },
+    { persona: 'carlos', puesto: 'sala', dia: '2026-07-18', inicio: '11:00', fin: '19:00' },
+];

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Andamiaje from './components/Andamiaje.vue';
+import Cuadrante from './components/Cuadrante.vue';
 import TableroEstilo from './components/TableroEstilo.vue';
 
 /*
@@ -11,11 +11,11 @@ import TableroEstilo from './components/TableroEstilo.vue';
  * sobre los mismos datos.
  *
  * Ahora solo existe el andamiaje. Los huecos reservados:
- *   · '/estilo'         → tablero de estilo vivo        (Bloque 2)
- *   · gestión / consulta → Parrilla (PC) / VistaConsulta (móvil)   (Bloque 3)
+ *   · '/'       → Cuadrante: gestión (Parrilla, PC) o consulta (móvil), según useDispositivo
+ *   · '/estilo' → tablero de estilo vivo (Bloque 2)
  */
 const routes = [
-    { path: '/', name: 'inicio', component: Andamiaje },
+    { path: '/', name: 'inicio', component: Cuadrante },
     { path: '/estilo', name: 'estilo', component: TableroEstilo },
 ];
 

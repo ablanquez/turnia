@@ -88,6 +88,40 @@ que se come ~⅔ del ancho y **falsea el color visible** por antialiasing. Ese c
   semántica de estado, que aún no existe). Cuando vuelva, ese peor caso se mide ahí y `R` se recalcula
   contra `D/2`. Hasta entonces, `R = 0` es honesto, no optimista.
 
+## El hilo-guía de la ficha (canal de IDENTIDAD, y su frontera)
+
+En la parrilla (Bloque 3) cada ficha de turno cuelga de su insignia un **hilo-guía**: un `border-left`
+de **2 px** del **mismo color de identidad que la barra** (`person.color`, dato de `paleta.js`, cero
+#hex suelto). Refuerza quién es la persona —se dice en la barra y se repite en el hilo— y agrupa la
+hora + la pista bajo su dueño. **No sube al nombre**: la insignia ya lleva el color allí, y repetirlo
+sería identidad de más. (Cotejado contra el viejo `PersonLane.vue`: el hilo arranca ~3 px por debajo
+de la insignia, no junto al nombre. Ganó la fuente sobre la memoria.)
+
+⚠️ **FRONTERA DE CANAL — este hilo es IDENTIDAD y solo identidad.** Cuando lleguen las gravedades
+(imposible / incumplimiento / aviso) en bloques futuros, **NO** van en este hilo: van en **otro canal**
+(el borde/anillo de la barra, o un cartel). Cruzar la gravedad por el hilo de identidad mezclaría dos
+preguntas en el mismo trazo. El hilo se queda como identidad **para siempre**, para no cruzar canales.
+
+**De PERSONA a FICHA.** En el viejo el hilo era **por carril** (una persona = un hilo para todos sus
+turnos del día; los dos de Marco compartían hilo). Con el modelo de **fichas apiladas** del nuevo
+(un turno = una ficha), el hilo pasa a ser **por ficha**: dos turnos de alguien = **dos** hilos del
+mismo color, y así se ve dónde acaba un turno y empieza el otro. Es **consecuencia del modelo**, no
+una copia del viejo.
+
+## El hueco de cobertura, reservado (Bloque 3)
+
+La tira de cobertura del viejo (`CoverageStrip.vue`) suma el día en verde/rojo/ámbar con conteos
+(`-3 -2 +1`): es **capa semántica** y necesita el **motor**, que aún no existe. En el Bloque 3 se
+**reserva su hueco** al fondo de cada celda con fichas —**15 px** de alto (la tira real, medida en el
+viejo) + **9 px** de separación—, para que cuando llegue sea **encajar y no rehacer el alto de la
+celda** (igual que el stub de la vista móvil).
+
+⚠️ **Este hueco NO es un estado de cobertura.** En el viejo la base de la tira era `sunken` (gris), y
+ese mismo gris significaba a la vez **«cubierto»** y **«no se pide nada»** —dos cosas opuestas, un
+color— y mordió. El hueco reservado **no usa ese gris**: es un **borde punteado neutro** (`border-line`,
+estructura silenciosa) que se lee como **«pendiente / aún no hay dato»**, no como cubierto ni como
+falta. La tira funcional (colores de estado + conteos) llega en su bloque, con el motor.
+
 ## La gobernanza (estructura, no disciplina)
 
 1. **`CLAUDE.md`**: todo color por su fuente; ningún `#hex` suelto en un `.vue`.

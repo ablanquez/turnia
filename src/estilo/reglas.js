@@ -167,3 +167,17 @@ export function auditar({ identidad, estados, fondos }) {
 
     return { D, parD, R, cumpleRD: R < D / 2, filas, choques, ok: choques.length === 0 && R < D / 2 };
 }
+
+/**
+ * La tinta legible SOBRE un relleno de identidad (la insignia de iniciales de la ficha): blanco si
+ * el relleno es oscuro, tinta oscura si es claro. Devuelve una palabra clave o un token de tinta —
+ * nunca un #hex, para no colar color en un .vue (lo vigila sin-hex.check).
+ */
+export function tintaSobre(hex) {
+    const lineal = hexARgb(hex).map((c) => {
+        const x = c / 255;
+        return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    const L = 0.2126 * lineal[0] + 0.7152 * lineal[1] + 0.0722 * lineal[2];
+    return L > 0.4 ? 'var(--color-ink)' : 'white';
+}
