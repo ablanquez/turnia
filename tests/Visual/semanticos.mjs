@@ -28,9 +28,26 @@
  *   node tests/Visual/semanticos.mjs
  */
 import { chromium } from 'playwright';
-import { deltaE00, entrar, lunesDe } from './pixel.mjs';
+import { readFileSync } from 'fs';
+import { deltaE00, entrar } from './pixel.mjs';
 
 const BASE = 'http://turnia.test';
+
+/*
+ * ⚠️ SE MIDE SOBRE LA PAGINA DE LA **TIRA** (MatrizSeeder), NO SOBRE LA DEMO. Y esto lo destapo
+ * la contraprueba.
+ *
+ * La demo NO TIENE NINGUN EXCESO sembrado. Asi que al medir sobre ella, el tramo `excess` no existe
+ * en el DOM, no se mide, y **la mutacion que vuelve a pintar el exceso con la marca ESCAPA**. El
+ * instrumento daba verde por no haber mirado.
+ *
+ * (Y cuando lo corri la primera vez SI lo midio... porque otro instrumento habia dejado la base
+ * sucia, con un turno movido. Un verde que dependia de la basura de otro.)
+ *
+ * MatrizSeeder existe justo para esto: contiene los CUATRO estados de la tira. Y aqui abajo se
+ * EXIGEN los cuatro: si falta uno, este instrumento GRITA en vez de medir lo que haya.
+ */
+const M = JSON.parse(readFileSync(new URL('./matriz.json', import.meta.url), 'utf8'));
 
 const rgb = (css) => {
     const m = css.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
@@ -48,9 +65,9 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 
 await entrar(page, BASE);
-await page.goto(`${BASE}/companies/1/calendars/1/schedule?week=${lunesDe(0)}`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}${M.tira.url}`, { waitUntil: 'domcontentloaded' });
 await page.waitForSelector('[data-t=tramo]', { timeout: 90000 });
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1500);
 
 /* ── LO QUE LA PÁGINA DICE DE SÍ MISMA ────────────────────────────────────────── */
 
@@ -148,6 +165,28 @@ di(`(leídos de la página: ${Object.keys(PERSONAS).length} personas · ${Object
 if (Object.keys(PERSONAS).length < 2 || Object.keys(SEMANTICOS).length < 5) {
     di('❌ NO HAY NADA QUE MEDIR: no se han encontrado personas o colores en la página.');
     di('   Un instrumento sin casos NO ES UN INSTRUMENTO EN VERDE: es un instrumento CIEGO.\n');
+    process.exit(1);
+}
+
+/*
+ * ⚠️ Y LOS CUATRO ESTADOS DE LA TIRA TIENEN QUE ESTAR. SI FALTA UNO, SE GRITA.
+ *
+ * El exceso ESCAPÓ de este instrumento porque en la página que estaba midiendo —la demo— **NO HABÍA
+ * NINGÚN EXCESO**. No había tramo, no había color que leer, y la comprobación pasaba sin haber
+ * mirado. Verde por omisión, otra vez.
+ *
+ *     CERO CASOS PROBADOS NO ES CERO FALLOS.
+ *
+ * Y la primera vez SÍ lo midió… porque otro instrumento había dejado la base sucia con un turno
+ * movido. Un verde que dependía de la basura de otro es peor que un rojo.
+ */
+const FALTAN = ['covered', 'missing', 'excess', 'unrequested']
+    .filter((e) => ! Object.keys(SEMANTICOS).some((n) => n.includes(e)));
+
+if (FALTAN.length) {
+    di(`❌ FALTAN ESTADOS DE LA TIRA EN LA PÁGINA: ${FALTAN.join(', ')}`);
+    di('   No se puede comprobar un color que no está pintado. Esto NO es un aprobado:');
+    di('   es que el caso NO ESTÁ SEMBRADO, y el instrumento daría verde por no mirar.\n');
     process.exit(1);
 }
 

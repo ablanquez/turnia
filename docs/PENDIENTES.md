@@ -82,7 +82,26 @@ de la papelera, para no estorbar el gesto. Pero **mientras está visible tapa un
 de momento pasa. Si algún día molesta, la salida es una franja propia, no moverlo a otra esquina:
 todas las esquinas tienen dueño.
 
-### ⚠️ UN 500 INTERMITENTE EN LARAGON: «No application encryption key has been specified»
+### ⚠️ EL 500 INTERMITENTE DE LARAGON — RESUELTO: **`php artisan config:cache`**
+
+Reventaba **una de cada tres escrituras** (no era cosmético: falseó tres casos del instrumento del
+colateral, que daba «no avisa del hueco» sobre movimientos que **nunca llegaron a ocurrir**).
+
+La causa: sin la config cacheada, **Laravel lee el `.env` en CADA petición**. Bajo la ráfaga que
+dispara un arrastre —una previsualización por celda sobrevolada—, en Windows esa lectura falla de
+vez en cuando, y sin `.env` Laravel cae a los valores por defecto: entorno `production`, **sin
+`APP_KEY`**, y revienta al encriptar la cookie.
+
+```
+   sin config:cache   21 errores «MissingAppKeyException» en una pasada
+   con config:cache    0
+```
+
+`config:cache` es además **lo que se hace en producción**, así que no es un parche: es la
+configuración correcta. ⚠️ **Y hay que acordarse de `php artisan config:clear` al cambiar el
+`.env`**, porque si no, el cambio no se aplica y se pierde media hora buscándolo.
+
+### (Histórico) El 500: «No application encryption key has been specified»
 
 Apareció **21 veces** durante las pasadas de los instrumentos, siempre bajo la ráfaga de peticiones
 que dispara un arrastre (una previsualización por celda sobrevolada). El log lo registra como

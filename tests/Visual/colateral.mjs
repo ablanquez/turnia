@@ -15,15 +15,12 @@
  *   node tests/Visual/colateral.mjs
  */
 import { chromium } from 'playwright';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { mkdirSync, writeFileSync } from 'fs';
 import { entrar, lunesDe } from './pixel.mjs';
+import { reiniciarBase } from './db.mjs';
 
 const BASE = 'http://turnia.test';
 const LUNES = lunesDe(0);
-const correr = promisify(execFile);
-const PHP = String.raw`C:\laragon\bin\php\php-8.3.30-Win32-vs16-x64\php.exe`;
 const dia = (n) => { const d = new Date(LUNES); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 
 let salida = '';
@@ -39,7 +36,7 @@ const foto = async (n) => writeFileSync(new URL(`./salida/colateral-${n}.png`, i
 
 /** Siembra de cero. ⚠️ `migrate:fresh` borra los usuarios: hay que volver a entrar. */
 const sembrar = async ({ esperarInforme = true } = {}) => {
-    await correr(PHP, ['artisan', 'migrate:fresh', '--seed', '--quiet']);
+    await reiniciarBase();
     await entrar(page, BASE);
     await page.evaluate(() => localStorage.setItem('turnia.panel-plantilla', 'abierto'));
     await page.goto(`${BASE}/companies/1/calendars/1/schedule?week=${LUNES}`, { waitUntil: 'domcontentloaded' });

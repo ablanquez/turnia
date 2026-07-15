@@ -28,15 +28,12 @@
  *   node tests/Visual/errores.mjs
  */
 import { chromium } from 'playwright';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { mkdirSync, writeFileSync } from 'fs';
 import { entrar, lunesDe } from './pixel.mjs';
+import { reiniciarBase } from './db.mjs';
 
 const BASE = 'http://turnia.test';
 const LUNES = lunesDe(0);
-const correr = promisify(execFile);
-const PHP = String.raw`C:\laragon\bin\php\php-8.3.30-Win32-vs16-x64\php.exe`;
 
 const dia = (n) => { const d = new Date(LUNES); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 
@@ -45,7 +42,7 @@ const di = (s = '') => { salida += s + '\n'; console.log(s); };
 const fallos = [];
 const ok = (n, c, d = '') => { di(`  ${c ? '✅' : '❌'} ${n}${d ? `  → ${d}` : ''}`); if (!c) fallos.push(n); };
 
-await correr(PHP, ['artisan', 'migrate:fresh', '--seed', '--quiet']);
+await reiniciarBase();
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
@@ -72,7 +69,7 @@ const cargar = async () => {
  * (`migrate:fresh` borra la tabla de usuarios, así que hay que volver a entrar.)
  */
 const sembrar = async () => {
-    await correr(PHP, ['artisan', 'migrate:fresh', '--seed', '--quiet']);
+    await reiniciarBase();
     await entrar(page, BASE);
     await cargar();
 };

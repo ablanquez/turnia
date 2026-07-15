@@ -676,6 +676,36 @@ de persona contra cada color que significa algo** — y que no existía.
 
 ---
 
+### Ley 23 — **UN INSTRUMENTO CON UNA COPIA DE LOS DATOS NO MIDE LA APP: MIDE SU PROPIA COPIA.**
+
+Dos veces en una tanda, y las dos las destapó **la contraprueba** — no yo, no el usuario, no una
+pasada en verde:
+
+**(1) El instrumento medía una ETIQUETA, no el píxel.** `WeekGrid` tenía dos funciones para la misma
+pregunta: una decidía el **color** de la celda de destino, y otra escribía el `data-previa` que lee
+el instrumento. Al romper el color a propósito, **el atributo siguió diciendo la verdad**: la celda
+se pintaba VERDE con la petición caída y `errores.mjs` daba verde.
+
+> **UN INSTRUMENTO QUE MIDE UNA ETIQUETA NO MIDE LO QUE SE VE: MIDE LO QUE ALGUIEN DICE QUE SE VE.**
+
+Ahora el color **sale del estado** (una sola fuente, ley 0 aplicada al código) y el instrumento mide
+**los dos** — porque «tienen la misma fuente» es algo que hay que **comprobar**, no confiar.
+
+**(2) El instrumento tenía los colores COPIADOS.** `semanticos.mjs` llevaba la paleta y los colores
+de la tira escritos a mano. Al volver a pintar el exceso con la marca —el bug original,
+reintroducido— **siguió dando verde**, porque medía su copia. Ahora los lee de la página: las
+variables CSS y **los tramos de cobertura de verdad**.
+
+**El patrón es el mismo que el de la ley 2** («el color se mide en el píxel, no en el CSS»),
+subido un nivel: *el instrumento no puede tener su propia versión de la verdad*. En cuanto la app y
+el instrumento tienen dos copias, el día que se separan **el verde deja de significar nada** — y no
+avisa nadie.
+
+> ⚠️ **Y por eso la contraprueba no es un lujo:** es lo único que comprueba **que el instrumento
+> mide**. Un instrumento en verde solo dice que no encontró nada. La contraprueba dice si podía.
+
+---
+
 ## 3. El mapa de canales
 
 | Canal | Dimensión que lleva | Y ninguna otra |

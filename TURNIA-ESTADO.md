@@ -1216,3 +1216,290 @@ cobertura.
   cambia el alto, un grosor o la trama, **la paleta se REGENERA, no se parchea un color**.*
 - `/public/build` en `.gitignore` y Hostinger sin Node
 - Páginas de error propias · resto de pantallas · landing
+
+---
+
+## 32. ✅ LA PARRILLA, CERRADA DEFINITIVAMENTE
+
+**Commits:** `92db1ee` (responsive) · `3414710` (trama + paleta + Retina) · `a21616b` (cierre)
+**Todo en GitHub.**
+
+### 🏆 EL HALLAZGO DE LA SESIÓN: UN CANAL QUE ES UNA LOTERÍA
+
+**La matriz visual se rompía. Pero NO por la resolución: por la DURACIÓN DE UN TURNO.**
+
+El anillo era un `outline` → rodeaba los cuatro lados → su peso **depende del ANCHO de la barra**.
+Y el ancho de la barra **es la duración del turno**:
+
+| barra | el anillo pesa | el peor color queda a |
+|---|---|---|
+| 50px (8h) | 35% | ΔE 20,1 ✅ |
+| 10px (2h) | 55% | **ΔE 8,7** ❌ |
+| 5px (1h) | 67% | **ΔE 5,8** ❌ |
+
+> **Un turno de UNA HORA con un aviso ámbar se veía MARRÓN.**
+> 🔑 **"Un canal que significa una cosa u otra según lo ancha que sea la barra NO ES UN CANAL: ES
+> UNA LOTERÍA."**
+
+**Y la paleta estaba generada con un ANCHO FIJO DE 50px metido en el modelo.** Solo era cierta a
+ese ancho exacto. **Una constante que nadie había declarado.**
+
+**Y ningún test lo habría visto:** ni la demo ni los 96 casos del cuadrante tienen turnos cortos.
+**Todos son de ocho horas.**
+> 🔑 **EL PEOR CASO GEOMÉTRICO DE LA APP NO ESTABA SEMBRADO EN NINGUNA PARTE.**
+
+**La salida no fue otra paleta: fue cambiar la geometría.** El anillo deja de rodear → **dos
+franjas, arriba y abajo**, cuyo peso es `2w/(alto+2w)` y **no depende del ancho**.
+**El problema desaparece por construcción.**
+
+### 🏆 LA TRAMA: EL CANAL DE LA DENSIDAD ESCRIBÍA EN EL DE LA IDENTIDAD
+
+Señalé *"ese morado no es su rosa"*. Y midiendo apareció algo peor: **la raya de una persona salía
+del color de OTRA.**
+
+| barra tramada | su raya salía | y eso es… |
+|---|---|---|
+| Iker | `#AA589F` | **Bea**, ΔE 5 |
+| Bea | `#804892` | **Marco**, ΔE 7 |
+| Nuria | `#8087BC` | **Diego**, ΔE 7 |
+
+Y en los oscuros hacía **lo contrario**: sobre Marco la raya quedaba a ΔE 4,4 → **invisible** → su
+turno imposible **parecía sólido**, o sea *"cubre el puesto"*.
+> 🔑 **La misma constante producía un AVISO FALSO y un SILENCIO FALSO según a quién le tocara.**
+
+**Arreglo:** la trama es **la sombra de la propia persona** (su color con L\*−22).
+*"No puede meter un color que la identidad no haya puesto, porque no tiene ninguno propio que
+meter."*
+
+### 🔑 LA LEY 2, CONVERTIDA EN TEOREMA
+> Si **D** = distancia mínima entre personas y **R** = lo más que un canal mueve una barra:
+> **la ley 2 se cumple si y solo si `R < D/2`.**
+>
+> Ahora: **5,4 < 8,0** ✅ · Antes: 5,6 < 6,9 *(por los pelos — y por eso la trama la rompía)*
+
+**Y el techo, dicho en voz alta:** **D = 16,1 es el máximo alcanzable.** *En la zona fría no
+existen doce colores a ΔE 20. **Ni ocho** (el máximo para ocho es 19,6).* El aviso *"⚠️ cuesta"*
+estará **siempre encendido**, y el instrumento **declara el techo para que no se lea como pereza**.
+
+### 🎣 Y AL FINAL, UN SILENCIO FALSO ESCONDIDO EN UNA OPTIMIZACIÓN
+En el **zoom Día** las notas no viven en el carril de su persona: caen en una lista del puesto.
+**Se deduplicaban por texto** → si dos personas tenían el mismo motivo a la misma hora, **una de
+las dos notas SE BORRABA. El aviso de alguien desaparecía de la pantalla.**
+> 🔑 **"Agrupar es borrar, y el instrumento lo sabe."**
+
+### 🔑 Constantes escondidas encontradas
+- `ScheduleHeader` tenía **su propia tabla de gravedad** y escribía el dato más importante de la
+  pantalla **con el color de RELLENO** (contraste 3,16 · 3,34 · 4,27 ❌). *La tinta buena existía,
+  a un import de distancia. **Nadie la usó porque había una copia a mano.***
+- `Legend.vue` tenía **su copia literal de la trama** → el manual habría seguido enseñando la vieja.
+- `PersonLane` cableaba `HUECO=9` y `AIRE=4`, **que se derivan del anillo** → si engorda, **dos
+  barras que se pisan se funden en una. En silencio.**
+
+---
+
+## 33. 🚨 EL INSTRUMENTO: VEINTE MENTIRAS
+
+**Las últimas, y con dos categorías nuevas:**
+
+| # | Cómo mintió |
+|---|---|
+| 16 | **"Dentro de la ventana" NO es "se ve":** medía **el blanco del panel que TAPABA la barra**. Cantó *"LA MATRIZ SE ROMPE"* sobre una página impecable. |
+| 17 | **Medía el resultado, no la causa:** al reintroducir el bug de la trama, **no lo cazó** — *el tono ajeno **se diluye al promediar**. La mentira sobrevive al promedio.* |
+| 18-20 | **Falsos ROJOS:** `cotejo.mjs` comparaba con **tres** estados de cobertura cuando hay **cuatro**; `backtest.mjs` buscaba selectores que los carteles se llevaron por delante. |
+
+> 🔑 **Un instrumento DESACTUALIZADO no da un falso verde: da un FALSO ROJO — y eso enseña a NO
+> MIRARLO.**
+
+> 🔑 **"Un instrumento que mide el RESULTADO y no la CAUSA da verde sobre el bug que acabas de
+> quitar."**
+
+---
+
+## 34. 📊 ESTADO FINAL DE LA PARRILLA
+
+### ✅ PROBADO (sobre la imagen, no sobre el CSS)
+- **La matriz visual:** 6 canales · **17 leyes** · **44 casos derivados del modelo** (no del gusto
+  de nadie) + 96 del cuadrante + la rampa de anchos
+- **La ley 2, por construcción:** `R < D/2` → **teorema, no regla de estilo**
+- **La ley 0 a cualquier ancho:** ninguna barra a menos de ΔE 20 de una gravedad ajena, **de 1h a
+  8h**
+- **Responsive de escritorio:** 8 resoluciones × panel plegado/desplegado. **La semana cabe entera
+  desde 1238px**; por debajo se desplaza, **no oculta nada, y lo dice**
+- **Retina y zoom:** DPR 1/2/3 · zoom 80/125/150% · 268 barras cada uno · **ningún número se mueve
+  más de ±1,5 ΔE**
+- **Contraprueba:** 20 mutaciones, **20 cazadas, 0 escapadas**
+- **Ley 15:** la demo contiene **el peor caso geométrico de cada dimensión** *(Marco con el mismo
+  ámbar a 8h y a 1h: se comprueba sin medir nada)*
+
+### ❌ NO PROBADO
+- **Firefox y Safari.** Solo Chromium. **Es el hueco que queda.**
+- **Daltonismo.** La ley 6 se cumple (toda gravedad lleva su palabra) y la trama y el filo son
+  marcas de forma precisamente para eso — **pero la paleta no se ha visto en escala de grises.**
+- **Más de tres personas por celda.** Los seeders llegan a tres.
+- ⚠️ **"SE ENTIENDE".** *Ningún test lo mide.*
+  > **Las tres cosas peores de estas tandas —el anillo que se quedaba corto, el marrón de Marco, la
+  > trama de Iker— LAS CAZÓ EL OJO HUMANO, CON LOS OCHO INSTRUMENTOS EN VERDE.**
+
+---
+
+## 35. 🔜 LO QUE SIGUE
+
+1. **TANDA 7 — ESCRIBIR.** Drag & drop + el **candado TOCTOU**. ⚠️ **Riesgo nº1 vivo.**
+   > *La validación que se enseña al arrastrar es una **PREVISUALIZACIÓN**; la que **DECIDE** corre
+   > dentro del candado. **No son la misma llamada.***
+2. **La vista móvil del empleado** *(otra tanda, deliberadamente: la parrilla no cabe en un móvil y
+   no debe intentarlo)*
+3. Resto de pantallas (crear empresas, empleados, puestos, perfiles, ausencias) + landing
+4. Endurecimiento (páginas de error) + despliegue
+
+### 📋 Anotado en PENDIENTES.md
+- **>12 personas:** los colores se repiten. **La salida no es "más colores": es OTRO CANAL.**
+- El indicador de la cabecera **informa pero no es accionable**
+- **Zona horaria** y **el inicio del eje (06:00)** → por calendario, **no cableados**
+- El **zoom Año** necesita **otro contrato de datos: agregados**
+- ⚠️ **Marco va a 25/25 h:** si alguien le añade un minuto, **se le encienden los cuatro turnos**
+- **Despliegue:** `/public/build` en `.gitignore` y Hostinger sin Node → **decisión pendiente**
+
+---
+
+## 36. TANDA 7 — ESCRIBIR (martes) ⚠️ EN CURSO
+
+**Commits:** `25b35a8` (TOCTOU + escritura) · `e4a8cf7` (los cinco arreglos)
+**229 tests PHP · 11 instrumentos visuales**
+
+### ✅ EL TOCTOU, CERRADO — Y CON CONTRAPRUEBA REAL
+
+**Dos contextos de Chromium, dos sesiones, dos procesos de PHP, una fila de InnoDB.**
+El caso peor: **dos turnos distintos, en días distintos, que por separado cumplen el descanso y
+juntos lo rompen.**
+
+| | navegador 1 | navegador 2 |
+|---|---|---|
+| previsualización | limpio | limpio ← *miente, por construcción* |
+| escritura **CON** candado | 200 escrito | **409** · *"descansa 8h, y el mínimo es 12"* |
+| escritura **SIN** candado | 200 escrito | **200 escrito** ← **el agujero, reproducido** |
+
+> 🔑 **La tercera fila es la que hace que la segunda valga algo.**
+> *"Si el servidor serializara las peticiones, la segunda vería la escritura de la primera y la
+> cazaría igual — y el test pasaría **sin que hubiera habido carrera**. **Un verde sobre una carrera
+> que nunca ocurrió no dice nada del candado.**"*
+
+**Y la rendija se ensancha 300 ms a propósito:**
+> *"Eso no inventa la carrera: la hace ocurrir **siempre**. **Si el candado dependiera de que la
+> rendija fuera estrecha, no sería un candado: sería suerte.**"*
+
+### 🔑 LA SEPARACIÓN ES **ESTRUCTURA**, NO DISCIPLINA
+- **Dos controladores distintos.**
+  > *"Si vivieran en el mismo, el día que alguien 'refactorice para no repetir' **los fundiría y
+  > reabriría el agujero — en un commit que parecería una limpieza**."*
+- **`AssignmentWriter` NO ACEPTA un `ValidationResult` de fuera.**
+  > *"**No se le puede decir 'ya lo validé'. El tipo no lo permite.**"*
+- **El candado va sobre la PERSONA**, porque el caso peor son **dos asignaciones distintas**: un
+  candado sobre cada una **no las hace hablar entre sí**, que es justo lo que hace falta.
+
+### 🔑 EL TOCTOU DE SEGUNDO ORDEN *(que yo no vi)*
+> Si entre el *"¿fuerzas?"* y el *"sí"* **el estado cambia**, se vuelve a preguntar con los motivos
+> nuevos. **"Nadie firma un contrato que no leyó."**
+> Y `assignment_overrides.violations` guarda **lo que vio el candado**, no lo que se enseñó en
+> pantalla.
+
+### Decisiones de producto tomadas
+- **Las horas al COLOCAR salen del hueco de cobertura** → *el primer requisito **DESCUBIERTO***.
+  Convierte un arrastre en **una acción con intención: se coloca donde falta gente.**
+- **Quitar** = arrastrar fuera + `Supr`. *"Un gesto que no se ve, no existe."*
+- **El motivo del forzado: OBLIGATORIO, texto libre.**
+  > 🔑 *Es el **ÚNICO dato de toda la app que no se deriva de nada**: quién decidió y por qué.*
+  > **La fricción ES la funcionalidad**, no un defecto.
+- **Editar horas: CLIC SIN MOVER** (umbral 4-5px) → abre el popover.
+  ⚠️ **Estirar la barra arrastrando: DESCARTADO en la Semana.** *150px / 24h = **6px por hora**.
+  Habría que mover el ratón 6px exactos. **Se acertaría por error.*** → **El teclado gana al ratón.**
+
+---
+
+## 37. 🔴 EL FALLO MÁS GRANDE DEL PROYECTO: LA APP NO ESCRIBÍA, Y TODO ESTABA VERDE
+
+**Al abrir la consola del navegador:**
+
+```
+POST  /companies/1/calendars/1/assignments/4/preview  → 419  ×8
+PATCH /companies/1/calendars/1/assignments/4          → 419
+```
+
+**419 = CSRF token mismatch.** Y **no es sesión caducada**: recargar con F5 da lo mismo.
+
+### ⚠️ Y HAY DOS COSAS PEORES QUE EL BUG
+
+**1. La previsualización MENTÍA.**
+Los `POST /preview` **también dan 419**. O sea: **la celda se iluminaba sin que el servidor hubiera
+dicho nada.** El cliente pintaba "se puede soltar aquí" **y el motor ni se había enterado.**
+> **Un silencio falso en el sitio más caro: la interfaz dice "sí" y el servidor no ha contestado.**
+
+**2. El 419 no se manejaba → SILENCIO TOTAL.**
+Arrastras, sueltas, y **no pasa nada**. Ni se mueve, ni error, ni aviso.
+> **El usuario no sabe si funcionó, si falló, o si la app está rota.**
+
+### 🚨 Y LO QUE DE VERDAD IMPORTA
+> **229 TESTS PHP Y 12 CASOS DE ARRASTRE EN VERDE. SOBRE UNA APP QUE NO PUEDE ESCRIBIR.**
+
+- Los tests de Laravel **no pasan por CSRF** (el middleware se desactiva en testing)
+- `arrastrar.mjs` **abre un navegador de verdad… y dio verde**
+- `concurrencia.mjs` decía escribir con dos navegadores contra InnoDB — **¿cómo, si el navegador no
+  puede?**
+
+**Y la prueba definitiva de por qué el enrutador humano es imprescindible:**
+> **Claude Code dijo "lo solté en el domingo: SE MOVIÓ".**
+> **Y a mí no se me movía.**
+> Su navegador de pruebas y un navegador real **no son lo mismo** — y él **no miró la consola**.
+
+---
+
+## 38. 🚨 EL INSTRUMENTO: DOS CATEGORÍAS NUEVAS *(van 22)*
+
+### 🔑 CERO CASOS PROBADOS **NO ES** CERO FALLOS
+El margen de agarre se escribió como un `<span>` dentro de la barra. `pixeles.mjs` busca un punto
+**donde no haya ningún hijo encima** — y un hijo a todo el ancho **hace que ese punto no exista**.
+
+| | con el `<span>` | sin él |
+|---|---|---|
+| barras con anillo **medidas** | **0** | 24 |
+
+**Las diez leyes de la matriz dejaron de comprobarse. En silencio. Sobre una página que se veía
+perfectamente bien.**
+
+**Solo lo cazó una línea que casi nadie escribe:**
+> *"«NO HA SALIDO NI UNA BARRA CON ANILLO. **Esta rampa no ha probado nada**, y callarlo sería
+> **APROBAR POR OMISIÓN**»."*
+> *"Sin esa línea, entrego la tanda con la matriz sin medir."*
+
+### 🔑 EL HOVER BORRABA LA ALARMA
+El anillo de gravedad es un `box-shadow`, y **en JavaScript asignar no compone: SOBRESCRIBE.**
+Pasar el ratón por encima de un turno imposible **le quitaba el anillo rojo.**
+> **Un silencio falso, en el canal más importante de la app, causado por un efecto de ratón.**
+
+### 🔑 Y DESTRUYÓ UN INSTRUMENTO SIN ENTERARSE
+> *"Escribí un script de depuración llamado `mirar.mjs`, lo usé y lo borré — **y `mirar.mjs` ya
+> existía**. **Los instrumentos no se sustituyen: se acumulan — y yo hice exactamente lo
+> contrario.**"*
+> *(Lo vio porque `git status` decía **`D`**, no `??`.)*
+
+### 🔑 Y MIDIÓ FUERA DE PANTALLA, OTRA VEZ
+Las barras de Tomás están en `y=1143` y la ventana mide 900px. **El lector devolvió
+`rgb(0,0,0)`** en los tres puntos, **comparó los dos negros y cantó "el anillo ES EL MISMO PÍXEL".**
+> **Verde sobre nada.**
+
+---
+
+## 39. 📌 PENDIENTES DE LA TANDA 7
+
+- [ ] 🔴 **Arreglar el CSRF** *(la escritura no funciona)*
+- [ ] 🔴 **Manejar el 419 y TODOS los errores HTTP.** *Una petición que falla no puede acabar en
+      silencio.*
+- [ ] 🔴 **La previsualización NO pinta nada que el servidor no haya dicho.** Si el preview falla:
+      *"comprobando…"*, o nada. **JAMÁS "se puede".**
+- [ ] 🔴 **Arreglar el INSTRUMENTO** — que es lo que falló de verdad
+- [ ] 🟠 **El resaltado del rótulo al 14% es demasiado tímido**
+- [ ] 🟠 **"asdf" se acepta como justificación** *(mínimo 3 caracteres)* → **decisión de producto
+      pendiente**
+- [ ] 🟠 **El género:** *"Nuria Peña **añadido** a Cocina"*. No hay campo de género en el modelo.
+      → **Solución: verbos en PRESENTE, que no llevan género.** *"Nuria Peña **entra en** Cocina"*
+- [ ] 🟡 El aviso **crece y salta** cuando llega el colateral *(reservar el espacio)*

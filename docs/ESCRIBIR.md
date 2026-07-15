@@ -348,3 +348,50 @@ Y la lección, que está en `COTEJO-VISUAL.md` §19: **los tests de Laravel no p
 desactivado en testing) y **todos mis instrumentos de navegador vuelven a entrar antes de cada
 caso**, así que ninguno puede tener el token caducado. Probaban que la app funciona cuando todo va
 bien. `tests/Visual/errores.mjs` prueba lo otro.
+
+---
+
+## 12. El colateral: TODO lo que tu acción cambió
+
+El primer aviso solo miraba **los huecos**. Y mover a Iker del lunes al domingo hace **dos** cosas:
+
+```
+Iker Blanco pasa de Barra · Lun 13 jul a Barra · Dom 19 jul · 12:00–20:00
+  ↗ Ojo: Ahora falta gente en Barra · Lun 13 jul     ← esto lo decía
+  ↗ Ojo: Ahora sobra gente en Barra · Dom 19 jul     ← esto NO
+```
+
+**El exceso también lo has provocado tú, y cuesta dinero.** Igual que un turno que empuja a alguien
+por encima de su tope semanal, o que rompe el descanso de otra persona en otra celda.
+
+Ahora se compara **el informe entero** —cobertura **y** violaciones— en las **dos direcciones**:
+
+| | qué se dice |
+|---|---|
+| hueco nuevo / resuelto | `Ahora falta gente en …` / `Ya no falta gente en …` |
+| exceso nuevo / resuelto | `Ahora sobra gente en …` / `Ya no sobra gente en …` |
+| violación nueva | `Marco Ruiz: se pasa del tope de horas — en 4 turnos` |
+| violación resuelta | `Arreglado — Tomás Vega: solape imposible · Caja · Mar 14 jul` |
+
+Y las decisiones que lleva dentro:
+
+- **«Falta» y «sobra» se distinguen LEYENDO**, no solo por el color. Uno impide que el bar abra; el
+  otro cuesta dinero. Quien lea el aviso sin fijarse en el color tiene que notarlo igual.
+- **Se agrupa por (persona, regla).** El tope semanal es una regla de la PERSONA: cuando salta,
+  salta en **todos** sus turnos. Sin agrupar, un movimiento escupiría cinco líneas idénticas — y el
+  ruido enseña a no leer (ley 9). El dato no se pierde: **se dice en cuántos turnos**.
+- **Las buenas noticias también se cuentan.** Un sistema que solo cuenta las malas enseña a temer
+  los cambios.
+- **El turno que acabas de tocar NO es un colateral.** Lo que le pasa a ÉL ya te lo dijo el candado
+  a la cara, y si incumplía lo has tenido que firmar. Colateral es lo que le pasa a **los demás**.
+- **Tope de 5 líneas, y se dice cuántas se quedan fuera** («y 4 más»). Un aviso que se calla lo que
+  no cabe estaría mintiendo por omisión — que es lo que este aviso vino a evitar.
+
+> ⚠️ **Y SI EL INFORME NO HABÍA LLEGADO, NO HAY «ANTES» CON EL QUE COMPARAR.** Entonces se calla, y
+> **no se inventa un «sin novedad»**. Se expone en `data-comparado`, porque *«no ha cambiado nada»* y
+> *«no lo sé»* **se veían igual desde fuera** —un aviso sin líneas— y eso me costó dos pasadas de
+> instrumento cantando «no avisa del hueco» sobre un aviso que se callaba **con razón**.
+
+Lo prueba `tests/Visual/colateral.mjs`, con seis casos cebados: dos colaterales a la vez, el tope
+que salta en cuatro turnos, uno que ARREGLA algo, uno que rompe **y** arregla, uno sin nada que
+contar, y uno con **el informe interceptado para que no llegue**.
