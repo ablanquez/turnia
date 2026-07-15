@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Andamiaje from './components/Andamiaje.vue';
+import TableroEstilo from './components/TableroEstilo.vue';
 
 /*
  * ⚠️ EL SEAM MULTIDISPOSITIVO EMPIEZA AQUÍ, DESDE EL DÍA 0.
@@ -15,6 +16,7 @@ import Andamiaje from './components/Andamiaje.vue';
  */
 const routes = [
     { path: '/', name: 'inicio', component: Andamiaje },
+    { path: '/estilo', name: 'estilo', component: TableroEstilo },
 ];
 
 export default createRouter({

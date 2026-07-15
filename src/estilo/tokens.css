@@ -1,0 +1,61 @@
+/*
+ * TOKENS FIJOS — la fuente única de tres de las cuatro familias de color.
+ * (La cuarta, IDENTIDAD, son datos y viven en src/datos/paleta.js.)
+ *
+ * ⚠️ Los VALORES son literales heredados del Turnia viejo (app.css / useSeverity.js): son la fuente
+ * de verdad, no se recalculan. Lo que se escribe limpio es la organización.
+ *
+ * Cuatro familias que NO se mezclan: identidad · semántica · marca · composición.
+ * Ningún #hex vive fuera de este fichero (y de paleta.js / el logo). Lo vigila sin-hex.check.mjs.
+ */
+@theme {
+    /* ── Tipografía ───────────────────────────────────────────── */
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace; /* HORAS: cifras tabulares */
+
+    /* ═══ SEMÁNTICA · gravedades ══════════════════════════════════
+     * El relleno manda el vistazo; la tinta manda la lectura (≥ 4,5 de contraste).
+     * El color que rellena y el que escribe NO son el mismo. */
+    --color-impossible-fill: #c81e1e;
+    --color-impossible-text: #b01414;
+    --color-breach-fill: #e8590c;
+    --color-breach-text: #a8410a;
+    --color-notice-fill: #c2870a;
+    --color-notice-text: #7d5606;
+    --color-ok-fill: #15803d;
+    --color-ok-text: #0f5c2c;
+
+    /* ═══ SEMÁNTICA · cobertura (la tira) ═════════════════════════ */
+    --color-covered-fill: #c3e6d1; /* correcto → verde */
+    --color-covered-edge: #15803d;
+    --color-missing-fill: #f7c9c9; /* falta → rojo */
+    --color-missing-edge: #dc2626;
+    --color-excess-fill: #efe0c0; /* exceso → ámbar */
+    --color-excess-edge: #c2870a;
+    --color-void-fill: #d7d4e2; /* sin candidato → gris (rayado) */
+
+    /* ═══ MARCA · índigo (nunca lleva estado) ═════════════════════ */
+    --color-brand-50: #eeedfe;
+    --color-brand-300: #7f77dd;
+    --color-brand-600: #534ab7;
+    --color-brand-800: #3c3489;
+
+    /* ═══ COMPOSICIÓN · la página ═════════════════════════════════
+     * Superficies (6 niveles, del suelo al plano elevado) */
+    --color-page: #e4e2ec;
+    --color-panel: #eceaf4;
+    --color-card: #ffffff;
+    --color-rail: #f1f0f7;
+    --color-band: #f7f6fc;
+    --color-sunken: #e7e5f0;
+
+    /* Líneas (3 pesos: sección 2px > día 1px > pelo) */
+    --color-edge: #c3bfd6;
+    --color-line: #dddbe9;
+    --color-line-soft: #eeecf4;
+
+    /* Tinta (3 niveles) */
+    --color-ink: #2c2643;
+    --color-ink-soft: #5f5d70;
+    --color-ink-faint: #8f8da0;
+}

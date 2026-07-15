@@ -46,13 +46,22 @@ if es_fix && ! esta_en_stage "$BITACORA"; then
     exit 1
 fi
 
-# ── 2. Si el commit toca la paleta/tokens, el color no puede colisionar ──────────────────
-if git diff --cached --name-only | grep -qE 'src/datos/paleta\.js|src/estilo/tokens\.css'; then
-    if [ -f src/estilo/contraste.check.mjs ]; then
-        if ! node src/estilo/contraste.check.mjs >&2; then
-            echo '⚠️  contraste.check FALLÓ: un color colisiona con otra familia. No se cierra el commit.' >&2
-            exit 1
-        fi
+# ── 2. Gobernanza del color ──────────────────────────────────────────────────────────────
+CAMBIOS="$(git diff --cached --name-only)"
+
+# 2a. Ningún color suelto en un .vue/.css tocado.
+if printf '%s\n' "$CAMBIOS" | grep -qE '\.(vue|css)$'; then
+    if [ -f src/estilo/sin-hex.check.mjs ] && ! node src/estilo/sin-hex.check.mjs >&2; then
+        echo '⚠️  Hay un color suelto fuera de la fuente. No se cierra el commit.' >&2
+        exit 1
+    fi
+fi
+
+# 2b. Si toca la paleta/tokens, el color no puede colisionar entre familias.
+if printf '%s\n' "$CAMBIOS" | grep -qE 'src/datos/paleta\.js|src/estilo/tokens\.css'; then
+    if [ -f src/estilo/contraste.check.mjs ] && ! node src/estilo/contraste.check.mjs >&2; then
+        echo '⚠️  contraste.check FALLÓ: un color colisiona con otra familia. No se cierra el commit.' >&2
+        exit 1
     fi
 fi
 

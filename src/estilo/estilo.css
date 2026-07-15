@@ -6,3 +6,4 @@
  * familias de color (identidad · semántica · marca · composición) como fuente única.
  */
 @import 'tailwindcss';
+@import './tokens.css';
