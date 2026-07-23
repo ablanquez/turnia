@@ -17,8 +17,10 @@
  *   3.a  la barra de 1 h mide 1/8 de la de 8 h (ratio 0,125), fiel a su duración.
  *   3.b  la de 1 h y la de 8 h pintan el MISMO color resultante (píxel del canvas, no el hex).
  *   3.c  ninguna barra contiene texto (la barra es identidad pura; el texto vive en la ficha).
- *   3.d  ninguna barra se recorta por el borde de su pista (el eje se ensancha, no recorta).
- *   3.e  las líneas de la rejilla caen en horas redondas, también con el eje ensanchado.
+ *   3.d  ninguna barra DESBORDA su pista (se sale por un lado). Con la ventana fija de 24 h (2.d) un
+ *        turno que se sale se PARTE en el día contiguo, no desborda: el borde del tajo cae A RAS.
+ *   3.e  las líneas de la rejilla caen en horas redondas (ventana fija de 24 h). Se calibra en barras
+ *        SIN corte: en un trozo el rótulo dice el turno entero, más ancho que la barra (calibraría mal).
  *        (Nace de un fallo real: la rejilla estuvo desalineada en 04:00 y nada lo miraba. Ver bitácora.)
  *
  * DOS AFIRMACIONES MÁS, DEL ARRASTRE (Bloque 4): el instrumento CONDUCE un movimiento y mide lo
@@ -104,6 +106,7 @@ function medirEnPagina(b64) {
                 const bar = pista.querySelector('[data-t=barra]');
                 const horaEl = pista.parentElement.querySelector('.font-mono');
                 if (!bar || !horaEl) continue;
+                if (bar.hasAttribute('data-corte')) continue; // trozo partido: el rótulo abarca más que la barra → no calibra (2.d)
                 const m = horaEl.textContent.trim().match(/(\d\d):(\d\d).(\d\d):(\d\d)/);
                 if (!m) continue;
                 let ini = (+m[1]) * 60 + (+m[2]); let fin = (+m[3]) * 60 + (+m[4]); if (fin <= ini) fin += 1440;
