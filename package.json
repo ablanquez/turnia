@@ -7,7 +7,9 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "estilo:check": "node src/estilo/sin-hex.check.mjs && node src/estilo/contraste.check.mjs"
+        "estilo:check": "node src/estilo/sin-hex.check.mjs && node src/estilo/contraste.check.mjs",
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "dependencies": {
         "@fontsource/ibm-plex-mono": "^5.0.0",
@@ -19,6 +21,7 @@
         "@tailwindcss/vite": "^4.0.0",
         "@vitejs/plugin-vue": "^6.0.0",
         "tailwindcss": "^4.0.0",
-        "vite": "^7.0.0"
+        "vite": "^7.0.0",
+        "vitest": "^4.1.10"
     }
 }
