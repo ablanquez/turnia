@@ -84,4 +84,12 @@ export const TURNOS = [
     { id: 't-bea-3', persona: 'bea', puesto: 'barra', dia: '2026-07-15', inicio: '14:00', fin: '22:00' },
     // NOMBRE LARGO (Sala · Mié): activa el ajuste del nombre en la ficha (envolver, no truncar).
     { id: 't-maricarmen-1', persona: 'maricarmen', puesto: 'sala', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
+
+    // ── TURNOS PARTIDOS sembrados en la 2.d · PC1.b (ventana fija 06→06): ejercitan el partido ────────
+    // PARTIDO-ADELANTE interior: acaba pasadas las 06:00 → Jue 22:00–06:00 + Vie 06:00–07:00, ambos visibles.
+    { id: 't-iker-3', persona: 'iker', puesto: 'cocina', dia: '2026-07-16', inicio: '22:00', fin: '07:00' },
+    // PARTIDO-ATRÁS interior: empieza antes de las 06:00 → cola Mié 04:00–06:00 + cuerpo Jue 06:00–10:00, ambos visibles.
+    { id: 't-diego-4', persona: 'diego', puesto: 'sala', dia: '2026-07-16', inicio: '04:00', fin: '10:00' },
+    // OFF-VIEW adelante: el domingo se sale hacia el lunes de la semana siguiente (fuera) → nota de continuación.
+    { id: 't-carlos-3', persona: 'carlos', puesto: 'sala', dia: '2026-07-19', inicio: '22:00', fin: '08:00' },
 ];
