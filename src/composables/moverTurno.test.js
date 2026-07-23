@@ -1,6 +1,5 @@
 import { describe, test, expect } from 'vitest';
 import { moverTurno } from './moverTurno.js';
-import { normaliza, calcularEje } from './useEje.js';
 
 /*
  * Tests de la lógica de mover un turno (Bloque 4 · tanda 1). Reglas del método (heredadas del 3.5):
@@ -54,11 +53,13 @@ describe('moverTurno', () => {
         expect(r).toBe(SEMILLA);
     });
 
-    test('el eje NO cambia tras mover (mismas horas reubicadas → misma escala)', () => {
-        const ejeAntes = calcularEje(SEMILLA.map(normaliza));
+    // Antes aquí se probaba que `calcularEje` no cambiaba al mover (ley derogada del eje elástico). Con
+    // la ventana fija de 24 h el eje es constante por construcción, así que ese test quedó vacío. Lo que
+    // SÍ hay que sujetar es que mover NO toca las horas: es lo que mantiene estable el partido del turno.
+    test('mover CONSERVA las horas (mismo horario reubicado → mismo partido en la ventana fija)', () => {
         const r = moverTurno(SEMILLA, 'a', { dia: '2026-07-19', puesto: 'sala' });
-        const ejeDespues = calcularEje(r.map(normaliza));
-        expect(ejeDespues.desde).toBe(ejeAntes.desde); // 360, sin desplazar
-        expect(ejeDespues.hasta).toBe(ejeAntes.hasta); // 1800, sin desplazar
+        const a = r.find((t) => t.id === 'a');
+        expect(a.inicio).toBe('08:00'); // reubicar cambia día/puesto, nunca la hora
+        expect(a.fin).toBe('16:00');
     });
 });

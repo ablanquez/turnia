@@ -14,7 +14,7 @@
 import { reactive } from 'vue';
 import { editar, borrar, norm } from './useCuadrante.js';
 import { PERSONAS_POR_ID } from '../datos/semana.js';
-import { ajustaGranularidad, calcularEje } from './useEje.js';
+import { ajustaGranularidad, ejeEditor } from './useEje.js';
 import { acotaInicio, acotaFin, horaAAbsoluto } from './editarTurno.js';
 
 const estado = reactive({
@@ -37,7 +37,7 @@ export function abrirEditor(id) {
     estado.persona = t.persona; estado.nombre = p.nombre; estado.color = p.color;
     estado.iniMin = t.iniMin; estado.finMin = t.finMin;
     estado.dia = t.dia; estado.puesto = t.puesto;
-    estado.eje = calcularEje([t]); // 06→06 ensanchado para este turno
+    estado.eje = ejeEditor(t.iniMin, t.finMin); // ventana de 24 h que contiene el turno entero (2.d)
     estado.confirmandoBorrado = false;
     estado.topado = null;
     estado.abierto = true;

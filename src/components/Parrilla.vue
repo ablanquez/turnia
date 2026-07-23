@@ -9,11 +9,12 @@
  *   · CAJETÍN: toda la rejilla va en un panel-tarjeta redondeado sobre el fondo gris de página.
  *   · FILAS ALTERNAS por puesto (card / band) para que el ojo no se pierda al cruzar los 7 días.
  *   · MARCO de cada celda con la línea de día (line) y la de sección (edge) en los bordes fijos.
- *   · El eje se calcula UNA vez sobre todos los turnos: todas las pistas comparten escala y alinean.
+ *   · El eje es una VENTANA FIJA de 24 h (2.d): todas las pistas comparten escala; lo que se sale de
+ *     una ventana se dibuja en el día contiguo (segmentar), no ensancha el eje.
  */
 import { computed } from 'vue';
 import { DIAS, PUESTOS } from '../datos/semana.js';
-import { normaliza, calcularEje } from '../composables/useEje.js';
+import { normaliza, EJE_DIA, segmentar } from '../composables/useEje.js';
 import { useCuadrante } from '../composables/useCuadrante.js';
 import { useArrastre } from '../composables/useArrastre.js';
 import { useEditor } from '../composables/useEditor.js';
@@ -26,12 +27,15 @@ const { turnos } = useCuadrante();
 const { arrastre } = useArrastre();
 const { editor } = useEditor();
 
-// El eje y la normalización se rehacen solos al mover (aunque mover NO cambia el eje: mismas horas
-// reubicadas → misma escala, sujeto por moverTurno.test). Con el estado reactivo, computed basta.
+// El eje es la VENTANA FIJA de 24 h (2.d): la misma escala para toda la rejilla, no se calcula de los
+// datos. La normalización y la segmentación se rehacen solas al mover (computed sobre el estado).
 const norm = computed(() => turnos.value.map(normaliza));
-const eje = computed(() => calcularEje(norm.value));
+const eje = EJE_DIA;
+const segmentos = computed(() => segmentar(norm.value, DIAS));
 
-const turnosDe = (puestoId, diaClave) => norm.value.filter((t) => t.puesto === puestoId && t.dia === diaClave);
+// Los trozos de esta celda: los de este (día, puesto) que caen DENTRO de la semana visible. Un turno
+// que se sale deja su otro trozo en la celda contigua (o, si es off-view, no se dibuja aún — PC3).
+const segmentosDe = (puestoId, diaClave) => segmentos.value.filter((s) => !s.offView && s.dia === diaClave && s.turno.puesto === puestoId);
 </script>
 
 <template>
@@ -78,7 +82,7 @@ const turnosDe = (puestoId, diaClave) => norm.value.filter((t) => t.puesto === p
                             :key="p.id + d.clave"
                             class="border-b border-r border-line"
                             :class="i % 2 ? 'bg-band' : 'bg-card'"
-                            :turnos="turnosDe(p.id, d.clave)"
+                            :segmentos="segmentosDe(p.id, d.clave)"
                             :eje="eje"
                             :dia="d.clave"
                             :puesto="p.id"

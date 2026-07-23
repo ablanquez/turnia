@@ -1,18 +1,22 @@
 /*
- * EL EJE TEMPORAL DE LA PARRILLA — 06:00 → 06:00, y se ensancha, no recorta.
+ * EL EJE TEMPORAL DE LA PARRILLA — una VENTANA FIJA de 24 h por día. No se ensancha (Bloque 4 · 2.d).
  *
- * Reescrito limpio con el aprendizaje del viejo (useAxis): el eje mide un DÍA de trabajo de 06:00 a
- * 06:00 del día siguiente (360 → 1800 min). Si un turno cae fuera —la panadería que entra a las
- * 04:00— el eje SE ENSANCHA hacia ese extremo. Ningún turno se recorta jamás.
+ * ⚠️ DEROGA la ley del Bloque 3 «el eje se ensancha, nunca recorta». Aquella era un eje ÚNICO y
+ * elástico que estiraba sus bordes para que cupiera todo (la panadería de las 04:00 lo ensanchaba por
+ * la izquierda). El modelo nuevo lo invierte: cada día es una ventana FIJA `[E, E+1440]` con
+ * `E = INICIO_JORNADA_MIN` (ajuste de negocio, ver negocio.js). Lo que se sale de una ventana NO la
+ * ensancha: se dibuja en el día contiguo (`segmentar`). El dato sigue siendo UN turno; se parte el
+ * DIBUJO, no el dato. Por qué el cambio: un negocio abre a una hora y su jornada dura 24 h; ensanchar
+ * el eje era un parche que deformaba la escala de todos los días por un turno de madrugada.
  *
- * Y las líneas de la rejilla las posiciona marcasHoras() como ELEMENTOS (ver FichaTurno): caen en
- * horas redondas (06/12/18/00) aunque el eje se ensanche. Antes eran una trama CSS de fondo que
- * arrancaba en el borde = eje.desde, y con el eje ensanchado caían en 04:00 en vez de 06:00 — un
- * fallo que vivió pintado en producción (ver bitácora). marcasHoras es la ÚNICA que sabe de horas.
+ * Las líneas de la rejilla las posiciona marcasHoras() como ELEMENTOS (ver FichaTurno): caen en horas
+ * redondas (06/12/18/00). Con la ventana fija son idénticas en toda la rejilla. marcasHoras es la ÚNICA
+ * que sabe de horas (nace de un fallo real que vivió en producción; ver bitácora).
  */
+import { INICIO_JORNADA_MIN, MINUTOS_DIA } from '../datos/negocio.js';
 
-const DEFECTO_DESDE = 6 * 60; // 06:00
-const DEFECTO_HASTA = 30 * 60; // 06:00 del día siguiente
+/** El eje del día: la ventana fija de 24 h desde la hora de arranque del negocio. NO se ensancha. */
+export const EJE_DIA = { desde: INICIO_JORNADA_MIN, hasta: INICIO_JORNADA_MIN + MINUTOS_DIA };
 
 export function minutos(hhmm) {
     const [h, m] = hhmm.split(':').map(Number);
@@ -33,15 +37,60 @@ export function normaliza(turno) {
     return { ...turno, iniMin, finMin };
 }
 
-/** El eje que abarca TODOS los turnos: por defecto 06→06, ensanchado si algo cae fuera. */
-export function calcularEje(turnosNorm) {
-    let desde = DEFECTO_DESDE;
-    let hasta = DEFECTO_HASTA;
+/*
+ * SEGMENTAR — un turno, hasta DOS trozos dibujados (Bloque 4 · 2.d). Sustituye a calcularEje.
+ *
+ * Cada día `k` tiene su ventana `Wk = [k·1440 + E, k·1440 + E + 1440]`. Un turno del día `d` ocupa, en
+ * una línea de tiempo global, `[S, S+dur]` con `S = d·1440 + iniMin` y `dur = finMin − iniMin` (finMin
+ * ya trae el cruce de medianoche de normaliza). Se INTERSECTA con cada ventana; cada intersección no
+ * vacía es un trozo. Como `dur ≤ 1440` y la ventana mide 1440, toca a lo sumo 2 ventanas consecutivas.
+ *
+ * La MISMA fórmula parte por los dos lados —no hay dos casos, hay uno con signo—: si iniMin < E, `S`
+ * cae en la ventana anterior y el turno corta hacia `d−1` (la panadería de las 04:00 es la madrugada
+ * de la jornada anterior); si se pasa del final, corta hacia `d+1`. Los `corte*` marcan qué borde es un
+ * tajo (no el extremo real del turno); `offView` marca los trozos de un día fuera de la semana visible.
+ */
+export function segmentar(turnosNorm, dias, E = INICIO_JORNADA_MIN) {
+    const indiceDe = new Map(dias.map((d, i) => [d.clave, i]));
+    const n = dias.length;
+    const segmentos = [];
     for (const t of turnosNorm) {
-        if (t.iniMin < desde) desde = t.iniMin;
-        if (t.finMin > hasta) hasta = t.finMin;
+        const d = indiceDe.get(t.dia);
+        if (d == null) continue; // turno de un día que no está en esta vista
+        const S = d * MINUTOS_DIA + t.iniMin;
+        const fin = d * MINUTOS_DIA + t.finMin; // finMin puede pasar de 1440 (cruce de medianoche)
+        // El turno solo puede tocar la ventana de su día y las dos contiguas (dur ≤ 1 día).
+        for (let k = d - 1; k <= d + 1; k++) {
+            const wIni = k * MINUTOS_DIA + E;
+            const wFin = wIni + MINUTOS_DIA;
+            const a = Math.max(S, wIni);
+            const b = Math.min(fin, wFin);
+            if (b <= a) continue; // no intersecta esta ventana
+            segmentos.push({
+                turno: t,
+                diaIndex: k,
+                dia: k >= 0 && k < n ? dias[k].clave : null,
+                offView: k < 0 || k >= n,
+                iniLocal: a - k * MINUTOS_DIA, // en el frame local [E, E+1440]
+                finLocal: b - k * MINUTOS_DIA,
+                corteIni: a > S, // este borde es un tajo, no el inicio real del turno
+                corteFin: b < fin, // este borde es un tajo, no el fin real
+            });
+        }
     }
-    return { desde, hasta };
+    return segmentos;
+}
+
+/*
+ * EL EJE DEL EDITOR — una ventana de 24 h que contiene al turno ENTERO para mostrarlo sin partir. El
+ * editor no parte (edita un turno solo): si el turno cabe en la ventana del negocio, la usa (marcas en
+ * 06/12/18/00); si se sale, ancla la ventana a su inicio (siempre cabe, porque dur ≤ 24 h). NO es la
+ * ley vieja del ensanche: es el frame privado del editor, no el eje compartido de la parrilla.
+ */
+export function ejeEditor(iniMin, finMin, E = INICIO_JORNADA_MIN) {
+    const cabe = iniMin >= E && finMin <= E + MINUTOS_DIA;
+    const desde = cabe ? E : iniMin;
+    return { desde, hasta: desde + MINUTOS_DIA };
 }
 
 /** left% y width% de una barra dentro del eje. Nunca recorta: si sale, es que el eje no abarca. */

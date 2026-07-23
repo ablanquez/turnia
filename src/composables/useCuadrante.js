@@ -13,7 +13,7 @@
  */
 import { ref, computed } from 'vue';
 import { TURNOS } from '../datos/semana.js';
-import { normaliza, calcularEje } from './useEje.js';
+import { normaliza, EJE_DIA } from './useEje.js';
 import { moverTurno } from './moverTurno.js';
 import { retimarTurno } from './retimarTurno.js';
 import { editarTurno, borrarTurno } from './editarTurno.js';
@@ -21,7 +21,9 @@ import { editarTurno, borrarTurno } from './editarTurno.js';
 const turnos = ref(TURNOS.map((t) => ({ ...t })));
 
 const norm = computed(() => turnos.value.map(normaliza));
-const eje = computed(() => calcularEje(norm.value));
+// El eje ya no se calcula de los datos: es la ventana fija de 24 h (2.d). Se deja como computed para
+// conservar la API `.value` que leen el arrastre y el editor sin tocarlos.
+const eje = computed(() => EJE_DIA);
 
 /** Mueve el turno `id` a la celda destino ({ dia, puesto }), conservando sus horas (tanda 1). */
 export function mover(id, destino) {

@@ -20,7 +20,8 @@ import { marcasHoras, posicion } from '../composables/useEje.js';
 import FichaTurno from './FichaTurno.vue';
 
 const props = defineProps({
-    turnos: { type: Array, required: true }, // normalizados, de esta celda
+    // SEGMENTOS de esta celda (2.d): cada turno aporta 1 ó 2 trozos; aquí llegan los de este (día, puesto).
+    segmentos: { type: Array, required: true },
     eje: { type: Object, required: true },
     dia: { type: String, required: true }, // clave del día (para ser destino del arrastre)
     puesto: { type: String, required: true }, // id del puesto
@@ -28,7 +29,7 @@ const props = defineProps({
 
 const { arrastre } = useArrastre();
 
-const ordenados = computed(() => [...props.turnos].sort((a, b) => a.iniMin - b.iniMin));
+const ordenados = computed(() => [...props.segmentos].sort((a, b) => a.iniLocal - b.iniLocal));
 
 // ¿Es esta la celda bajo el puntero durante un arrastre? → se resalta. El resalte va en la CELDA
 // (anillo interior de marca), NUNCA en la barra: la restricción del color se respeta al pie.
@@ -59,13 +60,20 @@ const preview = computed(() => {
         :data-puesto="puesto"
     >
         <div class="flex flex-col gap-3">
+            <!-- Un trozo por segmento. Key = id del turno + índice de día: los dos trozos del mismo
+                 turno NO comparten key (el mordisco del duplicado exacto no se repite), pero comparten
+                 identidad por turno.id → lápiz/arrastre/borrado actúan sobre el turno entero. -->
             <FichaTurno
-                v-for="t in ordenados"
-                :key="t.id"
-                :turno="t"
+                v-for="s in ordenados"
+                :key="s.turno.id + '::' + s.diaIndex"
+                :turno="s.turno"
                 :eje="eje"
-                :color="PERSONAS_POR_ID[t.persona].color"
-                :nombre="PERSONAS_POR_ID[t.persona].nombre"
+                :color="PERSONAS_POR_ID[s.turno.persona].color"
+                :nombre="PERSONAS_POR_ID[s.turno.persona].nombre"
+                :ini-local="s.iniLocal"
+                :fin-local="s.finLocal"
+                :corte-ini="s.corteIni"
+                :corte-fin="s.corteFin"
             />
         </div>
 

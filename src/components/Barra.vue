@@ -14,19 +14,25 @@ import { computed } from 'vue';
 import { posicion } from '../composables/useEje.js';
 
 const props = defineProps({
-    turno: { type: Object, required: true }, // normalizado (iniMin/finMin)
+    turno: { type: Object, required: true }, // normalizado (iniMin/finMin) — bounds del TROZO a dibujar
     eje: { type: Object, required: true },
     color: { type: String, required: true },
+    corteIni: { type: Boolean, default: false }, // el borde izquierdo es un tajo (el turno viene de antes)
+    corteFin: { type: Boolean, default: false }, // el borde derecho es un tajo (el turno sigue después)
 });
 
 const pos = computed(() => posicion(props.turno, props.eje));
+// El tajo se dibuja RECTO (los extremos reales van redondeados): forma, no color — señal de «continúa».
+const radios = computed(() => (props.corteIni ? ' rounded-l-none' : '') + (props.corteFin ? ' rounded-r-none' : ''));
 </script>
 
 <template>
     <div
         data-t="barra"
         :data-persona="turno.persona"
+        :data-corte="corteIni || corteFin ? '' : null"
         class="absolute top-0 h-full rounded-[3px]"
+        :class="radios"
         :style="{ left: pos.left + '%', width: pos.width + '%', background: color }"
     />
 </template>

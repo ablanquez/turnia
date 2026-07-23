@@ -35,7 +35,21 @@ const props = defineProps({
     color: { type: String, required: true },
     nombre: { type: String, required: true },
     esProxy: { type: Boolean, default: false }, // true = clon flotante que sigue al puntero (no arrastrable, no fantasma)
+    // Un turno partido (2.d) se dibuja en varios TROZOS: la barra ocupa [iniLocal, finLocal] del frame
+    // fijo, no el turno entero, y los corte* marcan el tajo. Sin trozo (proxy) → el turno completo.
+    iniLocal: { type: Number, default: null },
+    finLocal: { type: Number, default: null },
+    corteIni: { type: Boolean, default: false }, // el turno viene de antes de este trozo
+    corteFin: { type: Boolean, default: false }, // el turno sigue después de este trozo
 });
+
+// La barra dibuja el TROZO (bounds locales); el rótulo, en cambio, dice el horario del turno ENTERO
+// (turno.inicio–turno.fin), para que los dos trozos se lean como el MISMO turno (ver 4.c).
+const barra = computed(() => ({
+    persona: props.turno.persona,
+    iniMin: props.iniLocal ?? props.turno.iniMin,
+    finMin: props.finLocal ?? props.turno.finMin,
+}));
 
 const { arrastre, alCoger } = useArrastre();
 
@@ -44,8 +58,8 @@ const iniciales = computed(() =>
     props.nombre.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase());
 
 // Las líneas de la rejilla son ELEMENTOS posicionados por marcasHoras() —la única función que sabe de
-// horas—, así caen en horas redondas (06/12/18/00) aunque el eje se ensanche. No una trama CSS de
-// fondo (que arrancaba en el borde = eje.desde y, con el eje ensanchado, caía en 04:00 en vez de 06:00).
+// horas—, así caen en horas redondas (06/12/18/00). Con la ventana fija de 24 h (2.d) son idénticas en
+// toda la rejilla. No una trama CSS de fondo (que arrancaba en el borde y caía fuera de hora redonda).
 const marcas = computed(() => marcasHoras(props.eje, 6));
 
 // Esta ficha es el ORIGEN de un arrastre en curso → se muestra como fantasma (el proxy la representa).
@@ -92,9 +106,14 @@ const esFantasma = computed(() =>
             </button>
         </div>
 
-        <!-- Cuelga de la insignia: el hilo-guía de identidad recorre la hora + la pista, no el nombre. -->
+        <!-- Cuelga de la insignia: el hilo-guía de identidad recorre la hora + la pista, no el nombre.
+             El rótulo dice el horario ENTERO; los chevrons ‹ › señalan que el turno continúa fuera de
+             este trozo (misma señal de «mismo turno» que el borde recto de la barra). Texto en la ficha,
+             NUNCA en la barra. -->
         <div class="ml-[9px] flex flex-col gap-1 border-l-2 pl-[9px]" :style="{ borderColor: color }">
-            <div class="font-mono text-[11px] leading-none text-ink-soft">{{ turno.inicio }}–{{ turno.fin }}</div>
+            <div class="font-mono text-[11px] leading-none text-ink-soft">
+                <span v-if="corteIni" class="text-ink-faint" aria-hidden="true">‹ </span>{{ turno.inicio }}–{{ turno.fin }}<span v-if="corteFin" class="text-ink-faint" aria-hidden="true"> ›</span>
+            </div>
 
             <div class="relative h-4 overflow-hidden rounded bg-sunken">
                 <span
@@ -105,7 +124,7 @@ const esFantasma = computed(() =>
                     class="absolute inset-y-0 w-px bg-line-soft"
                     :style="{ left: m.left + '%' }"
                 />
-                <Barra :turno="turno" :eje="eje" :color="color" />
+                <Barra :turno="barra" :eje="eje" :color="color" :corte-ini="corteIni" :corte-fin="corteFin" />
             </div>
         </div>
     </div>

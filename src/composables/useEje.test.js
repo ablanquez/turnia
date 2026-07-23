@@ -1,12 +1,12 @@
 import { describe, test, expect } from 'vitest';
-import { minutos, normaliza, calcularEje, posicion, marcasHoras, ajustaGranularidad, minutosEnX } from './useEje.js';
+import { minutos, normaliza, segmentar, ejeEditor, EJE_DIA, posicion, marcasHoras, ajustaGranularidad, minutosEnX } from './useEje.js';
 
 /*
  * Tests de la lógica temporal. Reglas del método (punto 3 del Bloque 3.5):
  *   · Cada test nació viendo su ROJO (contraprueba: se reintrodujo el fallo y se comprobó que salta).
  *   · Los valores esperados están calculados A MANO como literales — testigo independiente, no espejo
  *     de la fórmula del código. Si el test replicara la fórmula, ambos compartirían el error.
- *   · Se prueba comportamiento, y se buscan los BORDES (06:00 exacto, cruce de medianoche, ensanche).
+ *   · Se prueba comportamiento, y se buscan los BORDES (06:00 exacto, cruce de medianoche, el partido).
  */
 
 describe('minutos', () => {
@@ -38,33 +38,65 @@ describe('normaliza', () => {
     });
 });
 
-describe('calcularEje', () => {
-    test('por defecto abarca 06:00 → 06:00 (360 → 1800)', () => {
-        const eje = calcularEje([normaliza({ inicio: '08:00', fin: '16:00' })]);
-        expect(eje.desde).toBe(360);
-        expect(eje.hasta).toBe(1800);
+/*
+ * EL EJE FIJO Y `segmentar` (Bloque 4 · 2.d). SUSTITUYEN al bloque `calcularEje`, que se RETIRÓ entero:
+ * el eje ya no se ensancha (esos 6 tests probaban ensanche izq/der/borde de una ley DEROGADA; ver
+ * bitácora). Lo que ahora hay que probar es que la ventana es fija y que segmentar parte bien.
+ */
+describe('el eje fijo de 24 h', () => {
+    test('mide SIEMPRE 1440 min (24 h): la ventana no se ensancha', () => {
+        expect(EJE_DIA.hasta - EJE_DIA.desde).toBe(1440);
+    });
+    test('ejeEditor devuelve una ventana de 24 h que contiene el turno entero (aunque se salga)', () => {
+        const cabe = ejeEditor(480, 960, 360);          // 08:00–16:00, cabe en 06→06
+        expect(cabe).toEqual({ desde: 360, hasta: 1800 });
+        const cruza = ejeEditor(1320, 1920, 360);       // 22:00–08:00, se sale → ancla al inicio
+        expect(cruza.hasta - cruza.desde).toBe(1440);
+        expect(cruza.desde).toBe(1320);                 // contiene el turno entero sin partir
+    });
+});
+
+describe('segmentar (un turno → 1 ó 2 trozos, ventana fija)', () => {
+    const DIAS = [{ clave: 'd0' }, { clave: 'd1' }, { clave: 'd2' }];
+    const E = 360; // 06:00, pasado explícito: testigo independiente de la config del negocio
+    const turno = (dia, iniMin, finMin) => ({ id: 't', persona: 'x', puesto: 'barra', dia, iniMin, finMin });
+    const dur = (s) => s.finLocal - s.iniLocal;
+
+    test('un turno que cabe en su ventana → UN trozo, sin cortes', () => {
+        const s = segmentar([turno('d1', 480, 960)], DIAS, E); // 08:00–16:00
+        expect(s).toHaveLength(1);
+        expect(s[0]).toMatchObject({ dia: 'd1', iniLocal: 480, finLocal: 960, corteIni: false, corteFin: false });
     });
 
-    test('un turno que empieza EXACTAMENTE a las 06:00 no ensancha (borde)', () => {
-        const eje = calcularEje([normaliza({ inicio: '06:00', fin: '14:00' })]);
-        expect(eje.desde).toBe(360); // 06:00 es el borde: no baja de ahí
+    test('CORTE ADELANTE: los dos trozos SUMAN la duración (22:00–08:00 = 10 h)', () => {
+        const s = segmentar([turno('d1', 1320, 1920)], DIAS, E); // 22:00 → 08:00 del día siguiente (600 min)
+        expect(s).toHaveLength(2);
+        const d1 = s.find((x) => x.dia === 'd1'), d2 = s.find((x) => x.dia === 'd2');
+        expect(dur(d1) + dur(d2)).toBe(600); // ⚠️ LA ASERCIÓN CLAVE: el tajo no pierde ni inventa tiempo
+        expect(d1).toMatchObject({ iniLocal: 1320, finLocal: 1800, corteFin: true, corteIni: false }); // 22:00 → 06:00
+        expect(d2).toMatchObject({ iniLocal: 360, finLocal: 480, corteIni: true, corteFin: false });    // 06:00 → 08:00
     });
 
-    test('se ensancha por la IZQUIERDA si un turno empieza antes de 06:00 (panadería 04:00)', () => {
-        const eje = calcularEje([normaliza({ inicio: '04:00', fin: '12:00' })]);
-        expect(eje.desde).toBe(240);   // 04:00
-        expect(eje.hasta).toBe(1800);  // el otro lado no se mueve
+    test('CORTE ATRÁS (simétrico): un inicio antes de E parte hacia el día anterior (04:00–12:00)', () => {
+        const s = segmentar([turno('d1', 240, 720)], DIAS, E); // 04:00 → 12:00 (480 min)
+        expect(s).toHaveLength(2);
+        const d0 = s.find((x) => x.dia === 'd0'), d1 = s.find((x) => x.dia === 'd1');
+        expect(d0).toMatchObject({ iniLocal: 1680, finLocal: 1800, corteFin: true });  // 04:00 → 06:00, cola del día anterior
+        expect(d1).toMatchObject({ iniLocal: 360, finLocal: 720, corteIni: true });     // 06:00 → 12:00
+        expect(dur(d0) + dur(d1)).toBe(480);
     });
 
-    test('un turno que acaba EXACTAMENTE a las 06:00 del día siguiente no ensancha (borde)', () => {
-        const eje = calcularEje([normaliza({ inicio: '22:00', fin: '06:00' })]);
-        expect(eje.hasta).toBe(1800); // 30:00 es el borde: no sube de ahí
+    test('BORDE EXACTO: un fin justo en E+1440 NO parte (22:00–06:00 = un trozo)', () => {
+        const s = segmentar([turno('d1', 1320, 1800)], DIAS, E); // acaba EXACTO en 06:00 del día siguiente
+        expect(s).toHaveLength(1);
+        expect(s[0]).toMatchObject({ dia: 'd1', corteFin: false, corteIni: false });
     });
 
-    test('se ensancha por la DERECHA si un turno acaba después de 06:00 del día siguiente', () => {
-        const eje = calcularEje([normaliza({ inicio: '20:00', fin: '07:00' })]);
-        expect(eje.desde).toBe(360);
-        expect(eje.hasta).toBe(1860);  // 07:00 del día siguiente = 31:00 = 31·60
+    test('OFF-VIEW: el trozo que cae en un día fuera de la semana se marca offView (no se pierde)', () => {
+        const s = segmentar([turno('d0', 240, 720)], DIAS, E); // primer día, parte hacia el día -1 (fuera)
+        expect(s).toHaveLength(2);
+        expect(s.find((x) => x.offView)).toMatchObject({ dia: null, diaIndex: -1 });
+        expect(s.find((x) => !x.offView)).toMatchObject({ dia: 'd0', corteIni: true });
     });
 });
 
