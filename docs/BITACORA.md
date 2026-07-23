@@ -134,3 +134,14 @@
 **Commit:** (este commit)
 **Ley que sale de aquí:** La función que CALCULA un dato debe ser la que lo PINTA: dos funciones que saben lo mismo divergen, y la copia a mano acaba pintando mal mientras la buena, probada, no se usa. Un comentario que miente es un instrumento mentiroso: se corrige con el código. Y el instrumento de geometría (punto 5) debe medir POSICIONES de elementos, no muestrear una trama.
 **Traza:** `src/composables/useEje.js` (elimina `rejilla`, corrige comentario); `src/components/FichaTurno.vue` (líneas como elementos vía `marcasHoras`).
+
+## [2026-07-23] — El propio instrumento de medición mintió: horas basura por confundir % con px
+**Categoría:** datos
+**Síntoma:** La primera versión de la medición renderizada de la rejilla escupió horas imposibles —04:00, 08:00, 12:00, 16:00, 21:00, 01:00, con espaciado irregular— en vez de las posiciones reales.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ El VEREDICTO (rojo: las líneas no caen en horas redondas) era correcto por casualidad, así que el instrumento "funcionaba" a nivel de pass/fail. Un verdadero-por-casualidad es el peor caso: el veredicto correcto tapa el número equivocado, y en otro escenario un bug de unidades así puede flipar el veredicto entero (rojo↔verde) sin que nada avise.
+**Causa raíz:** `parseFloat(getComputedStyle(pista).backgroundSize)` devuelve el número del `X%` y se usó como PÍXELES; el paso del bucle quedó en ~4-5 h en vez de 6 h.
+**Cómo se cazó:** sospecha del propio instrumento — las horas no cuadraban (espaciado irregular), así que se dudó de la medición antes que del código y se reescribió midiendo lo determinista (la trama arranca en el borde = `eje.desde`).
+**Arreglo aplicado:** La medición dejó de parsear el espaciado; mide sin ambigüedad de unidades (posición de elementos de línea; o, en su ausencia, el borde = `eje.desde`). Script de un solo uso, no versionado.
+**Commit:** (este commit) — solo la entrada; el instrumento era temporal.
+**Ley que sale de aquí:** Un instrumento de medición también miente, y un verdadero-por-casualidad es el más peligroso. Se sospecha del instrumento cuando sus números no cuadran, aunque el veredicto parezca bueno. El instrumento del punto 5 nace con esta lección.
+**Traza:** medición temporal de la rejilla (no versionada); lección para `tools/geometria.check.mjs` (punto 5).
