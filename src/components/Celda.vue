@@ -74,6 +74,7 @@ const preview = computed(() => {
                 :fin-local="s.finLocal"
                 :corte-ini="s.corteIni"
                 :corte-fin="s.corteFin"
+                :nota-fuera="s.notaFuera"
             />
         </div>
 

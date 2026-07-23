@@ -41,6 +41,18 @@ const props = defineProps({
     finLocal: { type: Number, default: null },
     corteIni: { type: Boolean, default: false }, // el turno viene de antes de este trozo
     corteFin: { type: Boolean, default: false }, // el turno sigue después de este trozo
+    notaFuera: { type: Object, default: null }, // { dir, dia } si el otro trozo cae FUERA de la vista
+});
+
+// La NOTA de continuación (2.d · PC1.b): cuando el otro trozo del turno NO está en pantalla, la
+// geometría no puede explicar lo que no se ve → hace falta TEXTO. Va bajo la barra, en tinta de
+// composición (no es un canal semántico), y dice a dónde sigue el turno. Nunca aparece en un partido
+// interior (ahí se ven las dos mitades). Sustituye al chevron, que a este tamaño no comunicaba nada.
+const NOMBRE_DIA = { Lun: 'lunes', Mar: 'martes', Mié: 'miércoles', Jue: 'jueves', Vie: 'viernes', Sáb: 'sábado', Dom: 'domingo' };
+const nota = computed(() => {
+    if (!props.notaFuera) return null;
+    const dia = NOMBRE_DIA[props.notaFuera.dia] ?? props.notaFuera.dia;
+    return props.notaFuera.dir === 'antes' ? `viene del ${dia}` : `continúa el ${dia}`;
 });
 
 // La barra dibuja el TROZO (bounds locales); el rótulo, en cambio, dice el horario del turno ENTERO
@@ -107,13 +119,10 @@ const esFantasma = computed(() =>
         </div>
 
         <!-- Cuelga de la insignia: el hilo-guía de identidad recorre la hora + la pista, no el nombre.
-             El rótulo dice el horario ENTERO; los chevrons ‹ › señalan que el turno continúa fuera de
-             este trozo (misma señal de «mismo turno» que el borde recto de la barra). Texto en la ficha,
-             NUNCA en la barra. -->
+             El rótulo dice el horario ENTERO (misma señal de «mismo turno» en los dos trozos, junto al
+             borde recto del tajo). Texto en la ficha, NUNCA en la barra. -->
         <div class="ml-[9px] flex flex-col gap-1 border-l-2 pl-[9px]" :style="{ borderColor: color }">
-            <div class="font-mono text-[11px] leading-none text-ink-soft">
-                <span v-if="corteIni" class="text-ink-faint" aria-hidden="true">‹ </span>{{ turno.inicio }}–{{ turno.fin }}<span v-if="corteFin" class="text-ink-faint" aria-hidden="true"> ›</span>
-            </div>
+            <div class="font-mono text-[11px] leading-none text-ink-soft">{{ turno.inicio }}–{{ turno.fin }}</div>
 
             <div class="relative h-4 overflow-hidden rounded bg-sunken">
                 <span
@@ -126,6 +135,10 @@ const esFantasma = computed(() =>
                 />
                 <Barra :turno="barra" :eje="eje" :color="color" :corte-ini="corteIni" :corte-fin="corteFin" />
             </div>
+
+            <!-- La nota de continuación: SOLO cuando el otro trozo está fuera de la vista. Envuelve, no
+                 se trunca (un texto a medias mentiría). Tinta de composición, no toca el color. -->
+            <div v-if="nota" data-t="nota-fuera" class="text-[10px] italic leading-tight text-ink-faint">{{ nota }}</div>
         </div>
     </div>
 </template>

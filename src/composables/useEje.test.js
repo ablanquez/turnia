@@ -57,7 +57,7 @@ describe('el eje fijo de 24 h', () => {
 });
 
 describe('segmentar (un turno → 1 ó 2 trozos, ventana fija)', () => {
-    const DIAS = [{ clave: 'd0' }, { clave: 'd1' }, { clave: 'd2' }];
+    const DIAS = [{ clave: 'd0', etiqueta: 'Lun' }, { clave: 'd1', etiqueta: 'Mar' }, { clave: 'd2', etiqueta: 'Dom' }];
     const E = 360; // 06:00, pasado explícito: testigo independiente de la config del negocio
     const turno = (dia, iniMin, finMin) => ({ id: 't', persona: 'x', puesto: 'barra', dia, iniMin, finMin });
     const dur = (s) => s.finLocal - s.iniLocal;
@@ -97,6 +97,20 @@ describe('segmentar (un turno → 1 ó 2 trozos, ventana fija)', () => {
         expect(s).toHaveLength(2);
         expect(s.find((x) => x.offView)).toMatchObject({ dia: null, diaIndex: -1 });
         expect(s.find((x) => !x.offView)).toMatchObject({ dia: 'd0', corteIni: true });
+    });
+
+    // ── La NOTA de continuación: SOLO cuando el otro trozo está fuera de la vista (bordes). ──
+    test('NOTA: un trozo del borde cuyo otro trozo está FUERA lleva notaFuera (viene de antes / va después)', () => {
+        const atras = segmentar([turno('d0', 240, 720)], DIAS, E).find((x) => !x.offView); // 04:00 en el día 0
+        expect(atras.notaFuera).toEqual({ dir: 'antes', dia: 'Dom' }); // su cola cae en el día anterior a d0 (Dom)
+        const adelante = segmentar([turno('d2', 1320, 1920)], DIAS, E).find((x) => !x.offView); // 22:00→08:00 en el último día
+        expect(adelante.notaFuera).toEqual({ dir: 'despues', dia: 'Lun' }); // sigue en el día posterior a d2 (Lun)
+    });
+
+    test('NOTA: un partido INTERIOR (los dos trozos visibles) NO lleva nota — ya lo estás viendo', () => {
+        const s = segmentar([turno('d1', 1320, 1920)], DIAS, E); // 22:00→08:00 en d1 → d1 y d2, ambos visibles
+        expect(s).toHaveLength(2);
+        expect(s.every((x) => x.notaFuera === null)).toBe(true); // ⚠️ ROJO si la nota ignora el borde
     });
 });
 

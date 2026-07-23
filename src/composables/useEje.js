@@ -49,6 +49,12 @@ export function normaliza(turno) {
  * cae en la ventana anterior y el turno corta hacia `d−1` (la panadería de las 04:00 es la madrugada
  * de la jornada anterior); si se pasa del final, corta hacia `d+1`. Los `corte*` marcan qué borde es un
  * tajo (no el extremo real del turno); `offView` marca los trozos de un día fuera de la semana visible.
+ *
+ * `notaFuera` (solo en trozos visibles): el otro trozo del turno cae FUERA de la semana. La geometría
+ * no puede explicar lo que no está en pantalla, así que ahí —y SOLO ahí— hace falta texto (ver
+ * bitácora: el chevron descartado). Ocurre únicamente en los BORDES de la vista: un tajo por el inicio
+ * en el primer día (viene de antes), o por el fin en el último (va después). En un partido interior
+ * (los dos trozos visibles) es null: ya lo estás viendo.
  */
 export function segmentar(turnosNorm, dias, E = INICIO_JORNADA_MIN) {
     const indiceDe = new Map(dias.map((d, i) => [d.clave, i]));
@@ -66,15 +72,24 @@ export function segmentar(turnosNorm, dias, E = INICIO_JORNADA_MIN) {
             const a = Math.max(S, wIni);
             const b = Math.min(fin, wFin);
             if (b <= a) continue; // no intersecta esta ventana
+            const corteIni = a > S; // este borde es un tajo, no el inicio real del turno
+            const corteFin = b < fin; // este borde es un tajo, no el fin real
+            const enVista = k >= 0 && k < n;
+            // La nota solo cuando el trozo contiguo (donde sigue el turno) está fuera de la vista, y eso
+            // solo pasa en los bordes: corte por el inicio en el día 0, o por el fin en el último.
+            let notaFuera = null;
+            if (enVista && corteIni && k === 0) notaFuera = { dir: 'antes', dia: dias[n - 1].etiqueta };
+            else if (enVista && corteFin && k === n - 1) notaFuera = { dir: 'despues', dia: dias[0].etiqueta };
             segmentos.push({
                 turno: t,
                 diaIndex: k,
-                dia: k >= 0 && k < n ? dias[k].clave : null,
-                offView: k < 0 || k >= n,
+                dia: enVista ? dias[k].clave : null,
+                offView: !enVista,
                 iniLocal: a - k * MINUTOS_DIA, // en el frame local [E, E+1440]
                 finLocal: b - k * MINUTOS_DIA,
-                corteIni: a > S, // este borde es un tajo, no el inicio real del turno
-                corteFin: b < fin, // este borde es un tajo, no el fin real
+                corteIni,
+                corteFin,
+                notaFuera,
             });
         }
     }
