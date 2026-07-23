@@ -29,6 +29,8 @@
  *               arrastrar, esto salta. (La API estándar de DnD lo violaría por diseño; ver bitácora.)
  *   M.aterriza  TRAS soltar, la barra movida cae DENTRO del rect de su celda destino (no a medias ni
  *               fuera). El movimiento reubica de verdad, sin desbordar.
+ *   M.retima    TRAS retimar (arrastrar dentro de la misma celda), la barra ATERRIZA en la posición
+ *               de su NUEVO horario (calibrando x→minutos con las marcas, independientes de la barra).
  *   ⚠️ Se corre igual: A MANO al cerrar un bloque que toque la parrilla. Conduce el arrastre con
  *      page.mouse (eventos de puntero reales), así que también necesita navegador + servidor.
  *
@@ -220,6 +222,76 @@ async function correrSelftestMovimiento(page) {
     return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
 }
 
+/* ══ ESCENARIO DE RETIMADO (Bloque 4 · tanda 2) ═══════════════════════════════════════════════════
+ * Retima Ana (Barra·Mar) arrastrándola a la derecha dentro de su celda y comprueba (M.retima) que la
+ * barra ATERRIZA en la posición de su NUEVO horario: se calibra x→minutos con las marcas de hora
+ * (independientes de la barra) y se contrasta con la hora que muestra la ficha. */
+const RET = { dia: '2026-07-14', puesto: 'barra', persona: 'ana', dx: 45 };
+
+function coordsFicha(m) {
+    const cel = document.querySelector(`[data-celda][data-dia="${m.dia}"][data-puesto="${m.puesto}"]`);
+    const bar = cel.querySelector(`[data-t=barra][data-persona="${m.persona}"]`);
+    const r = bar.closest('.cursor-grab').getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 12) };
+}
+
+function medirRetimado(m) {
+    const rect = (el) => el.getBoundingClientRect();
+    const cel = document.querySelector(`[data-celda][data-dia="${m.dia}"][data-puesto="${m.puesto}"]`);
+    const bar = cel.querySelector(`[data-t=barra][data-persona="${m.persona}"]`);
+    if (!bar) return { guardia: { ok: false, fallos: ['la ficha retimada no está en su celda'] } };
+    const pista = bar.closest('.bg-sunken');
+    const horaEl = pista.parentElement.querySelector('.font-mono');
+    const mm = horaEl && horaEl.textContent.trim().match(/(\d\d):(\d\d).(\d\d):(\d\d)/);
+    if (!mm) return { guardia: { ok: false, fallos: ['sin hora legible tras retimar'] } };
+    const ini = (+mm[1]) * 60 + (+mm[2]);
+    const marcas = [...pista.querySelectorAll('[data-t=linea]')].map((l) => ({ x: rect(l).left, min: (+l.getAttribute('data-hora').slice(0, 2)) * 60 })).sort((a, b) => a.x - b.x);
+    if (marcas.length < 2) return { guardia: { ok: false, fallos: ['pista con <2 marcas para calibrar'] } };
+    for (let i = 1; i < marcas.length; i++) while (marcas[i].min <= marcas[i - 1].min) marcas[i].min += 1440; // 00:00 → 1440, ascendente
+    const a = marcas[0], z = marcas[marcas.length - 1];
+    const iniMedido = a.min + (rect(bar).left - a.x) * ((z.min - a.min) / (z.x - a.x));
+    // marco horario más cercano al medido (resuelve la ambigüedad del cruce de medianoche)
+    const iniHora = [ini, ini + 1440, ini - 1440].reduce((b, c) => (Math.abs(c - iniMedido) < Math.abs(b - iniMedido) ? c : b));
+    const desfase = Math.abs(iniMedido - iniHora);
+    return { guardia: { ok: true }, dentro: desfase <= 20, detalle: `inicio medido ${Math.round(iniMedido)} min vs hora ${iniHora} (Δ ${Math.round(desfase)} min); ficha "${horaEl.textContent.trim()}"` };
+}
+
+async function escenarioRetimado(page, opciones = {}) {
+    await cargar(page);
+    const c = await page.evaluate(coordsFicha, RET);
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    await page.mouse.move(c.x + 8, c.y); // supera el umbral, misma celda
+    await page.mouse.move(c.x + RET.dx, c.y, { steps: 10 }); // desplaza a la derecha → más tarde
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+    if (opciones.inyectaAterrizaje) await page.evaluate((m) => { const cel = document.querySelector(`[data-celda][data-dia="${m.dia}"][data-puesto="${m.puesto}"]`); const bar = cel.querySelector(`[data-t=barra][data-persona="${m.persona}"]`); bar.style.transform = 'translateX(-50px)'; }, RET);
+    const r = await page.evaluate(medirRetimado, RET);
+    if (!r.guardia || !r.guardia.ok) return { guardia: { ok: false, fallos: r.guardia?.fallos || ['retimado no medible'] } };
+    const viol = [];
+    if (!r.dentro) viol.push({ af: 'M.retima', detalle: `la barra NO cayó en su nuevo horario: ${r.detalle}` });
+    return { guardia: { ok: true }, violaciones: viol, datos: { retimado: r.detalle } };
+}
+
+function decidirRetimado(r) {
+    if (!r.guardia || !r.guardia.ok) return [NO_PROBADA, `🟠 NO PROBADA (retimado) — se suspende:\n  ${r.guardia.fallos.join('\n  ')}`];
+    if (r.violaciones.length) return [CAZADO, `🔴 CAZADO (retimado) — ${r.violaciones.length}:\n` + r.violaciones.map((v) => `  · ${v.af}  ${v.detalle}`).join('\n')];
+    return [VERDE, `🟢 VERDE (retimado) — 1/1 OK: la barra aterriza en su nuevo horario.  ${JSON.stringify(r.datos)}`];
+}
+
+async function correrSelftestRetimado(page) {
+    const r = await escenarioRetimado(page, { inyectaAterrizaje: true });
+    const d = r.guardia && r.guardia.ok && (r.violaciones || []).find((v) => v.af === 'M.retima');
+    const ok = !!d;
+    const linea = ok
+        ? `  ✅ M.retima «barra desplazada de su horario tras retimar»\n        → ROJO: ${d.detalle}`
+        : `  ❌ M.retima «barra fuera de su horario» → NO SALTÓ  (guardia.ok=${r.guardia && r.guardia.ok}; viol=${JSON.stringify(r.violaciones)})`;
+    const cab = ok
+        ? '🟢 SELFTEST RETIMADO OK — el detector de retimado sabe ponerse rojo.'
+        : '🔴 SELFTEST RETIMADO FALLÓ — el detector de retimado no salta.';
+    return { code: ok ? VERDE : NO_PROBADA, salida: cab + '\n' + linea };
+}
+
 /* ── Las contrapruebas: cada una inyecta SU fallo en el DOM y debe hacer saltar SU detector. ── */
 const CONTRAPRUEBAS = [
     { af: '3.a', nombre: 'ancho mínimo forzado a la barra de 1 h', inject: () => { const e = [...document.querySelectorAll('[data-t=barra][data-persona="elena"]')].sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width); e[0].style.width = '40px'; e[0].style.minWidth = '40px'; } },
@@ -272,13 +344,15 @@ try {
     if (SELFTEST) {
         const r1 = await correrSelftest(page);
         const r2 = await correrSelftestMovimiento(page);
-        code = combinar([r1.code, r2.code]);
-        salida = r1.salida + '\n\n── contrapruebas del ARRASTRE (Bloque 4) ──\n' + r2.salida;
+        const r3 = await correrSelftestRetimado(page);
+        code = combinar([r1.code, r2.code, r3.code]);
+        salida = r1.salida + '\n\n── contrapruebas del ARRASTRE · mover (tanda 1) ──\n' + r2.salida + '\n\n── contrapruebas del ARRASTRE · retimar (tanda 2) ──\n' + r3.salida;
     } else {
         await cargar(page); const rest = await medir(page); const [c1, s1] = decidir(rest);
         const rmov = await escenarioMovimiento(page); const [c2, s2] = decidirMovimiento(rmov);
-        code = combinar([c1, c2]);
-        salida = s1 + '\n\n── ARRASTRE (Bloque 4) ──\n' + s2;
+        const rret = await escenarioRetimado(page); const [c3, s3] = decidirRetimado(rret);
+        code = combinar([c1, c2, c3]);
+        salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3;
     }
 } catch (e) {
     code = NO_PROBADA;
