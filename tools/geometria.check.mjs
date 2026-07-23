@@ -32,9 +32,12 @@
  *   M.retima    TRAS retimar (arrastrar dentro de la misma celda), la barra ATERRIZA en la posición
  *               de su NUEVO horario (calibrando x→minutos con las marcas, independientes de la barra).
  *   E.tope      En el editor, llevar el tirador del fin más allá del mínimo NO produce una duración
- *               menor de 30 min (el suelo estructural se cumple; la duración cero es inalcanzable).
+ *               menor de 5 min (el suelo estructural se cumple; la duración cero es inalcanzable).
  *   M.color-editor  La barra del editor pinta el color DECLARADO (rendered vs computed backgroundColor,
  *               que la opacidad no altera): los tiradores tampoco tocan el color.
+ *   E.teclado   Teclear en el <input type=time> del fin un valor sub-mínimo (1 min tras el inicio)
+ *               tampoco baja la duración renderizada de 5 min: el muro se aplica al camino de teclado,
+ *               no solo a los tiradores (donde vivía TODA la protección hasta la 2.c).
  *   ⚠️ Se corre igual: A MANO al cerrar un bloque que toque la parrilla. Conduce el arrastre con
  *      page.mouse (eventos de puntero reales), así que también necesita navegador + servidor.
  *
@@ -349,11 +352,13 @@ async function escenarioTope(page, opciones = {}) {
     await page.mouse.move(c.fx - 20, c.fy);
     await page.mouse.move(c.pl + 5, c.fy, { steps: 12 }); // arrastra el fin hasta el inicio (al tope)
     await page.mouse.up();
-    if (opciones.inyectaSubMin) await page.evaluate(() => { document.querySelector('[data-t=barra-editor]').style.width = '4px'; });
+    if (opciones.inyectaSubMin) await page.evaluate(() => { document.querySelector('[data-t=barra-editor]').style.width = '1px'; });
     const r = await page.evaluate(medirDuracionEditor);
     if (!r.guardia || !r.guardia.ok) return { guardia: r.guardia };
     const viol = [];
-    if (r.durMin < 30 - 3) viol.push({ af: 'E.tope', detalle: `el editor produjo ${r.durMin} min de duración (< 30, la mínima)` });
+    // La mínima bajó a 5 en la 2.c. A ~30 px/hora, 5 min ≈ 2,5 px: medible. Umbral con margen (< 3) para
+    // no falsear por ruido de medición, y la inyección (1 px ≈ 2 min) cae claramente por debajo.
+    if (r.durMin < 5 - 2) viol.push({ af: 'E.tope', detalle: `el editor produjo ${r.durMin} min de duración (< 5, la mínima)` });
     return { guardia: { ok: true }, violaciones: viol, datos: { durTope: r.durMin } };
 }
 
@@ -368,14 +373,34 @@ async function escenarioColorEditor(page, opciones = {}) {
     return { guardia: { ok: true }, violaciones: viol, datos: { distColorEditor: r.distColor } };
 }
 
-function decidirEditor(rt, rc) {
+/* E.teclado (2.c): el TECLADO es un camino de entrada NUEVO, y toda la protección vivía en los
+ * tiradores. Aquí se conduce el <input type=time> del fin a 1 min tras el inicio (pediría una duración
+ * sub-mínima) y se mide que lo RENDERIZADO sigue siendo ≥ 5 — el muro se aplica también al teclado. */
+async function escenarioTeclado(page, opciones = {}) {
+    await abrirEditorEn(page);
+    const ini = await page.inputValue('[data-hora=inicio]'); // "HH:MM"
+    const [h, m] = ini.split(':').map(Number);
+    const t = (h * 60 + m + 1) % 1440; // 1 min tras el inicio → sin muro daría 1 min de duración
+    const finPedido = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    await page.fill('[data-hora=fin]', finPedido);
+    await page.waitForTimeout(80);
+    if (opciones.inyectaSubMin) await page.evaluate(() => { document.querySelector('[data-t=barra-editor]').style.width = '1px'; });
+    const r = await page.evaluate(medirDuracionEditor);
+    if (!r.guardia || !r.guardia.ok) return { guardia: r.guardia };
+    const viol = [];
+    if (r.durMin < 5 - 2) viol.push({ af: 'E.teclado', detalle: `tras teclear fin=inicio+1min, el editor renderizó ${r.durMin} min (< 5, la mínima)` });
+    return { guardia: { ok: true }, violaciones: viol, datos: { durTeclado: r.durMin } };
+}
+
+function decidirEditor(rt, rc, rk) {
     const gFallos = [];
     if (!rt.guardia || !rt.guardia.ok) gFallos.push(...(rt.guardia?.fallos || ['tope no medible']));
     if (!rc.guardia || !rc.guardia.ok) gFallos.push(...(rc.guardia?.fallos || ['color no medible']));
+    if (!rk.guardia || !rk.guardia.ok) gFallos.push(...(rk.guardia?.fallos || ['teclado no medible']));
     if (gFallos.length) return [NO_PROBADA, `🟠 NO PROBADA (editor) — se suspende:\n  ${gFallos.join('\n  ')}`];
-    const viol = [...(rt.violaciones || []), ...(rc.violaciones || [])];
+    const viol = [...(rt.violaciones || []), ...(rc.violaciones || []), ...(rk.violaciones || [])];
     if (viol.length) return [CAZADO, `🔴 CAZADO (editor) — ${viol.length}:\n` + viol.map((v) => `  · ${v.af}  ${v.detalle}`).join('\n')];
-    return [VERDE, `🟢 VERDE (editor) — 2/2 OK: el tope de duración se cumple + la barra del editor a color pleno.  ${JSON.stringify({ ...rt.datos, ...rc.datos })}`];
+    return [VERDE, `🟢 VERDE (editor) — 3/3 OK: el tope se cumple (tirador y teclado) + la barra del editor a color pleno.  ${JSON.stringify({ ...rt.datos, ...rc.datos, ...rk.datos })}`];
 }
 
 async function correrSelftestEditor(page) {
@@ -388,8 +413,12 @@ async function correrSelftestEditor(page) {
     const dc = rc.guardia && rc.guardia.ok && (rc.violaciones || []).find((v) => v.af === 'M.color-editor');
     if (dc) lineas.push(`  ✅ M.color-editor «opacidad inyectada en la barra del editor»\n        → ROJO: ${dc.detalle}`);
     else { fiable = false; lineas.push(`  ❌ M.color-editor → NO SALTÓ  (guardia.ok=${rc.guardia && rc.guardia.ok}; viol=${JSON.stringify(rc.violaciones)})`); }
+    const rk = await escenarioTeclado(page, { inyectaSubMin: true });
+    const dk = rk.guardia && rk.guardia.ok && (rk.violaciones || []).find((v) => v.af === 'E.teclado');
+    if (dk) lineas.push(`  ✅ E.teclado «duración sub-mínima tecleada inyectada»\n        → ROJO: ${dk.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ E.teclado → NO SALTÓ  (guardia.ok=${rk.guardia && rk.guardia.ok}; viol=${JSON.stringify(rk.violaciones)})`); }
     const cab = fiable
-        ? '🟢 SELFTEST EDITOR OK — E.tope y M.color-editor saben ponerse rojos.'
+        ? '🟢 SELFTEST EDITOR OK — E.tope, M.color-editor y E.teclado saben ponerse rojos.'
         : '🔴 SELFTEST EDITOR FALLÓ — algún detector del editor no salta.';
     return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
 }
@@ -457,7 +486,7 @@ try {
         await cargar(page); const rest = await medir(page); const [c1, s1] = decidir(rest);
         const rmov = await escenarioMovimiento(page); const [c2, s2] = decidirMovimiento(rmov);
         const rret = await escenarioRetimado(page); const [c3, s3] = decidirRetimado(rret);
-        const rtope = await escenarioTope(page); const rcol = await escenarioColorEditor(page); const [c4, s4] = decidirEditor(rtope, rcol);
+        const rtope = await escenarioTope(page); const rcol = await escenarioColorEditor(page); const rtec = await escenarioTeclado(page); const [c4, s4] = decidirEditor(rtope, rcol, rtec);
         code = combinar([c1, c2, c3, c4]);
         salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3 + '\n\n── EDITOR (tanda 2.b) ──\n' + s4;
     }
