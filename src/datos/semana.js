@@ -40,6 +40,7 @@ const PERSONAS = [
     { id: 'diego', nombre: 'Diego Mora', indice: 3 },
     { id: 'elena', nombre: 'Elena Gil', indice: 4 }, // Persona 05 · #C484FC · el peor caso
     { id: 'iker', nombre: 'Iker Blanco', indice: 5 },
+    { id: 'maricarmen', nombre: 'María del Carmen Gutiérrez Villanueva', indice: 6 }, // nombre largo: ejercita el ajuste (envolver, NO truncar)
 ];
 
 export const PERSONAS_POR_ID = Object.fromEntries(
@@ -65,4 +66,15 @@ export const TURNOS = [
     { persona: 'diego', puesto: 'sala', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
     { persona: 'elena', puesto: 'sala', dia: '2026-07-17', inicio: '10:00', fin: '18:00' },
     { persona: 'carlos', puesto: 'sala', dia: '2026-07-18', inicio: '11:00', fin: '19:00' },
+
+    // ── CASOS LÍMITE sembrados en el Bloque 3.5 (punto 4) ─────────────────────────────
+    // CRUZA MEDIANOCHE: 22:00 → 06:00. normaliza() suma 24h (finMin 1800 = 06:00 del día siguiente).
+    // Rama que hasta ahora NINGÚN dato recorría en la app real (solo el test la sujetaba).
+    { persona: 'diego', puesto: 'cocina', dia: '2026-07-17', inicio: '22:00', fin: '06:00' },
+    // SOLAPE DE DOS en la misma celda (Barra · Mié): se pisan de 14:00 a 18:00. Cada turno en su
+    // propia ficha apilada, SIN tratamiento visual especial: la semántica del solape llega con el motor.
+    { persona: 'ana', puesto: 'barra', dia: '2026-07-15', inicio: '10:00', fin: '18:00' },
+    { persona: 'bea', puesto: 'barra', dia: '2026-07-15', inicio: '14:00', fin: '22:00' },
+    // NOMBRE LARGO (Sala · Mié): activa el ajuste del nombre en la ficha (envolver, no truncar).
+    { persona: 'maricarmen', puesto: 'sala', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
 ];
