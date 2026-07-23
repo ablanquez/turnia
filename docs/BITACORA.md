@@ -177,3 +177,13 @@
 **Arreglo aplicado:** Pointer Events + `setPointerCapture` a mano, control visual total: se decide exactamente qué se mueve (un proxy a color pleno) y qué señala el arrastre (borde exterior, cursor, resalte de celda), sin tocar jamás el color. El detector M.color del instrumento de geometría DEMUESTRA que se cumple (dist proxy↔identidad ≈ 0; salta si alguien mete una opacidad al arrastrar).
 **Ley que sale de aquí:** Una restricción de diseño puede ser también la decisión técnica correcta: la de no tocar el color descartó ella sola la API que casi todo el mundo habría usado, y de paso evitó el problema del táctil. Cuando una API estándar pelea con una ley del proyecto, se elige la ley y se construye a mano — no se dobla la ley para usar la API.
 **Traza:** `src/composables/useArrastre.js` (Pointer Events); `tools/geometria.check.mjs` (detector M.color); diseño aprobado del Bloque 4 · tanda 1.
+
+## [2026-07-23] — Falsa alarma: «no se mueve nada» era producción con latencia, no un fallo
+**Categoría:** método
+**Síntoma:** Recién construida la tanda 1 del arrastre, Antonio abrió PRODUCCIÓN (el subdominio) y reportó «no se mueve nada, es totalmente estático». Sonaba a fallo grave del arrastre.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ En localhost el arrastre funcionaba desde el primer momento (dev server con HMR), y el instrumento de geometría daba verde sobre localhost. Lo único «roto» era una cosa que NO se había desplegado aún.
+**Causa raíz:** Producción va por detrás POR DISEÑO — el cron pullea cada ~15 min (ver deploy.sh / la cadencia confirmada). En el hueco entre construir y el siguiente pull, el subdominio sirve la versión ANTERIOR. No había fallo: había latencia de despliegue.
+**Cómo se cazó:** al contrastar los dos entornos — localhost (donde ESTÁ construido) movía; producción (aún sin pullar) no. La discrepancia señaló el entorno, no el código.
+**Arreglo aplicado:** NINGUNO — no hay fallo. Se verificó en localhost, que es donde vive lo recién construido; producción se comprobará tras el pull.
+**Ley que sale de aquí:** Cuando se verifica algo RECIÉN construido, se verifica en el entorno donde está construido (localhost), no en producción, que va por detrás por diseño. Un «no funciona» en producción justo después de construir es evidencia de LATENCIA, no de fallo. Y su simétrico, más peligroso: un «funciona» en producción justo después de construir tampoco prueba nada del código nuevo — puede estar mirando la versión vieja. El entorno es parte de la prueba.
+**Traza:** sin cambio de código; lección de método sobre el desfase localhost↔producción (cron ~15 min).
