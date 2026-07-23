@@ -5,8 +5,10 @@
  * 06:00 del día siguiente (360 → 1800 min). Si un turno cae fuera —la panadería que entra a las
  * 04:00— el eje SE ENSANCHA hacia ese extremo. Ningún turno se recorta jamás.
  *
- * Y la rejilla de fondo se calcula EN HORAS, no en % fijo: así las líneas caen en horas redondas
- * aunque el eje se haya ensanchado (si fueran % fijos, mentirían sobre la escala).
+ * Y las líneas de la rejilla las posiciona marcasHoras() como ELEMENTOS (ver FichaTurno): caen en
+ * horas redondas (06/12/18/00) aunque el eje se ensanche. Antes eran una trama CSS de fondo que
+ * arrancaba en el borde = eje.desde, y con el eje ensanchado caían en 04:00 en vez de 06:00 — un
+ * fallo que vivió pintado en producción (ver bitácora). marcasHoras es la ÚNICA que sabe de horas.
  */
 
 const DEFECTO_DESDE = 6 * 60; // 06:00
@@ -51,13 +53,8 @@ export function posicion(turnoNorm, eje) {
     };
 }
 
-/** background-size para la rejilla de fondo: una línea cada `horas`. En horas, no en % fijo. */
-export function rejilla(eje, horas = 6) {
-    const total = eje.hasta - eje.desde;
-    return `${((horas * 60) / total) * 100}% 100%`;
-}
-
-/** Las marcas de hora que tocan en horas redondas dentro del eje (para la cabecera del eje). */
+/** Las marcas de hora en horas redondas dentro del eje: cada una con su left% y su etiqueta. Es la
+ *  ÚNICA fuente de dónde van las líneas de la rejilla (FichaTurno las pinta como elementos). */
 export function marcasHoras(eje, horas = 6) {
     const total = eje.hasta - eje.desde;
     const marcas = [];

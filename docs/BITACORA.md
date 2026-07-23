@@ -123,3 +123,14 @@
 **Commit:** (histórico, sin commit propio — la v1 se deshizo antes de empujar).
 **Ley que sale de aquí:** El verde de los checkers no sustituye al OK humano del punto de control: "commiteable" no es "aprobado". Se para donde se pidió parar.
 **Traza:** — (proceso, no fichero).
+
+## [2026-07-23] — La rejilla no caía en horas redondas con el eje ensanchado (y vivía en producción)
+**Categoría:** visual
+**Síntoma:** Con el eje ensanchado por el dato de la panadería (Carlos, 04:00), las líneas de la rejilla de fondo caían en 04:00 / 10:00 / 16:00 / 22:00 en vez de en 06:00 / 12:00 / 18:00 / 00:00. Estaba VIVO y PINTADO en producción.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ Dieron verde a la vez el build, los dos checkers de color, los 15 tests de lógica temporal, TODAS las mediciones de geometría del Bloque 3 (ratio 1/8, píxel del relleno, hilo, hueco, panadería no recortada) y las capturas a 1366 aprobadas con el ojo por Antonio. NINGUNA comprobación miraba DÓNDE caían las líneas: la propiedad no estaba en el radar de nadie.
+**Causa raíz:** Tres piezas que no cuadraban. (1) `marcasHoras()` calcula las marcas redondas bien y está probada, pero NO tenía ni un caller — función correcta DESCONECTADA. (2) La trama que se veía la pintaba `rejilla()`, un `background-size` (solo espaciado, sin offset); con `background-position` por defecto arranca en el borde = `eje.desde`, así que con el eje ensanchado caía en 04:00 — función conectada DESALINEADA. (3) El comentario de `useEje.js` afirmaba lo contrario ("las líneas caen en horas redondas aunque el eje se ensanche") — un comentario que MIENTE, y el que lee confía y no verifica.
+**Cómo se cazó:** al escribir el test 15 (marcasHoras con eje ensanchado, verde) se vio que la función correcta no era la que pintaba; se confirmó midiendo la página renderizada (líneas en 04:00, no 06:00).
+**Arreglo aplicado:** Las líneas pasan a ser ELEMENTOS posicionados por `marcasHoras()` —la única fuente que sabe de horas— en `FichaTurno`; se elimina `rejilla()` (código muerto, copia a mano de un saber ya probado). Contraprueba con medición renderizada: roja antes (líneas en 04:00), verde después (06/12/18/00, cada una donde dice su etiqueta). 52 nodos de línea añadidos (medido). (Los 2 tests que cubrían `rejilla` en el punto 3 no se arrastran a la suite —queda en 13—; se retiraron antes del commit `test:`, no aquí.)
+**Commit:** (este commit)
+**Ley que sale de aquí:** La función que CALCULA un dato debe ser la que lo PINTA: dos funciones que saben lo mismo divergen, y la copia a mano acaba pintando mal mientras la buena, probada, no se usa. Un comentario que miente es un instrumento mentiroso: se corrige con el código. Y el instrumento de geometría (punto 5) debe medir POSICIONES de elementos, no muestrear una trama.
+**Traza:** `src/composables/useEje.js` (elimina `rejilla`, corrige comentario); `src/components/FichaTurno.vue` (líneas como elementos vía `marcasHoras`).

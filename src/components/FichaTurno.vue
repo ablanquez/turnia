@@ -18,7 +18,7 @@
  * El texto (nombre y hora) es visible encima de la barra, nunca dentro; la barra es color puro (Ley 2).
  */
 import { computed } from 'vue';
-import { rejilla } from '../composables/useEje.js';
+import { marcasHoras } from '../composables/useEje.js';
 import { tintaSobre } from '../estilo/reglas.js';
 import Barra from './Barra.vue';
 
@@ -33,7 +33,10 @@ const props = defineProps({
 const iniciales = computed(() =>
     props.nombre.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase());
 
-const fondoSize = computed(() => rejilla(props.eje, 6));
+// Las líneas de la rejilla son ELEMENTOS posicionados por marcasHoras() —la única función que sabe de
+// horas—, así caen en horas redondas (06/12/18/00) aunque el eje se ensanche. No una trama CSS de
+// fondo (que arrancaba en el borde = eje.desde y, con el eje ensanchado, caía en 04:00 en vez de 06:00).
+const marcas = computed(() => marcasHoras(props.eje, 6));
 </script>
 
 <template>
@@ -50,13 +53,15 @@ const fondoSize = computed(() => rejilla(props.eje, 6));
         <div class="ml-[9px] flex flex-col gap-1 border-l-2 pl-[9px]" :style="{ borderColor: color }">
             <div class="font-mono text-[11px] leading-none text-ink-soft">{{ turno.inicio }}–{{ turno.fin }}</div>
 
-            <div
-                class="relative h-4 rounded bg-sunken"
-                :style="{
-                    backgroundImage: 'linear-gradient(to right, var(--color-line-soft) 1px, transparent 1px)',
-                    backgroundSize: fondoSize,
-                }"
-            >
+            <div class="relative h-4 overflow-hidden rounded bg-sunken">
+                <span
+                    v-for="m in marcas"
+                    :key="m.etiqueta"
+                    data-t="linea"
+                    :data-hora="m.etiqueta"
+                    class="absolute inset-y-0 w-px bg-line-soft"
+                    :style="{ left: m.left + '%' }"
+                />
                 <Barra :turno="turno" :eje="eje" :color="color" />
             </div>
         </div>
