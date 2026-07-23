@@ -25,6 +25,11 @@ export default defineConfig({
     // JUNTO al fichero que prueba — `useEje.test.js` al lado de `useEje.js`. Sin carpeta tests/.
     test: {
         environment: 'node',
+        // ⚠️ CARGA ESTRUCTURAL — el hook commit-msg CUENTA con este glob. Si se rompe, o alguien mueve
+        // los tests fuera de él, `vitest run` no encuentra NINGUNO y sale con código 1; el hook lo trata
+        // como fallo y BLOQUEA el commit. Es a propósito: «0 casos» NO es «0 fallos» — es uno de los
+        // falsos verdes clásicos del proyecto (como el .gitignore que escondió la auditoría). No lo
+        // "arregles" para que pase en vacío: ese exit 1 es la guardia, no el bug.
         include: ['src/**/*.test.js'],
     },
 });

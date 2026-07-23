@@ -65,4 +65,22 @@ if printf '%s\n' "$CAMBIOS" | grep -qE 'src/datos/paleta\.js|src/estilo/tokens\.
     fi
 fi
 
+# ── 3. La lógica pasa sus tests ──────────────────────────────────────────────────────────
+# Disparador: CUALQUIER .js/.mjs tocado, NO una lista blanca de rutas. Una lista de rutas es la
+# misma trampa que el .gitignore que escondió la auditoría: hay que acordarse de ampliarla, y el
+# día que nace lógica en una carpeta nueva (el motor, un helper, useArrastre.js) entra en silencio
+# y en verde. Fail-closed: el fichero nuevo queda cubierto sin tocar el hook. Discrimina de verdad:
+# un commit de solo .md/.vue/.css no arrastra la suite (los .vue ya tienen su propia red: color +
+# geometría + ojo). Cubre vite.config.js a propósito: gobierna el propio glob de test, y si se
+# rompe, `vitest run` no encuentra NINGÚN test y sale 1 → aquí se trata como fallo (0 casos ≠ 0
+# fallos). Ese exit 1 en vacío es una guardia BUSCADA, no un incordio: que nadie lo "arregle".
+if printf '%s\n' "$CAMBIOS" | grep -qE '\.(js|mjs)$'; then
+    echo '· toca lógica (.js/.mjs) → corriendo la suite de tests…' >&2
+    if ! npm test --silent >&2; then
+        echo '⚠️  Los tests de lógica NO pasan (o el glob no encontró NINGUNO: 0 casos ≠ 0 fallos).' >&2
+        echo '    No se cierra el commit.' >&2
+        exit 1
+    fi
+fi
+
 exit 0
