@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { minutos, normaliza, segmentar, ejeEditor, EJE_DIA, posicion, marcasHoras, ajustaGranularidad, minutosEnX } from './useEje.js';
+import { minutos, normaliza, segmentar, ejeEditor, EJE_DIA, posicion, marcasHoras, ajustaGranularidad, minutosEnX, sumarDias, anclarInicio } from './useEje.js';
 
 /*
  * Tests de la lógica temporal. Reglas del método (punto 3 del Bloque 3.5):
@@ -47,12 +47,52 @@ describe('el eje fijo de 24 h', () => {
     test('mide SIEMPRE 1440 min (24 h): la ventana no se ensancha', () => {
         expect(EJE_DIA.hasta - EJE_DIA.desde).toBe(1440);
     });
-    test('ejeEditor devuelve una ventana de 24 h que contiene el turno entero (aunque se salga)', () => {
-        const cabe = ejeEditor(480, 960, 360);          // 08:00–16:00, cabe en 06→06
-        expect(cabe).toEqual({ desde: 360, hasta: 1800 });
-        const cruza = ejeEditor(1320, 1920, 360);       // 22:00–08:00, se sale → ancla al inicio
-        expect(cruza.hasta - cruza.desde).toBe(1440);
-        expect(cruza.desde).toBe(1320);                 // contiene el turno entero sin partir
+    test('ejeEditor: un turno que CABE en la jornada usa la ventana de negocio (06→06)', () => {
+        expect(ejeEditor(480, 960, 360)).toEqual({ desde: 360, hasta: 1800 }); // 08:00–16:00
+    });
+
+    test('ejeEditor: un turno que empieza ANTES de las 06:00 ancla la ventana a su inicio', () => {
+        expect(ejeEditor(240, 600, 360)).toEqual({ desde: 240, hasta: 1680 }); // 04:00–10:00
+    });
+
+    // 2.d · PC2.b — el fallo de la barra del editor: un turno que se SALE por el final (cruza las 06:00
+    // por la cola, como Iker 22:00→07:00) anclaba al INICIO y plantaba las 22:00 al 0 % del eje. Ahora
+    // ancla en el negocio y ALARGA la ventana lo justo para contener la cola: 22:00 cae cerca del final.
+    test('ejeEditor: un turno que se SALE por el final ancla en negocio y ALARGA la ventana (Iker 22:00→07:00)', () => {
+        const e = ejeEditor(1320, 1860, 360);           // 22:00 → 07:00 del día siguiente (finMin 1860 > 1800)
+        expect(e).toEqual({ desde: 360, hasta: 1860 });  // ⚠️ ROJO con el eje viejo: desde=1320
+        // 22:00 a la derecha: left = (1320−360)/(1860−360) = 960/1500 = 64 %, NO 0 %
+        expect(posicion({ iniMin: 1320, finMin: 1860 }, e).left).toBeCloseTo(64, 1);
+    });
+});
+
+/*
+ * sumarDias / anclarInicio (Bloque 4 · 2.d · PC2.b) — la FUENTE ÚNICA del acarreo del día. El fallo:
+ * los tres caminos que empujan el inicio (arrastre, tirador, teclado) reducían el reloj mod 24 h pero
+ * dejaban `dia` quieto, así que un inicio que cruzaba medianoche caía un día por detrás. anclarInicio
+ * traslada el acarreo a la fecha; retimarTurno y editarTurno pasan por aquí.
+ */
+describe('sumarDias (fecha ISO ± n días, testigo independiente del acarreo)', () => {
+    test('suma y resta días dentro del mes', () => {
+        expect(sumarDias('2026-07-16', 1)).toBe('2026-07-17');
+        expect(sumarDias('2026-07-16', -1)).toBe('2026-07-15');
+        expect(sumarDias('2026-07-16', 0)).toBe('2026-07-16');
+    });
+    test('cruza el fin de mes y de año (donde una resta ingenua se rompería)', () => {
+        expect(sumarDias('2026-07-31', 1)).toBe('2026-08-01');
+        expect(sumarDias('2026-01-01', -1)).toBe('2025-12-31');
+    });
+});
+
+describe('anclarInicio (un inicio en minutos → {dia, inicio} con el día acarreado)', () => {
+    test('un inicio dentro del día NO mueve la fecha', () => {
+        expect(anclarInicio('2026-07-16', 1320)).toEqual({ dia: '2026-07-16', inicio: '22:00' });
+    });
+    test('un inicio pasado de medianoche (≥1440) AVANZA el día', () => {
+        expect(anclarInicio('2026-07-16', 1485)).toEqual({ dia: '2026-07-17', inicio: '00:45' }); // 24:45 → Vie 00:45
+    });
+    test('un inicio por debajo de las 00:00 (<0) RETROCEDE el día', () => {
+        expect(anclarInicio('2026-07-16', -60)).toEqual({ dia: '2026-07-15', inicio: '23:00' });
     });
 });
 

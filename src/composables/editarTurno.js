@@ -11,7 +11,7 @@
  * cadena "08:00"–"08:00" no distingue 0 de 24 h). Trabajando en minutos absolutos no hay ambigüedad.
  * (Ver bitácora: por qué el fin puede pasar de 1440; que nadie lo "arregle" con un mod 24.)
  */
-import { formatoHora } from './useEje.js';
+import { formatoHora, anclarInicio } from './useEje.js';
 
 /*
  * ⚠️ LA DURACIÓN MÍNIMA NO ES EL SNAP. Fueron el mismo número (30) hasta la 2.c, y allí DIVERGEN
@@ -30,10 +30,12 @@ export function editarTurno(turnos, id, { iniMin, finMin, dia, puesto }) {
     const t = turnos.find((x) => x.id === id);
     if (!t) return turnos;
     const dur = Math.min(Math.max(finMin - iniMin, DURACION_MINIMA), DURACION_MAXIMA);
-    const inicio = formatoHora(iniMin);
+    // ⚠️ EL DÍA ACOMPAÑA AL RELOJ. `dia` es la base (lo que el selector muestra); si `iniMin` cruza la
+    // medianoche del editor (≥1440), anclarInicio la rueda a la fecha real. Misma fuente que el arrastre.
+    const { dia: diaAncla, inicio } = anclarInicio(dia, iniMin);
     const fin = formatoHora(iniMin + dur);
-    if (inicio === t.inicio && fin === t.fin && dia === t.dia && puesto === t.puesto) return turnos; // no-op
-    return turnos.map((x) => (x.id === id ? { ...x, inicio, fin, dia, puesto } : x));
+    if (inicio === t.inicio && fin === t.fin && diaAncla === t.dia && puesto === t.puesto) return turnos; // no-op
+    return turnos.map((x) => (x.id === id ? { ...x, inicio, fin, dia: diaAncla, puesto } : x));
 }
 
 /** Quita un turno. Devuelve array nuevo; si el id no existe, la misma referencia (no-op). */

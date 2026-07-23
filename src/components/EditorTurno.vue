@@ -8,7 +8,8 @@
  */
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { DIAS, PUESTOS } from '../datos/semana.js';
-import { marcasHoras, posicion, minutosEnX, formatoHora, minutos } from '../composables/useEje.js';
+import { MINUTOS_DIA } from '../datos/negocio.js';
+import { marcasHoras, posicion, minutosEnX, formatoHora, minutos, sumarDias } from '../composables/useEje.js';
 import { tintaSobre } from '../estilo/reglas.js';
 import { useEditor } from '../composables/useEditor.js';
 
@@ -21,6 +22,17 @@ const tecleaInicio = (v) => { if (v) escribirInicio(minutos(v)); };
 const tecleaFin = (v) => { if (v) escribirFin(minutos(v)); };
 
 const iniciales = computed(() => (editor.nombre || '').split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase());
+
+// EL SELECTOR NO MIENTE (2.d · PC2.b). Si el inicio del borrador cruza la medianoche (iniMin ≥ 1440 en
+// el marco del editor), el DÍA real ya no es el de la base: es el siguiente. El <select> muestra el día
+// real —no la base— y al elegir un día se reajusta la base para conservar ese acarreo. Sin esto,
+// empujar el inicio pasada medianoche con el tirador o el teclado dejaría el selector diciendo "Jue"
+// mientras el turno se guarda en "Vie": el mismo fallo silencioso, un paso más adelante. La invariante
+// «dia = la fecha en que cae el reloj» vale también para lo que se MUESTRA, no solo para lo que se guarda.
+const diaMostrado = computed({
+    get: () => sumarDias(editor.dia, Math.floor(editor.iniMin / MINUTOS_DIA)),
+    set: (nuevo) => { editor.dia = sumarDias(nuevo, -Math.floor(editor.iniMin / MINUTOS_DIA)); },
+});
 const marcas = computed(() => marcasHoras(editor.eje, 3)); // marcas cada 3 h: hay sitio para más
 const pos = computed(() => posicion({ iniMin: editor.iniMin, finMin: editor.finMin }, editor.eje));
 const durMin = computed(() => editor.finMin - editor.iniMin);
@@ -128,7 +140,7 @@ onUnmounted(() => { window.removeEventListener('keydown', alTecla); soltarTirado
             <!-- Día y puesto -->
             <div class="mt-6 flex flex-wrap gap-4">
                 <label class="flex flex-col gap-1 text-sm text-ink-soft">Día
-                    <select v-model="editor.dia" class="rounded border border-line bg-card px-2 py-1 text-ink">
+                    <select v-model="diaMostrado" class="rounded border border-line bg-card px-2 py-1 text-ink">
                         <option v-for="d in DIAS" :key="d.clave" :value="d.clave">{{ d.etiqueta }} {{ d.numero }}</option>
                     </select>
                 </label>

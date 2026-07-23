@@ -97,15 +97,46 @@ export function segmentar(turnosNorm, dias, E = INICIO_JORNADA_MIN) {
 }
 
 /*
- * EL EJE DEL EDITOR — una ventana de 24 h que contiene al turno ENTERO para mostrarlo sin partir. El
- * editor no parte (edita un turno solo): si el turno cabe en la ventana del negocio, la usa (marcas en
- * 06/12/18/00); si se sale, ancla la ventana a su inicio (siempre cabe, porque dur ≤ 24 h). NO es la
- * ley vieja del ensanche: es el frame privado del editor, no el eje compartido de la parrilla.
+ * EL EJE DEL EDITOR — una ventana de 24 h (o algo más) que contiene al turno ENTERO para mostrarlo sin
+ * partir. El editor no parte (edita un turno solo), y su razón de existir es ver el turno de un vistazo;
+ * recortarle la cola sería una barra recortada, o sea una mentira dibujada.
+ *
+ * `desde = min(iniMin, E)`: ancla en el arranque del negocio (06:00) cuando el turno empieza dentro de
+ * la jornada, y en el propio inicio cuando empieza ANTES (la panadería de las 04:00). `hasta` mide 24 h
+ * salvo que el turno se SALGA por el final (cruza las 06:00 por la cola, como Iker 22:00→07:00): ahí la
+ * ventana se ALARGA lo justo para contenerlo, y así las 22:00 caen cerca del final del eje en vez de al
+ * 0 % (2.d · PC2.b: antes anclaba al inicio y plantaba el arranque a la izquierda). Degrada EXACTO al
+ * comportamiento anterior en los dos casos que ya iban bien (cabe / empieza antes de E): solo cambia el
+ * que estaba roto. NO es la ley vieja del ensanche: es el frame privado del editor, no el eje de la
+ * parrilla (que sí parte lo que se sale, para eso está el modelo de 2.d).
  */
 export function ejeEditor(iniMin, finMin, E = INICIO_JORNADA_MIN) {
-    const cabe = iniMin >= E && finMin <= E + MINUTOS_DIA;
-    const desde = cabe ? E : iniMin;
-    return { desde, hasta: desde + MINUTOS_DIA };
+    const desde = Math.min(iniMin, E);
+    return { desde, hasta: Math.max(desde + MINUTOS_DIA, finMin) };
+}
+
+/*
+ * EL ACARREO DEL DÍA (Bloque 4 · 2.d · PC2.b) — FUENTE ÚNICA. Un turno guarda su arranque como el par
+ * `(dia, inicio)`, donde `dia` es la fecha de calendario en la que cae el reloj `inicio`. Cuando una
+ * operación mueve el arranque a través de la medianoche, el reloj vuelve a empezar por 00:00 pero el
+ * DÍA tiene que sumar ±1: si no, `(dia, inicio)` nombra un instante un día entero por detrás (o por
+ * delante). Ese acarreo se tragaban los TRES caminos que empujan el inicio (arrastre, tirador, teclado)
+ * porque los tres hacían `inicio = formatoHora(min)` y dejaban `dia` quieto (ver bitácora). Aquí vive
+ * una sola vez; retimarTurno y editarTurno pasan por aquí.
+ *
+ * `sumarDias` usa Date.UTC (no la local) para que el ± n días no lo desvíe ningún cambio de horario.
+ */
+export function sumarDias(iso, n) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d) + n * 86400000);
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** Un inicio en minutos desde la medianoche de `dia` (posiblemente <0 o ≥1440 si cruza) → el par
+ *  {dia, inicio} correcto, con el acarreo del día ya trasladado a la fecha. `fin` NO se toca aquí:
+ *  sigue siendo reloj y lo re-deriva `normaliza`. */
+export function anclarInicio(dia, min) {
+    return { dia: sumarDias(dia, Math.floor(min / MINUTOS_DIA)), inicio: formatoHora(min) };
 }
 
 /** left% y width% de una barra dentro del eje. Nunca recorta: si sale, es que el eje no abarca. */

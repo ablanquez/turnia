@@ -11,15 +11,17 @@
  * estado en sitios que no se esperan). Los campos originales inicio/fin (HH:MM) se sustituyen; normaliza
  * re-derivará iniMin/finMin, incluido el cruce de medianoche si el nuevo horario lo produce.
  */
-import { minutos, formatoHora } from './useEje.js';
+import { minutos, formatoHora, anclarInicio } from './useEje.js';
 
 export function retimarTurno(turnos, id, nuevoInicioMin) {
     const t = turnos.find((x) => x.id === id);
     if (!t) return turnos; // id desconocido → no se toca nada
     let dur = minutos(t.fin) - minutos(t.inicio);
     if (dur <= 0) dur += 24 * 60; // el turno original cruzaba medianoche: la duración es la real
-    const inicio = formatoHora(nuevoInicioMin);
-    const fin = formatoHora(nuevoInicioMin + dur);
-    if (inicio === t.inicio && fin === t.fin) return turnos; // sin cambio → no-op (misma referencia)
-    return turnos.map((x) => (x.id === id ? { ...x, inicio, fin } : x));
+    // ⚠️ EL DÍA ACOMPAÑA AL RELOJ. Si el nuevo inicio cruza la medianoche, anclarInicio traslada el
+    // acarreo a `dia` (ver bitácora: sin esto el turno retrocedía un día entero al retimar la cabeza).
+    const { dia, inicio } = anclarInicio(t.dia, nuevoInicioMin);
+    const fin = formatoHora(nuevoInicioMin + dur); // fin sigue siendo reloj; normaliza re-deriva el cruce
+    if (dia === t.dia && inicio === t.inicio && fin === t.fin) return turnos; // sin cambio → no-op (misma referencia)
+    return turnos.map((x) => (x.id === id ? { ...x, dia, inicio, fin } : x));
 }
