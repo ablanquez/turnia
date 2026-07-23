@@ -16,6 +16,7 @@ import { TURNOS } from '../datos/semana.js';
 import { normaliza, calcularEje } from './useEje.js';
 import { moverTurno } from './moverTurno.js';
 import { retimarTurno } from './retimarTurno.js';
+import { editarTurno, borrarTurno } from './editarTurno.js';
 
 const turnos = ref(TURNOS.map((t) => ({ ...t })));
 
@@ -32,7 +33,17 @@ export function retimar(id, inicioMin) {
     turnos.value = retimarTurno(turnos.value, id, inicioMin);
 }
 
-export { eje };
+/** Edita horas (min absolutos), día y puesto del turno `id`, con la guarda de duración (tanda 2.b). */
+export function editar(id, cambios) {
+    turnos.value = editarTurno(turnos.value, id, cambios);
+}
+
+/** Borra el turno `id` (tanda 2.b). No hay deshacer: el editor pide confirmación antes de llamar aquí. */
+export function borrar(id) {
+    turnos.value = borrarTurno(turnos.value, id);
+}
+
+export { eje, norm };
 
 export function useCuadrante() {
     return { turnos, norm, eje };

@@ -14,6 +14,7 @@
  */
 import { reactive } from 'vue';
 import { mover, retimar, eje } from './useCuadrante.js';
+import { abrirEditor } from './useEditor.js';
 import { PERSONAS_POR_ID } from '../datos/semana.js';
 import { ajustaGranularidad, formatoHora } from './useEje.js';
 
@@ -83,12 +84,17 @@ function alMover(e) {
 }
 
 function alSoltar() {
+    let cambio = false;
+    const id = estado.turno && estado.turno.id;
     if (estado.activo && estado.turno) {
         const t = estado.turno;
-        if (estado.modo === 'reubicar' && estado.destino) mover(t.id, estado.destino);
-        else if (estado.modo === 'retimar' && estado.retIni != null) retimar(t.id, estado.retIni);
+        if (estado.modo === 'reubicar' && estado.destino) { mover(t.id, estado.destino); cambio = true; }
+        else if (estado.modo === 'retimar' && estado.retIni != null && estado.retIni !== t.iniMin) { retimar(t.id, estado.retIni); cambio = true; }
     }
     limpiar();
+    // Cualquier arrastre que CAMBIÓ algo (reubicar o retimar) abre el editor para afinar: regla única,
+    // sin excepciones que memorizar. El arrastre ya se aplicó; el editor solo gobierna lo de dentro.
+    if (cambio && id) abrirEditor(id);
 }
 
 function alTecla(e) {

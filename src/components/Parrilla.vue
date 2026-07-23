@@ -16,12 +16,15 @@ import { DIAS, PUESTOS } from '../datos/semana.js';
 import { normaliza, calcularEje } from '../composables/useEje.js';
 import { useCuadrante } from '../composables/useCuadrante.js';
 import { useArrastre } from '../composables/useArrastre.js';
+import { useEditor } from '../composables/useEditor.js';
 import Celda from './Celda.vue';
 import FichaTurno from './FichaTurno.vue';
+import EditorTurno from './EditorTurno.vue';
 import Marca from '../estilo/marca/Marca.vue';
 
 const { turnos } = useCuadrante();
 const { arrastre } = useArrastre();
+const { editor } = useEditor();
 
 // El eje y la normalización se rehacen solos al mover (aunque mover NO cambia el eje: mismas horas
 // reubicadas → misma escala, sujeto por moverTurno.test). Con el estado reactivo, computed basta.
@@ -107,5 +110,8 @@ const turnosDe = (puestoId, diaClave) => norm.value.filter((t) => t.puesto === p
                 {{ arrastre.horaIni }}–{{ arrastre.horaFin }}
             </div>
         </div>
+
+        <!-- El editor de turno (modal), a nivel raíz de la gestión. Se abre por el lápiz o tras un arrastre. -->
+        <EditorTurno v-if="editor.abierto" />
     </div>
 </template>

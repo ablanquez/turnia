@@ -26,6 +26,7 @@ import { computed } from 'vue';
 import { marcasHoras } from '../composables/useEje.js';
 import { tintaSobre } from '../estilo/reglas.js';
 import { useArrastre } from '../composables/useArrastre.js';
+import { abrirEditor } from '../composables/useEditor.js';
 import Barra from './Barra.vue';
 
 const props = defineProps({
@@ -74,6 +75,21 @@ const esFantasma = computed(() =>
                  ("Hu…") es una mentira dibujada. Sin min-w-0 el flex no encoge y el nombre ensancharía
                  su columna rompiendo el "7 días caben". -->
             <span class="min-w-0 flex-1 break-words text-[13px] font-semibold leading-tight text-ink">{{ nombre }}</span>
+            <!-- Lápiz: abre el editor. @pointerdown.stop corta la propagación → NO arma un arrastre;
+                 @click.stop abre. Así lápiz=editar y cuerpo=arrastrar no se roban el gesto. Siempre
+                 visible (el táctil no tiene hover). No va en el proxy. -->
+            <button
+                v-if="!esProxy"
+                class="shrink-0 text-ink-faint hover:text-ink"
+                aria-label="Editar turno"
+                @pointerdown.stop
+                @click.stop="abrirEditor(turno.id)"
+            >
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M11 2.5 13.5 5 5.5 13H3v-2.5z" />
+                    <path d="M10 3.5 12.5 6" />
+                </svg>
+            </button>
         </div>
 
         <!-- Cuelga de la insignia: el hilo-guía de identidad recorre la hora + la pista, no el nombre. -->
