@@ -3,12 +3,12 @@ node_modules/
 dist/
 .deploy-produccion/
 
-# Docs internos: se ignoran TODOS los .md sueltos de docs/, y se dejan pasar solo los que
-# pertenecen al repo. (No afecta a subcarpetas de docs/.)
-/docs/*.md
-!docs/BITACORA.md
-!docs/ESTILO.md
-!docs/PLAN-ARRANQUE.md
+# Docs: se VERSIONAN POR DEFECTO. El estado por defecto es conservar; olvidar es ruido visible en
+# git status, no pérdida silenciosa (invierte el modo de fallo del viejo /docs/*.md + lista blanca).
+# Lo efímero va explícito a docs/borrador/ (su contenido se ignora; el .gitkeep deja la carpeta a la
+# vista para que la convención exista).
+/docs/borrador/*
+!/docs/borrador/.gitkeep
 
 # Sistema
 .DS_Store
