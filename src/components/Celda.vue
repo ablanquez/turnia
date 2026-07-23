@@ -47,7 +47,7 @@ const esDestino = computed(() =>
         <div class="flex flex-col gap-3">
             <FichaTurno
                 v-for="t in ordenados"
-                :key="t.persona + '-' + t.iniMin"
+                :key="t.id"
                 :turno="t"
                 :eje="eje"
                 :color="PERSONAS_POR_ID[t.persona].color"
