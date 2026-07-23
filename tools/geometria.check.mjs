@@ -432,7 +432,9 @@ const CONTRAPRUEBAS = [
     { af: '3.b', nombre: 'color alterado en la barra de 1 h', inject: () => { const e = [...document.querySelectorAll('[data-t=barra][data-persona="elena"]')].sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width); e[0].style.background = 'rgb(0,200,0)'; } },
     { af: '3.c', nombre: 'texto inyectado dentro de una barra', inject: () => { document.querySelector('[data-t=barra]:not([data-persona="elena"])').textContent = 'XXX'; } },
     { af: '3.d', nombre: 'barra desbordada de su pista', inject: () => { document.querySelector('[data-t=barra]:not([data-persona="elena"])').style.width = '250%'; } },
-    { af: '3.e', nombre: 'línea de rejilla desplazada de su hora', inject: () => { const p = document.querySelector('[data-t=barra][data-persona="carlos"]').closest('.bg-sunken'); const l = p.querySelector('[data-t=linea]'); l.style.left = (parseFloat(l.style.left) + 20) + '%'; } },
+    // 3.e se calibra en barras SIN corte (un trozo cortado tiene el rótulo más ancho que la barra): la
+    // contraprueba debe inyectar en una barra no cortada (Ana), no en Carlos, que ahora lleva data-corte.
+    { af: '3.e', nombre: 'línea de rejilla desplazada de su hora', inject: () => { const p = document.querySelector('[data-t=barra][data-persona="ana"]:not([data-corte])').closest('.bg-sunken'); const l = p.querySelector('[data-t=linea]'); l.style.left = (parseFloat(l.style.left) + 20) + '%'; } },
 ];
 const GUARDIA_CP = { nombre: 'quitar todas las líneas de rejilla', inject: () => { document.querySelectorAll('[data-t=linea]').forEach((l) => l.remove()); } };
 
