@@ -41,12 +41,15 @@ const marcas = computed(() => marcasHoras(props.eje, 6));
 
 <template>
     <div class="flex flex-col gap-1">
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-start gap-1.5">
             <span
                 class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none"
                 :style="{ background: color, color: tintaSobre(color) }"
             >{{ iniciales }}</span>
-            <span class="truncate text-[13px] font-semibold leading-tight text-ink">{{ nombre }}</span>
+            <!-- El nombre ENVUELVE (min-w-0 flex-1 break-words), nunca se trunca: un nombre a medias
+                 ("Hu…") es una mentira dibujada. Sin min-w-0 el flex no encoge y el nombre ensancharía
+                 su columna rompiendo el "7 días caben". -->
+            <span class="min-w-0 flex-1 break-words text-[13px] font-semibold leading-tight text-ink">{{ nombre }}</span>
         </div>
 
         <!-- Cuelga de la insignia: el hilo-guía de identidad recorre la hora + la pista, no el nombre. -->

@@ -38,7 +38,7 @@ const turnosDe = (puestoId, diaClave) => norm.filter((t) => t.puesto === puestoI
             -->
             <div class="max-h-full overflow-auto rounded-xl border border-edge bg-card">
                 <div
-                    class="grid min-w-max"
+                    class="grid min-w-full"
                     :style="{ gridTemplateColumns: `9rem repeat(${DIAS.length}, minmax(11rem, 1fr))` }"
                 >
                     <!-- esquina -->
