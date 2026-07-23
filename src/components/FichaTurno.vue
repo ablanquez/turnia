@@ -37,6 +37,7 @@ const props = defineProps({
     esProxy: { type: Boolean, default: false }, // true = clon flotante que sigue al puntero (no arrastrable, no fantasma)
     // Un turno partido (2.d) se dibuja en varios TROZOS: la barra ocupa [iniLocal, finLocal] del frame
     // fijo, no el turno entero, y los corte* marcan el tajo. Sin trozo (proxy) → el turno completo.
+    dia: { type: String, default: null }, // día del TROZO (= celda): contra él decide el arrastre retimar/reubicar
     iniLocal: { type: Number, default: null },
     finLocal: { type: Number, default: null },
     corteIni: { type: Boolean, default: false }, // el turno viene de antes de este trozo
@@ -91,7 +92,7 @@ const esFantasma = computed(() =>
     />
 
     <div v-else-if="!esFantasma" class="flex flex-col gap-1" :class="{ 'cursor-grab touch-none select-none': !esProxy }"
-        @pointerdown="!esProxy && alCoger($event, turno)">
+        @pointerdown="!esProxy && alCoger($event, turno, { dia, iniLocal, finLocal, corteIni, corteFin })">
         <div class="flex items-start gap-1.5">
             <span
                 class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none"
@@ -133,7 +134,7 @@ const esFantasma = computed(() =>
                     class="absolute inset-y-0 w-px bg-line-soft"
                     :style="{ left: m.left + '%' }"
                 />
-                <Barra :turno="barra" :eje="eje" :color="color" :corte-ini="corteIni" :corte-fin="corteFin" />
+                <Barra :turno="barra" :eje="eje" :color="color" :turno-id="turno.id" :corte-ini="corteIni" :corte-fin="corteFin" />
             </div>
 
             <!-- La nota de continuación: SOLO cuando el otro trozo está fuera de la vista. Envuelve, no

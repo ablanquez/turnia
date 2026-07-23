@@ -17,6 +17,7 @@ const props = defineProps({
     turno: { type: Object, required: true }, // normalizado (iniMin/finMin) — bounds del TROZO a dibujar
     eje: { type: Object, required: true },
     color: { type: String, required: true },
+    turnoId: { type: String, default: null }, // id del turno: empareja los dos trozos de un partido (instrumento)
     corteIni: { type: Boolean, default: false }, // el borde izquierdo es un tajo (el turno viene de antes)
     corteFin: { type: Boolean, default: false }, // el borde derecho es un tajo (el turno sigue después)
 });
@@ -30,7 +31,8 @@ const radios = computed(() => (props.corteIni ? ' rounded-l-none' : '') + (props
     <div
         data-t="barra"
         :data-persona="turno.persona"
-        :data-corte="corteIni || corteFin ? '' : null"
+        :data-turno="turnoId"
+        :data-corte="corteIni ? 'ini' : corteFin ? 'fin' : null"
         class="absolute top-0 h-full rounded-[3px]"
         :class="radios"
         :style="{ left: pos.left + '%', width: pos.width + '%', background: color }"

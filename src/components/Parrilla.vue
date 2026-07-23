@@ -105,7 +105,12 @@ const segmentosDe = (puestoId, diaClave) => segmentos.value.filter((s) => !s.off
             class="pointer-events-none fixed z-50 rounded-lg border border-edge bg-card p-2"
             :style="{ left: (arrastre.x - arrastre.offX) + 'px', top: (arrastre.y - arrastre.offY) + 'px', width: arrastre.ancho + 'px' }"
         >
-            <FichaTurno :turno="arrastre.turno" :eje="eje" :color="arrastre.color" :nombre="arrastre.nombre" es-proxy />
+            <FichaTurno
+                :turno="arrastre.turno" :eje="eje" :color="arrastre.color" :nombre="arrastre.nombre"
+                :ini-local="arrastre.seg?.iniLocal" :fin-local="arrastre.seg?.finLocal"
+                :corte-ini="arrastre.seg?.corteIni" :corte-fin="arrastre.seg?.corteFin"
+                es-proxy
+            />
             <!-- Al RETIMAR: la hora resultante (ya snapped) en vivo. Texto, nunca sobre la barra. -->
             <div
                 v-if="arrastre.modo === 'retimar'"

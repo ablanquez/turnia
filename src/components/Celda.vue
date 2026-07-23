@@ -42,12 +42,12 @@ const esDestino = computed(() =>
 // [data-regla] es además lo que el arrastre mide para mapear píxeles → minutos.
 const marcas = computed(() => marcasHoras(props.eje, 6));
 
-// El CONTORNO-preview: solo al retimar en ESTA celda, dónde caería el turno con su nuevo horario.
-// Es un contorno neutro (marca), sin relleno: no toca el color de identidad.
+// El CONTORNO-preview: solo al retimar en ESTA celda, dónde caería el TROZO agarrado con su nuevo
+// horario (arrastre.retSeg, ya re-segmentado: correcto también en un partido cerca del borde). Contorno
+// neutro (marca), sin relleno: no toca el color de identidad.
 const preview = computed(() => {
-    if (arrastre.modo !== 'retimar' || !esDestino.value || arrastre.retIni == null || !arrastre.turno) return null;
-    const dur = arrastre.turno.finMin - arrastre.turno.iniMin;
-    return posicion({ iniMin: arrastre.retIni, finMin: arrastre.retIni + dur }, props.eje);
+    if (arrastre.modo !== 'retimar' || !esDestino.value || !arrastre.retSeg) return null;
+    return posicion(arrastre.retSeg, props.eje);
 });
 </script>
 
@@ -70,6 +70,7 @@ const preview = computed(() => {
                 :eje="eje"
                 :color="PERSONAS_POR_ID[s.turno.persona].color"
                 :nombre="PERSONAS_POR_ID[s.turno.persona].nombre"
+                :dia="dia"
                 :ini-local="s.iniLocal"
                 :fin-local="s.finLocal"
                 :corte-ini="s.corteIni"
