@@ -122,7 +122,7 @@ color— y mordió. El hueco reservado **no usa ese gris**: es un **borde puntea
 estructura silenciosa) que se lee como **«pendiente / aún no hay dato»**, no como cubierto ni como
 falta. La tira funcional (colores de estado + conteos) llega en su bloque, con el motor.
 
-## La gobernanza (estructura, no disciplina)
+## La gobernanza del color (estructura, no disciplina)
 
 1. **`CLAUDE.md`**: todo color por su fuente; ningún `#hex` suelto en un `.vue`.
 2. **`sin-hex.check.mjs`**: falla si hay un literal de color fuera de `tokens.css` / `paleta.js` / el logo.
@@ -132,6 +132,10 @@ falta. La tira funcional (colores de estado + conteos) llega en su bloque, con e
 
 Añadir un color obliga a: (a) meterlo en su fuente, (b) que los dos checkers pasen, (c) que salga en
 el tablero.
+
+> Estos dos checkers son **una de las tres bestias** de la verificación (color · lógica · geometría).
+> El mapa completo —qué corre en el hook, qué a mano, y **qué NO vigila nadie**— vive en
+> [VERIFICACION.md](VERIFICACION.md). Aquí se queda solo la **ley del color**.
 
 ## Discrepancias resueltas (la fuente manda)
 
