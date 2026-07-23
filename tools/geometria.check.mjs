@@ -21,6 +21,17 @@
  *   3.e  las líneas de la rejilla caen en horas redondas, también con el eje ensanchado.
  *        (Nace de un fallo real: la rejilla estuvo desalineada en 04:00 y nada lo miraba. Ver bitácora.)
  *
+ * DOS AFIRMACIONES MÁS, DEL ARRASTRE (Bloque 4): el instrumento CONDUCE un movimiento y mide lo
+ * renderizado durante y después:
+ *   M.color     DURANTE el arrastre, la barra del proxy pinta el MISMO color de identidad que una
+ *               barra estática de esa persona (dist ≈ 0). Convierte la restricción «el arrastre no
+ *               toca el color» de promesa en PROPIEDAD DEMOSTRADA: si alguien mete una opacidad al
+ *               arrastrar, esto salta. (La API estándar de DnD lo violaría por diseño; ver bitácora.)
+ *   M.aterriza  TRAS soltar, la barra movida cae DENTRO del rect de su celda destino (no a medias ni
+ *               fuera). El movimiento reubica de verdad, sin desbordar.
+ *   ⚠️ Se corre igual: A MANO al cerrar un bloque que toque la parrilla. Conduce el arrastre con
+ *      page.mouse (eventos de puntero reales), así que también necesita navegador + servidor.
+ *
  * LAS TRES DEFENSAS que a los instrumentos borrados del Bloque 3 les faltaban:
  *   GUARDIA     — antes de dar verde comprueba sus precondiciones (¿hay barras? ¿color real? ¿líneas?).
  *                 Si una falla, EL QUE SE SUSPENDE ES EL INSTRUMENTO, no el código. No da verde sobre
@@ -109,6 +120,106 @@ function medirEnPagina(b64) {
     });
 }
 
+/* ══ ESCENARIO DE MOVIMIENTO (Bloque 4) ═══════════════════════════════════════════════════════════
+ * Mueve Elena·8h (Barra·Lun) → Barra·Mié y mide: (M.color) el color del proxy durante el arrastre,
+ * (M.aterriza) que la barra movida cae dentro de su celda. */
+const MOV = { origen: { dia: '2026-07-13', puesto: 'barra', persona: 'elena' }, destino: { dia: '2026-07-15', puesto: 'barra' } };
+
+// En página: coords de agarre (centro de la ficha de Elena 8h) y de destino (centro de la celda).
+function coordsMovimiento(m) {
+    const celO = document.querySelector(`[data-celda][data-dia="${m.origen.dia}"][data-puesto="${m.origen.puesto}"]`);
+    const bars = [...celO.querySelectorAll(`[data-t=barra][data-persona="${m.origen.persona}"]`)].sort((a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width);
+    const rf = bars[0].closest('.cursor-grab').getBoundingClientRect();
+    const cd = document.querySelector(`[data-celda][data-dia="${m.destino.dia}"][data-puesto="${m.destino.puesto}"]`).getBoundingClientRect();
+    return { gx: Math.round(rf.left + rf.width / 2), gy: Math.round(rf.top + 12), tx: Math.round(cd.left + cd.width / 2), ty: Math.round(cd.top + cd.height / 2) };
+}
+
+// En página, DURANTE el arrastre: compara el color del proxy con el de una barra estática de Elena.
+function medirColorProxy(b64) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+            const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(img, 0, 0);
+            const escala = img.width / window.innerWidth;
+            const px = (x, y) => { const d = ctx.getImageData(Math.round(x * escala), Math.round(y * escala), 1, 1).data; return [d[0], d[1], d[2]]; };
+            const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            const rect = (el) => el.getBoundingClientRect();
+            const proxyBar = document.querySelector('[data-proxy] [data-t=barra]');
+            const refBar = [...document.querySelectorAll('[data-t=barra][data-persona="elena"]')].find((b) => !b.closest('[data-proxy]'));
+            const fallos = [];
+            if (!proxyBar) fallos.push('no hay proxy en el DOM durante el arrastre (¿no se cogió la ficha?)');
+            if (!refBar) fallos.push('no hay barra estática de Elena como referencia de color');
+            if (fallos.length) return resolve({ guardia: { ok: false, fallos } });
+            const rp = rect(proxyBar), rr = rect(refBar);
+            const cp = px(rp.left + rp.width / 2, rp.top + 3), cr = px(rr.left + rr.width / 2, rr.top + 3);
+            if (cp[0] + cp[1] + cp[2] === 0 || cr[0] + cr[1] + cr[2] === 0) return resolve({ guardia: { ok: false, fallos: ['color leído como cero (canvas ilegible)'] } });
+            resolve({ guardia: { ok: true }, dist: dist(cp, cr), proxy: cp, ref: cr });
+        };
+        img.src = 'data:image/png;base64,' + b64;
+    });
+}
+
+// En página, TRAS soltar: ¿la barra movida cae dentro del rect de su celda destino?
+function medirAterrizaje(m) {
+    const rect = (el) => el.getBoundingClientRect();
+    const cel = document.querySelector(`[data-celda][data-dia="${m.destino.dia}"][data-puesto="${m.destino.puesto}"]`);
+    if (!cel) return { guardia: { ok: false, fallos: ['no existe la celda destino'] } };
+    const bar = cel.querySelector(`[data-t=barra][data-persona="${m.origen.persona}"]`);
+    if (!bar) return { guardia: { ok: false, fallos: ['la ficha movida no está en la celda destino (¿no se soltó?)'] } };
+    const rc = rect(cel), rb = rect(bar);
+    const dentro = rb.left >= rc.left - 0.5 && rb.right <= rc.right + 0.5 && rb.top >= rc.top - 0.5 && rb.bottom <= rc.bottom + 0.5;
+    return { guardia: { ok: true }, dentro, detalle: `barra x[${rb.left.toFixed(0)},${rb.right.toFixed(0)}] en celda x[${rc.left.toFixed(0)},${rc.right.toFixed(0)}]` };
+}
+
+// En Node: conduce el arrastre con el ratón real. opciones.inyecta* activan las contrapruebas.
+async function escenarioMovimiento(page, opciones = {}) {
+    await cargar(page);
+    const c = await page.evaluate(coordsMovimiento, MOV);
+    await page.mouse.move(c.gx, c.gy);
+    await page.mouse.down();
+    await page.mouse.move(c.gx + 8, c.gy + 8); // supera el umbral
+    await page.mouse.move(c.tx, c.ty, { steps: 10 });
+    if (opciones.inyectaColor) await page.evaluate(() => { const b = document.querySelector('[data-proxy] [data-t=barra]'); if (b) b.style.opacity = '0.4'; });
+    const buf = await page.screenshot();
+    const rc = await page.evaluate(medirColorProxy, buf.toString('base64'));
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+    if (opciones.inyectaAterrizaje) await page.evaluate((m) => { const cel = document.querySelector(`[data-celda][data-dia="${m.destino.dia}"][data-puesto="${m.destino.puesto}"]`); const bar = cel.querySelector(`[data-t=barra][data-persona="${m.origen.persona}"]`); bar.closest('.cursor-grab').style.transform = 'translateX(600px)'; }, MOV);
+    const ra = await page.evaluate(medirAterrizaje, MOV);
+
+    const fallos = [];
+    if (!rc.guardia || !rc.guardia.ok) fallos.push(...(rc.guardia?.fallos || ['medición de color del proxy indisponible']));
+    if (!ra.guardia || !ra.guardia.ok) fallos.push(...(ra.guardia?.fallos || ['medición de aterrizaje indisponible']));
+    if (fallos.length) return { guardia: { ok: false, fallos } };
+    const viol = [];
+    if (rc.dist > 8) viol.push({ af: 'M.color', detalle: `la barra CAMBIÓ de color al arrastrar: dist ${rc.dist.toFixed(1)} (proxy ${JSON.stringify(rc.proxy)} vs identidad ${JSON.stringify(rc.ref)})` });
+    if (!ra.dentro) viol.push({ af: 'M.aterriza', detalle: `la ficha movida cae FUERA de su celda destino: ${ra.detalle}` });
+    return { guardia: { ok: true }, violaciones: viol, datos: { distColorProxy: +rc.dist.toFixed(1), aterrizaje: ra.detalle } };
+}
+
+function decidirMovimiento(r) {
+    if (!r.guardia || !r.guardia.ok) return [NO_PROBADA, `🟠 NO PROBADA (movimiento) — se suspende (precondición fallida):\n  ${r.guardia.fallos.join('\n  ')}`];
+    if (r.violaciones.length) return [CAZADO, `🔴 CAZADO (movimiento) — ${r.violaciones.length} afirmación(es):\n` + r.violaciones.map((v) => `  · ${v.af}  ${v.detalle}`).join('\n')];
+    return [VERDE, `🟢 VERDE (movimiento) — 2/2 OK: barra intacta al arrastrar + ficha aterriza en su celda.  ${JSON.stringify(r.datos)}`];
+}
+
+async function correrSelftestMovimiento(page) {
+    const lineas = []; let fiable = true;
+    const rc = await escenarioMovimiento(page, { inyectaColor: true });
+    const dC = rc.guardia && rc.guardia.ok && (rc.violaciones || []).find((v) => v.af === 'M.color');
+    if (dC) lineas.push(`  ✅ M.color «opacidad inyectada en la barra del proxy»\n        → ROJO: ${dC.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ M.color «opacidad en el proxy» → NO SALTÓ  (guardia.ok=${rc.guardia && rc.guardia.ok}; viol=${JSON.stringify(rc.violaciones)})`); }
+    const ra = await escenarioMovimiento(page, { inyectaAterrizaje: true });
+    const dA = ra.guardia && ra.guardia.ok && (ra.violaciones || []).find((v) => v.af === 'M.aterriza');
+    if (dA) lineas.push(`  ✅ M.aterriza «ficha desplazada fuera de su celda»\n        → ROJO: ${dA.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ M.aterriza «ficha fuera de celda» → NO SALTÓ  (guardia.ok=${ra.guardia && ra.guardia.ok}; viol=${JSON.stringify(ra.violaciones)})`); }
+    const cab = fiable
+        ? '🟢 SELFTEST MOVIMIENTO OK — los 2 detectores de arrastre saben ponerse rojos.'
+        : '🔴 SELFTEST MOVIMIENTO FALLÓ — algún detector de arrastre no salta (no confíes en su verde).';
+    return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
+}
+
 /* ── Las contrapruebas: cada una inyecta SU fallo en el DOM y debe hacer saltar SU detector. ── */
 const CONTRAPRUEBAS = [
     { af: '3.a', nombre: 'ancho mínimo forzado a la barra de 1 h', inject: () => { const e = [...document.querySelectorAll('[data-t=barra][data-persona="elena"]')].sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width); e[0].style.width = '40px'; e[0].style.minWidth = '40px'; } },
@@ -150,12 +261,25 @@ async function correrSelftest(page) {
     return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
 }
 
+// Combinar veredictos: un CAZADO (violación real) manda sobre un NO PROBADA (no se pudo medir); solo
+// VERDE si TODO es verde. Reventar no tapa un hallazgo, ni un hallazgo se pierde tras un reviente.
+function combinar(codes) { if (codes.includes(CAZADO)) return CAZADO; if (codes.includes(NO_PROBADA)) return NO_PROBADA; return VERDE; }
+
 let code = VERDE, salida = '';
 const browser = await chromium.launch();
 try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
-    if (SELFTEST) { const r = await correrSelftest(page); code = r.code; salida = r.salida; }
-    else { await cargar(page); const r = await medir(page); [code, salida] = decidir(r); }
+    if (SELFTEST) {
+        const r1 = await correrSelftest(page);
+        const r2 = await correrSelftestMovimiento(page);
+        code = combinar([r1.code, r2.code]);
+        salida = r1.salida + '\n\n── contrapruebas del ARRASTRE (Bloque 4) ──\n' + r2.salida;
+    } else {
+        await cargar(page); const rest = await medir(page); const [c1, s1] = decidir(rest);
+        const rmov = await escenarioMovimiento(page); const [c2, s2] = decidirMovimiento(rmov);
+        code = combinar([c1, c2]);
+        salida = s1 + '\n\n── ARRASTRE (Bloque 4) ──\n' + s2;
+    }
 } catch (e) {
     code = NO_PROBADA;
     salida = `🟠 NO PROBADA — el instrumento REVENTÓ (no es un hallazgo, no es un pase): ${String(e.message || e).split('\n')[0]}`;
