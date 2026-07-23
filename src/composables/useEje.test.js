@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { minutos, normaliza, calcularEje, posicion, marcasHoras } from './useEje.js';
+import { minutos, normaliza, calcularEje, posicion, marcasHoras, ajustaGranularidad, minutosEnX } from './useEje.js';
 
 /*
  * Tests de la lógica temporal. Reglas del método (punto 3 del Bloque 3.5):
@@ -97,5 +97,24 @@ describe('marcasHoras (las etiquetas de hora en horas redondas)', () => {
         // eje desde 04:00 (240): la primera marca redonda es 06:00, no 04:00
         expect(etiquetas(marcasHoras({ desde: 240, hasta: 1800 }, 6)))
             .toEqual(['06:00', '12:00', '18:00', '00:00']);
+    });
+});
+
+describe('ajustaGranularidad (el snap a media hora del retimado)', () => {
+    test('redondea al múltiplo de 30 más cercano, NO trunca (valores a mano)', () => {
+        expect(ajustaGranularidad(614)).toBe(600); // 614/30 = 20,47 → 20 → 600 (10:00)
+        expect(ajustaGranularidad(616)).toBe(630); // 616/30 = 20,53 → 21 → 630 (10:30) ⚠️ trunca daría 600
+        expect(ajustaGranularidad(600)).toBe(600); // ya en la rejilla
+        expect(ajustaGranularidad(585)).toBe(600); // 09:45 → 10:00 (585/30 = 19,5 → 20)
+    });
+});
+
+describe('minutosEnX (px → minutos, la inversa que el retimado necesita)', () => {
+    test('mapea la x relativa dentro de la pista al instante del eje (valores a mano)', () => {
+        const eje = { desde: 360, hasta: 1800 }; // span 1440; con ancho 144 → 10 min/px
+        expect(minutosEnX(eje, 0, 144)).toBe(360);    // borde izquierdo = eje.desde (06:00)
+        expect(minutosEnX(eje, 144, 144)).toBe(1800); // borde derecho = eje.hasta
+        expect(minutosEnX(eje, 72, 144)).toBe(1080);  // mitad = 18:00
+        expect(minutosEnX(eje, 36, 144)).toBe(720);   // 36·10 + 360 = 12:00
     });
 });

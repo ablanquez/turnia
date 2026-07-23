@@ -64,3 +64,31 @@ export function marcasHoras(eje, horas = 6) {
     }
     return marcas;
 }
+
+/*
+ * El snap del RETIMADO (Bloque 4 · tanda 2). A 5,35 px/hora en la vista semanal, el minuto exacto es
+ * inagarrable (0,09 px); se ajusta a la MEDIA HORA. FUENTE ÚNICA del grano: se tunea aquí, tras
+ * probarlo con las manos. (Si algún día se añade resize, la duración cero deja de ser teórica y hay
+ * que tratarla: duración mínima = 1 unidad de snap, o arreglar el <= de normaliza.)
+ */
+export const GRANULARIDAD_MIN = 30;
+
+/** Minutos (posiblemente fuera de [0,1440) si cruzan medianoche) → cadena "HH:MM" del día (mod 24h).
+ *  Fuente única del formateo de hora: lo usan retimarTurno (el fin recalculado) y el arrastre (la
+ *  etiqueta en vivo), para no tener dos copias del mismo redondeo. */
+export function formatoHora(min) {
+    const m = ((Math.round(min) % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+/** Ajusta un instante (min) al múltiplo de la granularidad más cercano (redondeo, no truncado). */
+export function ajustaGranularidad(min, granularidad = GRANULARIDAD_MIN) {
+    return Math.round(min / granularidad) * granularidad;
+}
+
+/** Inversa de `posicion`: dado un x en píxeles RELATIVO al borde izquierdo de la pista y el ancho de
+ *  la pista, devuelve el instante (min) del eje en esa x. `posicion` mapea minutos→%; esta, px→minutos.
+ *  Es el mapeo que el retimado necesita para saber a qué hora cae el puntero. */
+export function minutosEnX(eje, xRel, anchoPista) {
+    return eje.desde + (xRel / anchoPista) * (eje.hasta - eje.desde);
+}
