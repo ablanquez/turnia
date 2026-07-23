@@ -88,3 +88,38 @@
 **Commit:** (este commit)
 **Ley que sale de aquí:** Cuando una spec del usuario contradiga una ley ya probada del proyecto, PARAR Y AVISAR antes de construir, no después de medir el destrozo. Y ninguna medición de píxel caza un error de concepto: para eso está montar la referencia y comparar con el ojo. La referencia manda en la estructura, no en sus bugs (el apelmazamiento de dos barras no se hereda).
 **Traza:** `src/components/Barra.vue` (color puro, sin texto ni padding); `src/components/FichaTurno.vue` (nuevo, el texto encima); `src/components/Celda.vue` (apila fichas); `src/components/Parrilla.vue` (cajetín, filas alternas, marco).
+
+# 2026-07-23 — Bloque 3.5: la auditoría destapa lo que no se anotó
+
+## [2026-07-23] — Un `.md` de docs/ existía en disco y git no lo versionaba, sin que nada protestara
+**Categoría:** silencio falso
+**Síntoma:** `docs/AUDITORIA-PRE-BLOQUE-4.md` (23 KB, el informe de auditoría que fija el rumbo del 3.5) existía en disco y parecía normal, pero git no lo veía ni como *untracked*. No estaba versionado, y nada avisaba de ello. Yo mismo afirmé en el chat que estaba "sin añadir al stage, para que lo leas primero", dando por hecho que era añadible — y no lo era.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ NADA protestó. `git status` no lo mostraba; el fichero estaba en disco con su tamaño normal; ninguna comprobación existe que avise "este doc queda ignorado". El silencio ERA el verde: la ausencia de queja se leía como "está bien".
+**Causa raíz:** `.gitignore` tiene `/docs/*.md` (ignora TODO `.md` suelto de `docs/`) con una **lista blanca** de excepciones (`BITACORA`, `ESTILO`, `PLAN-ARRANQUE`). Cualquier `.md` nuevo cae fuera en silencio y depende de que alguien recuerde abrirle la puerta a mano.
+**Cómo se cazó:** ojo humano, a mano (mirando `git status` al cerrar el punto 2 del 3.5). Ninguna comprobación lo cazó.
+**Arreglo aplicado:** Se añadió `!docs/AUDITORIA-PRE-BLOQUE-4.md` a la lista blanca (el informe SÍ va al repo: fija rumbo, está atado a `29c0a64`, es material de destilación). El MECANISMO (invertir la regla / una guardia que avise) queda propuesto y pendiente de decisión del usuario — no se toca el `.gitignore` más allá de la excepción.
+**Commit:** (este commit)
+**Ley que sale de aquí:** Una lista blanca por excepción convierte "olvidar añadir la excepción" en pérdida silenciosa: un fichero que existe y no está versionado, sin que nada proteste, es un silencio falso ESTRUCTURAL. Lo que el sistema sabe ocultar hay que re-validarlo, o invertir la regla para que el olvido no borre.
+**Traza:** `.gitignore`.
+
+## [2026-07-15] — El cajetín de la parrilla se estiraba a toda la ventana (anotado tarde: lo destapó la auditoría)
+**Categoría:** visual
+**Síntoma:** El panel blanco que envuelve la parrilla no ajustaba su alto al contenido: las filas de puestos terminaban y el cajetín seguía estirándose hacia abajo con un pozo blanco muerto antes de cerrar con su borde redondeado.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ El build daba verde y la página cargaba; nada medía el alto del panel, así que el pozo blanco viajó hasta la captura. Se vio a ojo, no lo cazó ninguna comprobación.
+**Causa raíz:** `h-full` en el panel con el padre `flex-1` (que llena la ventana): el panel se medía por la altura de la ventana, no por su contenido.
+**Cómo se cazó:** usuario (lo señaló en el punto de control del Bloque 3).
+**Arreglo aplicado:** `h-full` → `max-h-full` + altura automática: el panel se mide por la rejilla que envuelve, con `max-h-full` solo como tope para hacer scroll si un día crece más que el hueco. Ya corregido en `29c0a64`.
+**Commit:** `29c0a64` (ya integrado en el Bloque 3; la entrada se anota tarde).
+**Ley que sale de aquí:** El contenido manda sobre el contenedor en alto; un `h-full`/`100vh` en un contenedor de contenido lo estira aunque el contenido acabe antes.
+**Traza:** `src/components/Parrilla.vue`.
+
+## [2026-07-15] — Se commiteó antes del punto de control (anotado tarde: lo destapó la auditoría)
+**Categoría:** carencia
+**Síntoma:** En el Bloque 3 se commiteó la v1 (barras peladas) en la misma tanda, ANTES de enseñar la captura, cuando la instrucción era "enséñame la captura antes de commitear". Se saltó el punto de control humano.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ El commit pasó los dos checkers de color en verde, y ese verde dio la falsa señal de "listo para cerrar" — reforzó la sensación de "hecho" justo cuando faltaba el OK humano del punto de control.
+**Causa raíz:** Barrer hacia delante: el ejecutor encadenó el commit sin parar donde se le había pedido parar.
+**Cómo se cazó:** el ejecutor lo reconoció acto seguido; se deshizo con `reset --soft` y no se empujó nada.
+**Arreglo aplicado:** `reset --soft` de la v1; se rehízo el bloque parando en el punto de control. No llegó a `origin`.
+**Commit:** (histórico, sin commit propio — la v1 se deshizo antes de empujar).
+**Ley que sale de aquí:** El verde de los checkers no sustituye al OK humano del punto de control: "commiteable" no es "aprobado". Se para donde se pidió parar.
+**Traza:** — (proceso, no fichero).
