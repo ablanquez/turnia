@@ -137,8 +137,11 @@ const esFantasma = computed(() =>
             </div>
 
             <!-- La nota de continuación: SOLO cuando el otro trozo está fuera de la vista. Envuelve, no
-                 se trunca (un texto a medias mentiría). Tinta de composición, no toca el color. -->
-            <div v-if="nota" data-t="nota-fuera" class="text-[10px] italic leading-tight text-ink-faint">{{ nota }}</div>
+                 se trunca (un texto a medias mentiría). Su PESO se consigue con TIPOGRAFÍA (negrita +
+                 tinta oscura de composición), NO con un color que cante: rojo/naranja/ámbar/verde son
+                 la semántica del cuadrante e índigo es la marca; darle uno haría que la nota MINTIERA un
+                 estado. Es información estructural, no un aviso. Ver bitácora. -->
+            <div v-if="nota" data-t="nota-fuera" class="text-[10px] font-bold leading-tight text-ink">{{ nota }}</div>
         </div>
     </div>
 </template>
