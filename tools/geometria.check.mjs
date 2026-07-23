@@ -501,14 +501,61 @@ async function escenarioArrastreCola(page, opciones = {}) {
     return { guardia: { ok: true }, violaciones: viol, datos: { colaSigueEnJue: r.enJue } };
 }
 
-function decidirPartido(rp, ra) {
+/* ══ ESCENARIO DEL CRUCE DE MEDIANOCHE (2.d · PC2.b) ══════════════════════════════════════════════
+ * S.cruce  Conduce la CABEZA de un turno partido (Iker t-iker-3, Jue 22:00) arrastrándola a la derecha
+ *          dentro de su celda lo justo para que el inicio CRUCE la medianoche. Tras soltar, el turno
+ *          debe haber avanzado a Vie —su cuerpo cae en la columna del viernes—, NUNCA retroceder a Mié:
+ *          el día acompaña al reloj. Es EL fallo que Antonio cazó arrastrando y que ningún instrumento
+ *          veía: los tres medían INTEGRIDAD (¿entero? ¿suman?), ninguno IDENTIDAD (¿en el día que es?).
+ *          Un turno completo en el día equivocado pasaba S.suma sin pestañear. Esta es la red que faltaba. */
+async function escenarioCruzaMedianoche(page, opciones = {}) {
+    await cargar(page);
+    // La cabeza de Iker (t-iker-3) está en Jue·cocina (22:00–06:00), pegada al borde derecho de su
+    // ventana. Se agarra por su IZQUIERDA (deja sitio para tirar a la derecha sin salir de la celda) y se
+    // empuja ≈ +2 h: el inicio pasa de 22:00 a después de medianoche, y sigue siendo la MISMA celda (retima).
+    const c = await page.evaluate(() => {
+        const cel = document.querySelector('[data-celda][data-dia="2026-07-16"][data-puesto="cocina"]');
+        const bar = cel ? cel.querySelector('[data-t=barra][data-turno="t-iker-3"]') : null;
+        if (!bar) return null;
+        const b = bar.getBoundingClientRect();
+        const ficha = bar.closest('.cursor-grab').getBoundingClientRect();
+        const pista = cel.querySelector('.bg-sunken').getBoundingClientRect();
+        return { gx: Math.round(b.left + 6), gy: Math.round(ficha.top + 12), w: pista.width, pistaDer: Math.round(pista.right) };
+    });
+    if (!c) return { guardia: { ok: false, fallos: ['no encontré la cabeza de Iker (t-iker-3) en Jue·cocina'] } };
+    const dx = Math.round(130 * (c.w / 1440)); // +130 min ≈ cruza de 22:00 a ~00:10
+    const destinoX = Math.min(c.gx + dx, c.pistaDer - 6); // no salir de la celda (si no, reubicaría en vez de retimar)
+    await page.mouse.move(c.gx, c.gy);
+    await page.mouse.down();
+    await page.mouse.move(c.gx + 8, c.gy);            // supera el umbral, misma celda
+    await page.mouse.move(destinoX, c.gy, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+    await page.keyboard.press('Escape');             // cierra el editor que abre el arrastre
+    await page.waitForTimeout(80);
+    if (opciones.inyectaRetroceso) await page.evaluate(() => { // simula «el día no acompañó»: sin cuerpo en Vie
+        const vie = document.querySelector('[data-celda][data-dia="2026-07-17"][data-puesto="cocina"]');
+        if (vie) vie.querySelectorAll('[data-t=barra][data-turno="t-iker-3"]').forEach((b) => { const f = b.closest('.cursor-grab') || b.closest('.flex'); if (f) f.remove(); });
+    });
+    const r = await page.evaluate(() => {
+        const en = (dia) => { const cel = document.querySelector(`[data-celda][data-dia="${dia}"][data-puesto="cocina"]`); return !!(cel && cel.querySelector('[data-t=barra][data-turno="t-iker-3"]')); };
+        return { enVie: en('2026-07-17'), enMie: en('2026-07-15'), enJue: en('2026-07-16') };
+    });
+    const viol = [];
+    if (!r.enVie) viol.push({ af: 'S.cruce', detalle: `tras cruzar medianoche arrastrando, el cuerpo NO aparece en Vie: el día no acompañó al reloj (enMié=${r.enMie}, enJue=${r.enJue})` });
+    if (r.enMie) viol.push({ af: 'S.cruce', detalle: 'tras cruzar medianoche, el turno RETROCEDIÓ a Mié (día que no debería tocar)' });
+    return { guardia: { ok: true }, violaciones: viol, datos: { enVie: r.enVie, enMie: r.enMie, enJue: r.enJue } };
+}
+
+function decidirPartido(rp, ra, rc) {
     const gFallos = [];
     if (!rp.guardia || !rp.guardia.ok) gFallos.push(...(rp.guardia?.fallos || ['partido no medible']));
     if (!ra.guardia || !ra.guardia.ok) gFallos.push(...(ra.guardia?.fallos || ['arrastre-cola no medible']));
+    if (!rc.guardia || !rc.guardia.ok) gFallos.push(...(rc.guardia?.fallos || ['cruce de medianoche no medible']));
     if (gFallos.length) return [NO_PROBADA, `🟠 NO PROBADA (partido) — se suspende:\n  ${gFallos.join('\n  ')}`];
-    const viol = [...(rp.violaciones || []), ...(ra.violaciones || [])];
+    const viol = [...(rp.violaciones || []), ...(ra.violaciones || []), ...(rc.violaciones || [])];
     if (viol.length) return [CAZADO, `🔴 CAZADO (partido) — ${viol.length}:\n` + viol.map((v) => `  · ${v.af}  ${v.detalle}`).join('\n')];
-    return [VERDE, `🟢 VERDE (partido) — 3/3 OK: los 2 trozos suman la duración + el tajo a ras del borde + retimar la cola no muda el día.  ${JSON.stringify({ ...rp.datos, ...ra.datos })}`];
+    return [VERDE, `🟢 VERDE (partido) — 4/4 OK: los 2 trozos suman la duración + el tajo a ras del borde + retimar la cola no muda el día + cruzar medianoche avanza el día.  ${JSON.stringify({ ...rp.datos, ...ra.datos, ...rc.datos })}`];
 }
 
 async function correrSelftestPartido(page) {
@@ -525,8 +572,12 @@ async function correrSelftestPartido(page) {
     const da = ra.guardia && ra.guardia.ok && (ra.violaciones || []).find((v) => v.af === 'S.arrastre-cola');
     if (da) lineas.push(`  ✅ S.arrastre-cola «el turno mudado de día tras retimar la cola»\n        → ROJO: ${da.detalle}`);
     else { fiable = false; lineas.push(`  ❌ S.arrastre-cola → NO SALTÓ  (guardia.ok=${ra.guardia && ra.guardia.ok}; viol=${JSON.stringify(ra.violaciones)})`); }
+    const rc = await escenarioCruzaMedianoche(page, { inyectaRetroceso: true });
+    const dc = rc.guardia && rc.guardia.ok && (rc.violaciones || []).find((v) => v.af === 'S.cruce');
+    if (dc) lineas.push(`  ✅ S.cruce «el cuerpo borrado de Vie: el día no acompañó»\n        → ROJO: ${dc.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ S.cruce → NO SALTÓ  (guardia.ok=${rc.guardia && rc.guardia.ok}; viol=${JSON.stringify(rc.violaciones)})`); }
     const cab = fiable
-        ? '🟢 SELFTEST PARTIDO OK — S.suma, S.borde y S.arrastre-cola saben ponerse rojos.'
+        ? '🟢 SELFTEST PARTIDO OK — S.suma, S.borde, S.arrastre-cola y S.cruce saben ponerse rojos.'
         : '🔴 SELFTEST PARTIDO FALLÓ — algún detector del partido no salta.';
     return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
 }
@@ -599,7 +650,7 @@ try {
         const rmov = await escenarioMovimiento(page); const [c2, s2] = decidirMovimiento(rmov);
         const rret = await escenarioRetimado(page); const [c3, s3] = decidirRetimado(rret);
         const rtope = await escenarioTope(page); const rcol = await escenarioColorEditor(page); const rtec = await escenarioTeclado(page); const [c4, s4] = decidirEditor(rtope, rcol, rtec);
-        const rpar = await escenarioPartido(page); const rcola = await escenarioArrastreCola(page); const [c5, s5] = decidirPartido(rpar, rcola);
+        const rpar = await escenarioPartido(page); const rcola = await escenarioArrastreCola(page); const rcruce = await escenarioCruzaMedianoche(page); const [c5, s5] = decidirPartido(rpar, rcola, rcruce);
         code = combinar([c1, c2, c3, c4, c5]);
         salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3 + '\n\n── EDITOR (tanda 2.b) ──\n' + s4 + '\n\n── PARTIDO (2.d · PC2) ──\n' + s5;
     }
