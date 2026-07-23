@@ -156,3 +156,14 @@
 **Commit:** (este commit)
 **Ley que sale de aquí:** Un diagnóstico correcto puede describir MAL el síntoma — la auditoría acertó la raíz (el nombre no se maneja según la ley de envoltura) y falló la manifestación (predijo elipsis; fue distorsión que EXPULSA datos). Por eso se verifica PINTANDO, no razonando. Y un dato que empuja a otros fuera de pantalla es peor que uno truncado: el truncado avisa, el expulsado no. Falta una comprobación de "¿caben todos los días?".
 **Traza:** `src/components/FichaTurno.vue` (el nombre envuelve); `src/components/Parrilla.vue` (`min-w-max` → `min-w-full`).
+
+## [2026-07-23] — Vitest parpadeó UNA vez a "error de recolección / no tests", irreproducible
+**Categoría:** herramienta
+**Síntoma:** La primerísima invocación de `npm test` tras editar `vite.config.js` (al montar la guardia de tests en el hook, punto 6) devolvió `Test Files 1 failed · Tests: no tests` con un code-frame de transformación apuntando al fichero de test. La siguiente invocación, y ~18 más, dieron 13 passed.
+**Qué se probó y DIO VERDE mientras el fallo estaba vivo:** ⭐ Inmediatamente después, 5 corridas seguidas verdes, 6 con pipe a `tail`, 3 con caché frío (`node_modules/.vite` borrado) y el dev server vivo — 18/18 verde. El dato perecedero es justo ese: el fallo NO se dejó reproducir ni forzando el arranque en frío que era la hipótesis principal.
+**Causa raíz:** NO CONSTA. Hipótesis no confirmada: transitorio de transformación de la primerísima invocación de vitest tras cambiar la config, quizá agravado por compartir el caché `node_modules/.vite` con el dev server (bx0thndmm) levantado. No se pudo reproducir para confirmarlo; no se inventa una causa.
+**Cómo se cazó:** al medir el verde de partida antes de la contraprueba del hook — el primer `npm test` salió rojo y el segundo verde; sospecha del parpadeo → 3 experimentos de aislamiento (pipe, corridas repetidas, caché frío), ninguno reprodujo.
+**Arreglo aplicado:** NINGUNO — no hay causa confirmada que arreglar, y es **fail-safe**: este modo bloquearía un commit de más (falso rojo), nunca dejaría pasar lógica rota (falso verde). Queda declarado como fragilidad conocida en `VERIFICACION.md` (techo: la geometría y el fin de línea; se añade este parpadeo si reaparece).
+**Commit:** (este commit) — solo la entrada.
+**Ley que sale de aquí:** Un falso rojo irreproducible se registra y se vigila, no se "arregla" a ciegas ni se silencia. Si el hook alguna vez bloquea un commit con un `Tests: no tests` inesperado y el árbol está sano, es este parpadeo: reintentar el commit; si se hace crónico, aislar el caché de vitest del dev server (`cacheDir` propio).
+**Traza:** observado corriendo `npm test` durante el punto 6; sin cambio de código.
