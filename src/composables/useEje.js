@@ -66,12 +66,16 @@ export function marcasHoras(eje, horas = 6) {
 }
 
 /*
- * El snap del RETIMADO (Bloque 4 · tanda 2). A 5,35 px/hora en la vista semanal, el minuto exacto es
- * inagarrable (0,09 px); se ajusta a la MEDIA HORA. FUENTE ÚNICA del grano: se tunea aquí, tras
- * probarlo con las manos. (Si algún día se añade resize, la duración cero deja de ser teórica y hay
- * que tratarla: duración mínima = 1 unidad de snap, o arreglar el <= de normaliza.)
+ * El snap del ARRASTRE (Bloque 4 · tanda 2, afinado a 15 en la 2.c). A 5,35 px/hora en la vista
+ * semanal, el minuto exacto es inagarrable (0,09 px); el arrastre APROXIMA en saltos de 15 min. FUENTE
+ * ÚNICA del grano y de los DOS caminos de arrastre (retimado en la parrilla, tiradores del editor): no
+ * se parten, o un turno tecleado a las 10:15 se movería solo al retimarlo. El TECLADO no pasa por aquí:
+ * afina al minuto exacto (ver escribirInicio/escribirFin en useEditor).
+ *
+ * ⚠️ Esto NO es la duración mínima. La mínima (el muro contra la duración cero de normaliza) vive
+ * aparte en editarTurno.js con su propio número y su propia razón; ver bitácora «dos motivos».
  */
-export const GRANULARIDAD_MIN = 30;
+export const GRANULARIDAD_MIN = 15;
 
 /** Minutos (posiblemente fuera de [0,1440) si cruzan medianoche) → cadena "HH:MM" del día (mod 24h).
  *  Fuente única del formateo de hora: lo usan retimarTurno (el fin recalculado) y el arrastre (la

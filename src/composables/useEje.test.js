@@ -100,12 +100,14 @@ describe('marcasHoras (las etiquetas de hora en horas redondas)', () => {
     });
 });
 
-describe('ajustaGranularidad (el snap a media hora del retimado)', () => {
-    test('redondea al múltiplo de 30 más cercano, NO trunca (valores a mano)', () => {
-        expect(ajustaGranularidad(614)).toBe(600); // 614/30 = 20,47 → 20 → 600 (10:00)
-        expect(ajustaGranularidad(616)).toBe(630); // 616/30 = 20,53 → 21 → 630 (10:30) ⚠️ trunca daría 600
-        expect(ajustaGranularidad(600)).toBe(600); // ya en la rejilla
-        expect(ajustaGranularidad(585)).toBe(600); // 09:45 → 10:00 (585/30 = 19,5 → 20)
+describe('ajustaGranularidad (el snap de 15 min del arrastre)', () => {
+    // El grano bajó de 30 a 15 en la 2.c: el arrastre aproxima más fino. Testigos recalculados a mano
+    // para el grano 15; siguen probando lo mismo (REDONDEA al múltiplo más cercano, NO trunca).
+    test('redondea al múltiplo de 15 más cercano, NO trunca (valores a mano)', () => {
+        expect(ajustaGranularidad(600)).toBe(600); // ya en la rejilla (10:00)
+        expect(ajustaGranularidad(607)).toBe(600); // 10:07 → 10:00 (607/15 = 40,47 → 40 → 600)
+        expect(ajustaGranularidad(608)).toBe(615); // 10:08 → 10:15 (608/15 = 40,53 → 41 → 615) ⚠️ trunca daría 600
+        expect(ajustaGranularidad(683)).toBe(690); // 11:23 → 11:30 (683/15 = 45,53 → 46 → 690) ⚠️ trunca daría 675
     });
 });
 
