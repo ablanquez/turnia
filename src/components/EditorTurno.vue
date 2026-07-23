@@ -8,11 +8,17 @@
  */
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { DIAS, PUESTOS } from '../datos/semana.js';
-import { marcasHoras, posicion, minutosEnX, formatoHora } from '../composables/useEje.js';
+import { marcasHoras, posicion, minutosEnX, formatoHora, minutos } from '../composables/useEje.js';
 import { tintaSobre } from '../estilo/reglas.js';
 import { useEditor } from '../composables/useEditor.js';
 
-const { editor, moverInicio, moverFin, aplicar, eliminar, pedirBorrado, cancelarBorrado, cerrarEditor } = useEditor();
+const { editor, moverInicio, moverFin, escribirInicio, escribirFin, aplicar, eliminar, pedirBorrado, cancelarBorrado, cerrarEditor } = useEditor();
+
+// El teclado AFINA al minuto. type=time devuelve "" cuando el valor está a medias o vacío: ese caso se
+// IGNORA (no se puede borrar un extremo → no hay estado imposible por esa vía). Un valor válido "HH:MM"
+// entra al modelo por `minutos()` (la misma que ya traduce las horas de la fuente) y pasa por el muro.
+const tecleaInicio = (v) => { if (v) escribirInicio(minutos(v)); };
+const tecleaFin = (v) => { if (v) escribirFin(minutos(v)); };
 
 const iniciales = computed(() => (editor.nombre || '').split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase());
 const marcas = computed(() => marcasHoras(editor.eje, 3)); // marcas cada 3 h: hay sitio para más
@@ -94,6 +100,29 @@ onUnmounted(() => { window.removeEventListener('keydown', alTecla); soltarTirado
                 <div class="relative mt-1 h-4">
                     <span v-for="m in marcas" :key="m.etiqueta" class="absolute -translate-x-1/2 font-mono text-[10px] text-ink-faint" :style="{ left: m.left + '%' }">{{ m.etiqueta }}</span>
                 </div>
+            </div>
+
+            <!-- Inicio y fin al minuto exacto (type=time). El ARRASTRE aproxima en saltos de 15; el
+                 TECLADO afina. Son la MISMA vista del borrador que la barra: mueves el tirador y el
+                 campo se actualiza (:value ligado a formatoHora); tecleas y la barra/tirador se mueven.
+                 type=time hace imposible teclear basura ("25:99", "abc") sin un parser a mano. -->
+            <div class="mt-4 flex flex-wrap gap-4">
+                <label class="flex flex-col gap-1 text-sm text-ink-soft">Inicio
+                    <input
+                        type="time" data-hora="inicio"
+                        class="rounded border border-line bg-card px-2 py-1 font-mono text-ink"
+                        :value="formatoHora(editor.iniMin)"
+                        @input="tecleaInicio($event.target.value)"
+                    />
+                </label>
+                <label class="flex flex-col gap-1 text-sm text-ink-soft">Fin
+                    <input
+                        type="time" data-hora="fin"
+                        class="rounded border border-line bg-card px-2 py-1 font-mono text-ink"
+                        :value="formatoHora(editor.finMin)"
+                        @input="tecleaFin($event.target.value)"
+                    />
+                </label>
             </div>
 
             <!-- Día y puesto -->

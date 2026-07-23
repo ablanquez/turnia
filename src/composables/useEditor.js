@@ -15,7 +15,7 @@ import { reactive } from 'vue';
 import { editar, borrar, norm } from './useCuadrante.js';
 import { PERSONAS_POR_ID } from '../datos/semana.js';
 import { ajustaGranularidad, calcularEje } from './useEje.js';
-import { DURACION_MINIMA, DURACION_MAXIMA } from './editarTurno.js';
+import { acotaInicio, acotaFin, horaAAbsoluto } from './editarTurno.js';
 
 const estado = reactive({
     abierto: false,
@@ -49,21 +49,32 @@ export function cerrarEditor() {
     estado.topado = null;
 }
 
-// ── Tiradores: mueven un extremo, con snap y tope de duración (mín y máx), dentro del eje ──
+/*
+ * DOS MANDOS, UN SOLO DATO, UN SOLO MURO. Tiradores y teclado escriben el MISMO borrador
+ * (iniMin/finMin) pasando por el MISMO clamp puro (acotaInicio/acotaFin en editarTurno). La única
+ * diferencia: el ARRASTRE aproxima (snap de 15), el TECLADO afina (minuto exacto, sin snap). Como los
+ * dos cruzan el muro, la duración cero es inalcanzable por cualquier camino (ver 3.d / bitácora).
+ */
+
+// ── Tiradores (arrastre): snap de 15 y luego el muro ──
 export function moverInicio(minCrudo) {
-    const snap = ajustaGranularidad(minCrudo);
-    const suelo = Math.max(estado.finMin - DURACION_MAXIMA, estado.eje.desde);
-    const techo = estado.finMin - DURACION_MINIMA; // no puede acercarse al fin más que la mínima
-    estado.topado = snap > techo ? 'inicio' : null;
-    estado.iniMin = Math.min(Math.max(snap, suelo), techo);
+    const { iniMin, topado } = acotaInicio(ajustaGranularidad(minCrudo), estado);
+    estado.iniMin = iniMin; estado.topado = topado;
+}
+export function moverFin(minCrudo) {
+    const { finMin, topado } = acotaFin(ajustaGranularidad(minCrudo), estado);
+    estado.finMin = finMin; estado.topado = topado;
 }
 
-export function moverFin(minCrudo) {
-    const snap = ajustaGranularidad(minCrudo);
-    const suelo = estado.iniMin + DURACION_MINIMA; // no puede acercarse al inicio más que la mínima
-    const techo = Math.min(estado.iniMin + DURACION_MAXIMA, estado.eje.hasta);
-    estado.topado = snap < suelo ? 'fin' : null;
-    estado.finMin = Math.min(Math.max(snap, suelo), techo);
+// ── Teclado (type=time): hora de reloj → minuto absoluto (cruce de medianoche solo) → el mismo muro,
+//    SIN snap. El campo vacío no llega aquí (lo filtra el .vue): no se puede "borrar" un extremo. ──
+export function escribirInicio(clock) {
+    const { iniMin, topado } = acotaInicio(horaAAbsoluto(clock, 'inicio', estado), estado);
+    estado.iniMin = iniMin; estado.topado = topado;
+}
+export function escribirFin(clock) {
+    const { finMin, topado } = acotaFin(horaAAbsoluto(clock, 'fin', estado), estado);
+    estado.finMin = finMin; estado.topado = topado;
 }
 
 export function pedirBorrado() { estado.confirmandoBorrado = true; }
@@ -80,5 +91,5 @@ export function eliminar() {
 }
 
 export function useEditor() {
-    return { editor: estado, moverInicio, moverFin, aplicar, eliminar, pedirBorrado, cancelarBorrado, cerrarEditor };
+    return { editor: estado, moverInicio, moverFin, escribirInicio, escribirFin, aplicar, eliminar, pedirBorrado, cancelarBorrado, cerrarEditor };
 }
