@@ -47,34 +47,39 @@ export const PERSONAS_POR_ID = Object.fromEntries(
     PERSONAS.map((p) => [p.id, { ...p, color: colorDe(p.indice) }]),
 );
 
+/*
+ * Cada turno lleva un `id` ESTABLE y único. Es la identidad por la que el arrastre (Bloque 4) mueve
+ * una ficha concreta: identificar por índice del array se rompe en cuanto algo se mueve (el índice
+ * cambia), así que el id es la opción fail-closed. Es dato, no lógica: vive con el turno.
+ */
 export const TURNOS = [
     // ── EL PEOR CASO: Elena (Persona 05) con 8 h y 1 h en la misma celda ──────────────
-    { persona: 'elena', puesto: 'barra', dia: '2026-07-13', inicio: '06:00', fin: '14:00' },
-    { persona: 'elena', puesto: 'barra', dia: '2026-07-13', inicio: '15:00', fin: '16:00' }, // 1 h
+    { id: 't-elena-1', persona: 'elena', puesto: 'barra', dia: '2026-07-13', inicio: '06:00', fin: '14:00' },
+    { id: 't-elena-2', persona: 'elena', puesto: 'barra', dia: '2026-07-13', inicio: '15:00', fin: '16:00' }, // 1 h
 
     // ── LA PANADERÍA: 04:00, antes del eje → lo ensancha ──────────────────────────────
-    { persona: 'carlos', puesto: 'cocina', dia: '2026-07-13', inicio: '04:00', fin: '12:00' },
+    { id: 't-carlos-1', persona: 'carlos', puesto: 'cocina', dia: '2026-07-13', inicio: '04:00', fin: '12:00' },
 
     // ── El resto, 8 h, para poblar la rejilla ─────────────────────────────────────────
-    { persona: 'ana', puesto: 'barra', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
-    { persona: 'bea', puesto: 'barra', dia: '2026-07-16', inicio: '14:00', fin: '22:00' },
-    { persona: 'iker', puesto: 'cocina', dia: '2026-07-14', inicio: '10:00', fin: '18:00' },
-    { persona: 'diego', puesto: 'cocina', dia: '2026-07-15', inicio: '12:00', fin: '20:00' },
-    { persona: 'ana', puesto: 'caja', dia: '2026-07-13', inicio: '09:00', fin: '17:00' },
-    { persona: 'bea', puesto: 'caja', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
-    { persona: 'iker', puesto: 'caja', dia: '2026-07-17', inicio: '13:00', fin: '21:00' },
-    { persona: 'diego', puesto: 'sala', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
-    { persona: 'elena', puesto: 'sala', dia: '2026-07-17', inicio: '10:00', fin: '18:00' },
-    { persona: 'carlos', puesto: 'sala', dia: '2026-07-18', inicio: '11:00', fin: '19:00' },
+    { id: 't-ana-1', persona: 'ana', puesto: 'barra', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
+    { id: 't-bea-1', persona: 'bea', puesto: 'barra', dia: '2026-07-16', inicio: '14:00', fin: '22:00' },
+    { id: 't-iker-1', persona: 'iker', puesto: 'cocina', dia: '2026-07-14', inicio: '10:00', fin: '18:00' },
+    { id: 't-diego-1', persona: 'diego', puesto: 'cocina', dia: '2026-07-15', inicio: '12:00', fin: '20:00' },
+    { id: 't-ana-2', persona: 'ana', puesto: 'caja', dia: '2026-07-13', inicio: '09:00', fin: '17:00' },
+    { id: 't-bea-2', persona: 'bea', puesto: 'caja', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
+    { id: 't-iker-2', persona: 'iker', puesto: 'caja', dia: '2026-07-17', inicio: '13:00', fin: '21:00' },
+    { id: 't-diego-2', persona: 'diego', puesto: 'sala', dia: '2026-07-14', inicio: '08:00', fin: '16:00' },
+    { id: 't-elena-3', persona: 'elena', puesto: 'sala', dia: '2026-07-17', inicio: '10:00', fin: '18:00' },
+    { id: 't-carlos-2', persona: 'carlos', puesto: 'sala', dia: '2026-07-18', inicio: '11:00', fin: '19:00' },
 
     // ── CASOS LÍMITE sembrados en el Bloque 3.5 (punto 4) ─────────────────────────────
     // CRUZA MEDIANOCHE: 22:00 → 06:00. normaliza() suma 24h (finMin 1800 = 06:00 del día siguiente).
     // Rama que hasta ahora NINGÚN dato recorría en la app real (solo el test la sujetaba).
-    { persona: 'diego', puesto: 'cocina', dia: '2026-07-17', inicio: '22:00', fin: '06:00' },
+    { id: 't-diego-3', persona: 'diego', puesto: 'cocina', dia: '2026-07-17', inicio: '22:00', fin: '06:00' },
     // SOLAPE DE DOS en la misma celda (Barra · Mié): se pisan de 14:00 a 18:00. Cada turno en su
     // propia ficha apilada, SIN tratamiento visual especial: la semántica del solape llega con el motor.
-    { persona: 'ana', puesto: 'barra', dia: '2026-07-15', inicio: '10:00', fin: '18:00' },
-    { persona: 'bea', puesto: 'barra', dia: '2026-07-15', inicio: '14:00', fin: '22:00' },
+    { id: 't-ana-3', persona: 'ana', puesto: 'barra', dia: '2026-07-15', inicio: '10:00', fin: '18:00' },
+    { id: 't-bea-3', persona: 'bea', puesto: 'barra', dia: '2026-07-15', inicio: '14:00', fin: '22:00' },
     // NOMBRE LARGO (Sala · Mié): activa el ajuste del nombre en la ficha (envolver, no truncar).
-    { persona: 'maricarmen', puesto: 'sala', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
+    { id: 't-maricarmen-1', persona: 'maricarmen', puesto: 'sala', dia: '2026-07-15', inicio: '09:00', fin: '17:00' },
 ];
