@@ -31,6 +31,10 @@
  *               fuera). El movimiento reubica de verdad, sin desbordar.
  *   M.retima    TRAS retimar (arrastrar dentro de la misma celda), la barra ATERRIZA en la posición
  *               de su NUEVO horario (calibrando x→minutos con las marcas, independientes de la barra).
+ *   E.tope      En el editor, llevar el tirador del fin más allá del mínimo NO produce una duración
+ *               menor de 30 min (el suelo estructural se cumple; la duración cero es inalcanzable).
+ *   M.color-editor  La barra del editor pinta el color DECLARADO (rendered vs computed backgroundColor,
+ *               que la opacidad no altera): los tiradores tampoco tocan el color.
  *   ⚠️ Se corre igual: A MANO al cerrar un bloque que toque la parrilla. Conduce el arrastre con
  *      page.mouse (eventos de puntero reales), así que también necesita navegador + servidor.
  *
@@ -292,6 +296,104 @@ async function correrSelftestRetimado(page) {
     return { code: ok ? VERDE : NO_PROBADA, salida: cab + '\n' + linea };
 }
 
+/* ══ ESCENARIO DEL EDITOR (Bloque 4 · tanda 2.b) ══════════════════════════════════════════════════
+ * Abre el editor (lápiz de la primera ficha) y comprueba: (E.tope) que al llevar el tirador del fin
+ * más allá del mínimo la duración renderizada NO baja de 30 min; (M.color-editor) que la barra del
+ * editor pinta el color declarado (rendered vs computed backgroundColor, que la opacidad NO altera). */
+async function abrirEditorEn(page) {
+    await cargar(page);
+    await page.click('button[aria-label="Editar turno"]');
+    await page.waitForTimeout(150);
+}
+function coordsTiradorFin() {
+    const fin = document.querySelector('[data-tirador=fin]').getBoundingClientRect();
+    const pista = document.querySelector('[data-t=barra-editor]').parentElement.getBoundingClientRect();
+    return { fx: Math.round(fin.left + fin.width / 2), fy: Math.round(fin.top + fin.height / 2), pl: Math.round(pista.left) };
+}
+function medirDuracionEditor() {
+    const rect = (el) => el.getBoundingClientRect();
+    const bar = document.querySelector('[data-t=barra-editor]');
+    if (!bar) return { guardia: { ok: false, fallos: ['no hay barra en el editor (¿no abrió?)'] } };
+    const pista = bar.parentElement;
+    const marcas = [...pista.querySelectorAll('.bg-line-soft')].map((m) => rect(m).left).sort((a, b) => a - b);
+    if (marcas.length < 2) return { guardia: { ok: false, fallos: ['<2 marcas en el editor para calibrar'] } };
+    const minPorPx = 180 / (marcas[1] - marcas[0]); // marcas cada 3 h = 180 min
+    return { guardia: { ok: true }, durMin: Math.round(rect(bar).width * minPorPx) };
+}
+function medirColorEditor(b64) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+            const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(img, 0, 0);
+            const escala = img.width / window.innerWidth;
+            const px = (x, y) => { const d = ctx.getImageData(Math.round(x * escala), Math.round(y * escala), 1, 1).data; return [d[0], d[1], d[2]]; };
+            const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            const bar = document.querySelector('[data-t=barra-editor]');
+            if (!bar) return resolve({ guardia: { ok: false, fallos: ['no hay barra en el editor'] } });
+            const declar = (getComputedStyle(bar).backgroundColor.match(/\d+/g) || []).map(Number).slice(0, 3);
+            const r = bar.getBoundingClientRect();
+            const medido = px(r.left + r.width / 2, r.top + r.height / 2);
+            if (declar.reduce((a, b) => a + b, 0) === 0 || medido.reduce((a, b) => a + b, 0) === 0) return resolve({ guardia: { ok: false, fallos: ['color cero (canvas ilegible o barra sin color)'] } });
+            resolve({ guardia: { ok: true }, distColor: +dist(declar, medido).toFixed(1), declar, medido });
+        };
+        img.src = 'data:image/png;base64,' + b64;
+    });
+}
+
+async function escenarioTope(page, opciones = {}) {
+    await abrirEditorEn(page);
+    const c = await page.evaluate(coordsTiradorFin);
+    await page.mouse.move(c.fx, c.fy);
+    await page.mouse.down();
+    await page.mouse.move(c.fx - 20, c.fy);
+    await page.mouse.move(c.pl + 5, c.fy, { steps: 12 }); // arrastra el fin hasta el inicio (al tope)
+    await page.mouse.up();
+    if (opciones.inyectaSubMin) await page.evaluate(() => { document.querySelector('[data-t=barra-editor]').style.width = '4px'; });
+    const r = await page.evaluate(medirDuracionEditor);
+    if (!r.guardia || !r.guardia.ok) return { guardia: r.guardia };
+    const viol = [];
+    if (r.durMin < 30 - 3) viol.push({ af: 'E.tope', detalle: `el editor produjo ${r.durMin} min de duración (< 30, la mínima)` });
+    return { guardia: { ok: true }, violaciones: viol, datos: { durTope: r.durMin } };
+}
+
+async function escenarioColorEditor(page, opciones = {}) {
+    await abrirEditorEn(page);
+    if (opciones.inyectaColor) await page.evaluate(() => { document.querySelector('[data-t=barra-editor]').style.opacity = '0.4'; });
+    const buf = await page.screenshot();
+    const r = await page.evaluate(medirColorEditor, buf.toString('base64'));
+    if (!r.guardia || !r.guardia.ok) return { guardia: r.guardia };
+    const viol = [];
+    if (r.distColor > 10) viol.push({ af: 'M.color-editor', detalle: `la barra del editor cambió de color: dist ${r.distColor} (declarado ${JSON.stringify(r.declar)} vs pintado ${JSON.stringify(r.medido)})` });
+    return { guardia: { ok: true }, violaciones: viol, datos: { distColorEditor: r.distColor } };
+}
+
+function decidirEditor(rt, rc) {
+    const gFallos = [];
+    if (!rt.guardia || !rt.guardia.ok) gFallos.push(...(rt.guardia?.fallos || ['tope no medible']));
+    if (!rc.guardia || !rc.guardia.ok) gFallos.push(...(rc.guardia?.fallos || ['color no medible']));
+    if (gFallos.length) return [NO_PROBADA, `🟠 NO PROBADA (editor) — se suspende:\n  ${gFallos.join('\n  ')}`];
+    const viol = [...(rt.violaciones || []), ...(rc.violaciones || [])];
+    if (viol.length) return [CAZADO, `🔴 CAZADO (editor) — ${viol.length}:\n` + viol.map((v) => `  · ${v.af}  ${v.detalle}`).join('\n')];
+    return [VERDE, `🟢 VERDE (editor) — 2/2 OK: el tope de duración se cumple + la barra del editor a color pleno.  ${JSON.stringify({ ...rt.datos, ...rc.datos })}`];
+}
+
+async function correrSelftestEditor(page) {
+    const lineas = []; let fiable = true;
+    const rt = await escenarioTope(page, { inyectaSubMin: true });
+    const dt = rt.guardia && rt.guardia.ok && (rt.violaciones || []).find((v) => v.af === 'E.tope');
+    if (dt) lineas.push(`  ✅ E.tope «duración por debajo de la mínima inyectada»\n        → ROJO: ${dt.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ E.tope → NO SALTÓ  (guardia.ok=${rt.guardia && rt.guardia.ok}; viol=${JSON.stringify(rt.violaciones)})`); }
+    const rc = await escenarioColorEditor(page, { inyectaColor: true });
+    const dc = rc.guardia && rc.guardia.ok && (rc.violaciones || []).find((v) => v.af === 'M.color-editor');
+    if (dc) lineas.push(`  ✅ M.color-editor «opacidad inyectada en la barra del editor»\n        → ROJO: ${dc.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ M.color-editor → NO SALTÓ  (guardia.ok=${rc.guardia && rc.guardia.ok}; viol=${JSON.stringify(rc.violaciones)})`); }
+    const cab = fiable
+        ? '🟢 SELFTEST EDITOR OK — E.tope y M.color-editor saben ponerse rojos.'
+        : '🔴 SELFTEST EDITOR FALLÓ — algún detector del editor no salta.';
+    return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
+}
+
 /* ── Las contrapruebas: cada una inyecta SU fallo en el DOM y debe hacer saltar SU detector. ── */
 const CONTRAPRUEBAS = [
     { af: '3.a', nombre: 'ancho mínimo forzado a la barra de 1 h', inject: () => { const e = [...document.querySelectorAll('[data-t=barra][data-persona="elena"]')].sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width); e[0].style.width = '40px'; e[0].style.minWidth = '40px'; } },
@@ -345,14 +447,19 @@ try {
         const r1 = await correrSelftest(page);
         const r2 = await correrSelftestMovimiento(page);
         const r3 = await correrSelftestRetimado(page);
-        code = combinar([r1.code, r2.code, r3.code]);
-        salida = r1.salida + '\n\n── contrapruebas del ARRASTRE · mover (tanda 1) ──\n' + r2.salida + '\n\n── contrapruebas del ARRASTRE · retimar (tanda 2) ──\n' + r3.salida;
+        const r4 = await correrSelftestEditor(page);
+        code = combinar([r1.code, r2.code, r3.code, r4.code]);
+        salida = r1.salida
+            + '\n\n── contrapruebas del ARRASTRE · mover (tanda 1) ──\n' + r2.salida
+            + '\n\n── contrapruebas del ARRASTRE · retimar (tanda 2) ──\n' + r3.salida
+            + '\n\n── contrapruebas del EDITOR (tanda 2.b) ──\n' + r4.salida;
     } else {
         await cargar(page); const rest = await medir(page); const [c1, s1] = decidir(rest);
         const rmov = await escenarioMovimiento(page); const [c2, s2] = decidirMovimiento(rmov);
         const rret = await escenarioRetimado(page); const [c3, s3] = decidirRetimado(rret);
-        code = combinar([c1, c2, c3]);
-        salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3;
+        const rtope = await escenarioTope(page); const rcol = await escenarioColorEditor(page); const [c4, s4] = decidirEditor(rtope, rcol);
+        code = combinar([c1, c2, c3, c4]);
+        salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3 + '\n\n── EDITOR (tanda 2.b) ──\n' + s4;
     }
 } catch (e) {
     code = NO_PROBADA;
