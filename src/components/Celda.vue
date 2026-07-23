@@ -15,18 +15,35 @@
  */
 import { computed } from 'vue';
 import { PERSONAS_POR_ID } from '../datos/semana.js';
+import { useArrastre } from '../composables/useArrastre.js';
 import FichaTurno from './FichaTurno.vue';
 
 const props = defineProps({
     turnos: { type: Array, required: true }, // normalizados, de esta celda
     eje: { type: Object, required: true },
+    dia: { type: String, required: true }, // clave del día (para ser destino del arrastre)
+    puesto: { type: String, required: true }, // id del puesto
 });
 
+const { arrastre } = useArrastre();
+
 const ordenados = computed(() => [...props.turnos].sort((a, b) => a.iniMin - b.iniMin));
+
+// ¿Es esta la celda bajo el puntero durante un arrastre? → se resalta. El resalte va en la CELDA
+// (anillo interior de marca), NUNCA en la barra: la restricción del color se respeta al pie.
+const esDestino = computed(() =>
+    arrastre.activo && arrastre.destino
+    && arrastre.destino.dia === props.dia && arrastre.destino.puesto === props.puesto);
 </script>
 
 <template>
-    <div class="flex min-h-16 flex-col p-2">
+    <div
+        class="flex min-h-16 flex-col p-2"
+        :class="{ 'ring-2 ring-inset ring-brand-300': esDestino }"
+        data-celda
+        :data-dia="dia"
+        :data-puesto="puesto"
+    >
         <div class="flex flex-col gap-3">
             <FichaTurno
                 v-for="t in ordenados"

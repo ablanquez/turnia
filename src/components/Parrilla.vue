@@ -11,15 +11,24 @@
  *   · MARCO de cada celda con la línea de día (line) y la de sección (edge) en los bordes fijos.
  *   · El eje se calcula UNA vez sobre todos los turnos: todas las pistas comparten escala y alinean.
  */
-import { DIAS, PUESTOS, TURNOS } from '../datos/semana.js';
+import { computed } from 'vue';
+import { DIAS, PUESTOS } from '../datos/semana.js';
 import { normaliza, calcularEje } from '../composables/useEje.js';
+import { useCuadrante } from '../composables/useCuadrante.js';
+import { useArrastre } from '../composables/useArrastre.js';
 import Celda from './Celda.vue';
+import FichaTurno from './FichaTurno.vue';
 import Marca from '../estilo/marca/Marca.vue';
 
-const norm = TURNOS.map(normaliza);
-const eje = calcularEje(norm);
+const { turnos } = useCuadrante();
+const { arrastre } = useArrastre();
 
-const turnosDe = (puestoId, diaClave) => norm.filter((t) => t.puesto === puestoId && t.dia === diaClave);
+// El eje y la normalización se rehacen solos al mover (aunque mover NO cambia el eje: mismas horas
+// reubicadas → misma escala, sujeto por moverTurno.test). Con el estado reactivo, computed basta.
+const norm = computed(() => turnos.value.map(normaliza));
+const eje = computed(() => calcularEje(norm.value));
+
+const turnosDe = (puestoId, diaClave) => norm.value.filter((t) => t.puesto === puestoId && t.dia === diaClave);
 </script>
 
 <template>
@@ -68,10 +77,28 @@ const turnosDe = (puestoId, diaClave) => norm.filter((t) => t.puesto === puestoI
                             :class="i % 2 ? 'bg-band' : 'bg-card'"
                             :turnos="turnosDe(p.id, d.clave)"
                             :eje="eje"
+                            :dia="d.clave"
+                            :puesto="p.id"
                         />
                     </template>
                 </div>
             </div>
+        </div>
+
+        <!--
+            EL PROXY del arrastre: la ficha cogida, a COLOR PLENO, siguiendo al puntero. Fixed, sobre
+            todo (z-50), y `pointer-events-none` para no taparse a sí misma en el hit-testing
+            (elementFromPoint debe ver la celda de debajo). Señal de «levantado» = BORDE exterior, sin
+            sombra (decisión de Antonio): no se toca el color de la barra. Posición = puntero − desfase
+            de agarre, así no salta al cogerla.
+        -->
+        <div
+            v-if="arrastre.activo && arrastre.turno"
+            data-proxy
+            class="pointer-events-none fixed z-50 rounded-lg border border-edge bg-card p-2"
+            :style="{ left: (arrastre.x - arrastre.offX) + 'px', top: (arrastre.y - arrastre.offY) + 'px', width: arrastre.ancho + 'px' }"
+        >
+            <FichaTurno :turno="arrastre.turno" :eje="eje" :color="arrastre.color" :nombre="arrastre.nombre" es-proxy />
         </div>
     </div>
 </template>
