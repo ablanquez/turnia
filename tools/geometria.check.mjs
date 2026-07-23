@@ -426,6 +426,111 @@ async function correrSelftestEditor(page) {
     return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
 }
 
+/* ══ ESCENARIO DEL PARTIDO (Bloque 4 · 2.d · PC2) ══════════════════════════════════════════════════
+ * El instrumento aprende que un turno puede tener DOS barras (las empareja por data-turno). Afirma:
+ *   S.suma          los anchos de los dos trozos SUMAN la duración del turno (el tajo no pierde ni
+ *                   inventa tiempo). Es la aserción clave del partido.
+ *   S.borde         el tajo cae A RAS del borde de la ventana (data-corte='ini' a ras por la izquierda,
+ *                   'fin' por la derecha), no a mitad de pista. Complementa a 3.d.
+ *   S.arrastre-cola tras retimar la COLA de un turno partido dentro de su propia celda, el turno SIGUE
+ *                   en su día (no se muda). Es el fallo silencioso que PC2 viene a cerrar. */
+function medirPartido() {
+    const rect = (el) => el.getBoundingClientRect();
+    const barras = [...document.querySelectorAll('[data-t=barra][data-turno]')];
+    const porTurno = {};
+    for (const b of barras) { const id = b.getAttribute('data-turno'); if (!porTurno[id]) porTurno[id] = []; porTurno[id].push(b); }
+    const partidos = Object.entries(porTurno).filter(([, bs]) => bs.length >= 2);
+    const fallos = [];
+    if (!partidos.length) fallos.push('ningún turno partido en 2 barras (¿semilla sin partidos visibles?)');
+    const pista0 = barras[0] ? barras[0].closest('.bg-sunken') : null;
+    if (!pista0) fallos.push('no hay pista para calibrar el partido');
+    if (fallos.length) return { guardia: { ok: false, fallos } };
+    const minPorPx = 1440 / rect(pista0).width; // ventana fija de 24 h
+    const viol = [];
+    const datos = {};
+    for (const [id, bs] of partidos) { // S.suma
+        const totalMin = bs.reduce((s, b) => s + rect(b).width, 0) * minPorPx;
+        const label = (bs[0].closest('.bg-sunken').parentElement.querySelector('.font-mono') || {}).textContent || '';
+        const m = label.trim().match(/(\d\d):(\d\d).(\d\d):(\d\d)/);
+        if (!m) continue;
+        let dur = ((+m[3]) * 60 + (+m[4])) - ((+m[1]) * 60 + (+m[2])); if (dur <= 0) dur += 1440;
+        datos[id] = Math.round(totalMin) + '≈' + dur;
+        if (Math.abs(totalMin - dur) > 20) viol.push({ af: 'S.suma', detalle: `${id}: los 2 trozos suman ${Math.round(totalMin)} min, el turno dura ${dur} (Δ ${Math.round(totalMin - dur)})` });
+    }
+    for (const b of barras.filter((x) => x.hasAttribute('data-corte'))) { // S.borde
+        const lado = b.getAttribute('data-corte');
+        const pr = rect(b.closest('.bg-sunken')), br = rect(b);
+        const d = lado === 'ini' ? br.left - pr.left : pr.right - br.right;
+        if (Math.abs(d) > 2) viol.push({ af: 'S.borde', detalle: `tajo '${lado}' a ${d.toFixed(1)}px del borde de la ventana (debería ir a ras)` });
+    }
+    return { guardia: { ok: true }, violaciones: viol, datos };
+}
+
+async function escenarioPartido(page, opciones = {}) {
+    await cargar(page);
+    if (opciones.inyectaSuma) await page.evaluate(() => { const b = document.querySelector('[data-t=barra][data-turno="t-iker-3"]'); if (b) b.style.width = (b.getBoundingClientRect().width * 0.5) + 'px'; });
+    if (opciones.inyectaBorde) await page.evaluate(() => { const b = document.querySelector('[data-t=barra][data-corte="ini"]'); if (b) b.style.left = '30%'; });
+    return page.evaluate(medirPartido);
+}
+
+async function escenarioArrastreCola(page, opciones = {}) {
+    await cargar(page);
+    // Coge la COLA de Iker (t-iker-3) en Vie·cocina y la retima DENTRO de su propia celda.
+    const c = await page.evaluate(() => {
+        const cel = document.querySelector('[data-celda][data-dia="2026-07-17"][data-puesto="cocina"]');
+        const bar = cel ? cel.querySelector('[data-t=barra][data-turno="t-iker-3"]') : null;
+        if (!bar) return null;
+        const r = bar.closest('.cursor-grab').getBoundingClientRect();
+        return { gx: Math.round(r.left + r.width / 2), gy: Math.round(r.top + 12) };
+    });
+    if (!c) return { guardia: { ok: false, fallos: ['no encontré la cola de Iker (t-iker-3) en Vie·cocina'] } };
+    await page.mouse.move(c.gx, c.gy);
+    await page.mouse.down();
+    await page.mouse.move(c.gx + 10, c.gy, { steps: 6 }); // desplazamiento pequeño → retima dentro de Vie
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+    await page.keyboard.press('Escape'); // cierra el editor que abre el arrastre, para medir la rejilla
+    await page.waitForTimeout(80);
+    if (opciones.inyectaMudanza) await page.evaluate(() => { const cel = document.querySelector('[data-celda][data-dia="2026-07-16"][data-puesto="cocina"]'); if (cel) cel.querySelectorAll('[data-t=barra][data-turno="t-iker-3"]').forEach((b) => { const f = b.closest('.cursor-grab') || b.closest('.flex'); if (f) f.remove(); }); });
+    const r = await page.evaluate(() => {
+        const jue = document.querySelector('[data-celda][data-dia="2026-07-16"][data-puesto="cocina"]');
+        return { enJue: !!(jue && jue.querySelector('[data-t=barra][data-turno="t-iker-3"]')) };
+    });
+    const viol = [];
+    if (!r.enJue) viol.push({ af: 'S.arrastre-cola', detalle: 'tras retimar la cola en su celda, el turno YA NO está en Jue: se mudó de día (reubicó por error)' });
+    return { guardia: { ok: true }, violaciones: viol, datos: { colaSigueEnJue: r.enJue } };
+}
+
+function decidirPartido(rp, ra) {
+    const gFallos = [];
+    if (!rp.guardia || !rp.guardia.ok) gFallos.push(...(rp.guardia?.fallos || ['partido no medible']));
+    if (!ra.guardia || !ra.guardia.ok) gFallos.push(...(ra.guardia?.fallos || ['arrastre-cola no medible']));
+    if (gFallos.length) return [NO_PROBADA, `🟠 NO PROBADA (partido) — se suspende:\n  ${gFallos.join('\n  ')}`];
+    const viol = [...(rp.violaciones || []), ...(ra.violaciones || [])];
+    if (viol.length) return [CAZADO, `🔴 CAZADO (partido) — ${viol.length}:\n` + viol.map((v) => `  · ${v.af}  ${v.detalle}`).join('\n')];
+    return [VERDE, `🟢 VERDE (partido) — 3/3 OK: los 2 trozos suman la duración + el tajo a ras del borde + retimar la cola no muda el día.  ${JSON.stringify({ ...rp.datos, ...ra.datos })}`];
+}
+
+async function correrSelftestPartido(page) {
+    const lineas = []; let fiable = true;
+    const rs = await escenarioPartido(page, { inyectaSuma: true });
+    const ds = rs.guardia && rs.guardia.ok && (rs.violaciones || []).find((v) => v.af === 'S.suma');
+    if (ds) lineas.push(`  ✅ S.suma «un trozo encogido a la mitad»\n        → ROJO: ${ds.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ S.suma → NO SALTÓ  (viol=${JSON.stringify(rs.violaciones)})`); }
+    const rb = await escenarioPartido(page, { inyectaBorde: true });
+    const db = rb.guardia && rb.guardia.ok && (rb.violaciones || []).find((v) => v.af === 'S.borde');
+    if (db) lineas.push(`  ✅ S.borde «tajo alejado del borde de la ventana»\n        → ROJO: ${db.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ S.borde → NO SALTÓ  (viol=${JSON.stringify(rb.violaciones)})`); }
+    const ra = await escenarioArrastreCola(page, { inyectaMudanza: true });
+    const da = ra.guardia && ra.guardia.ok && (ra.violaciones || []).find((v) => v.af === 'S.arrastre-cola');
+    if (da) lineas.push(`  ✅ S.arrastre-cola «el turno mudado de día tras retimar la cola»\n        → ROJO: ${da.detalle}`);
+    else { fiable = false; lineas.push(`  ❌ S.arrastre-cola → NO SALTÓ  (guardia.ok=${ra.guardia && ra.guardia.ok}; viol=${JSON.stringify(ra.violaciones)})`); }
+    const cab = fiable
+        ? '🟢 SELFTEST PARTIDO OK — S.suma, S.borde y S.arrastre-cola saben ponerse rojos.'
+        : '🔴 SELFTEST PARTIDO FALLÓ — algún detector del partido no salta.';
+    return { code: fiable ? VERDE : NO_PROBADA, salida: cab + '\n' + lineas.join('\n') };
+}
+
 /* ── Las contrapruebas: cada una inyecta SU fallo en el DOM y debe hacer saltar SU detector. ── */
 const CONTRAPRUEBAS = [
     { af: '3.a', nombre: 'ancho mínimo forzado a la barra de 1 h', inject: () => { const e = [...document.querySelectorAll('[data-t=barra][data-persona="elena"]')].sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width); e[0].style.width = '40px'; e[0].style.minWidth = '40px'; } },
@@ -482,18 +587,21 @@ try {
         const r2 = await correrSelftestMovimiento(page);
         const r3 = await correrSelftestRetimado(page);
         const r4 = await correrSelftestEditor(page);
-        code = combinar([r1.code, r2.code, r3.code, r4.code]);
+        const r5 = await correrSelftestPartido(page);
+        code = combinar([r1.code, r2.code, r3.code, r4.code, r5.code]);
         salida = r1.salida
             + '\n\n── contrapruebas del ARRASTRE · mover (tanda 1) ──\n' + r2.salida
             + '\n\n── contrapruebas del ARRASTRE · retimar (tanda 2) ──\n' + r3.salida
-            + '\n\n── contrapruebas del EDITOR (tanda 2.b) ──\n' + r4.salida;
+            + '\n\n── contrapruebas del EDITOR (tanda 2.b) ──\n' + r4.salida
+            + '\n\n── contrapruebas del PARTIDO (2.d · PC2) ──\n' + r5.salida;
     } else {
         await cargar(page); const rest = await medir(page); const [c1, s1] = decidir(rest);
         const rmov = await escenarioMovimiento(page); const [c2, s2] = decidirMovimiento(rmov);
         const rret = await escenarioRetimado(page); const [c3, s3] = decidirRetimado(rret);
         const rtope = await escenarioTope(page); const rcol = await escenarioColorEditor(page); const rtec = await escenarioTeclado(page); const [c4, s4] = decidirEditor(rtope, rcol, rtec);
-        code = combinar([c1, c2, c3, c4]);
-        salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3 + '\n\n── EDITOR (tanda 2.b) ──\n' + s4;
+        const rpar = await escenarioPartido(page); const rcola = await escenarioArrastreCola(page); const [c5, s5] = decidirPartido(rpar, rcola);
+        code = combinar([c1, c2, c3, c4, c5]);
+        salida = s1 + '\n\n── ARRASTRE · mover (tanda 1) ──\n' + s2 + '\n\n── ARRASTRE · retimar (tanda 2) ──\n' + s3 + '\n\n── EDITOR (tanda 2.b) ──\n' + s4 + '\n\n── PARTIDO (2.d · PC2) ──\n' + s5;
     }
 } catch (e) {
     code = NO_PROBADA;
