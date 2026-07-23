@@ -3,22 +3,37 @@
  *
  * Módulo-singleton: un solo cuadrante para toda la app, sin Pinia (prototipo; un `ref` de módulo es lo
  * idiomático en Vue para esto). Se copia el sembrado de semana.js —no se muta el `const` importado— y
- * las mutaciones REEMPLAZAN el array (moverTurno devuelve uno nuevo), que es lo que la reactividad
+ * las mutaciones REEMPLAZAN el array (mover/retimar devuelven uno nuevo), que es lo que la reactividad
  * necesita para reaccionar.
  *
- * Es la FONTANERÍA que heredarán las tandas 2 (cambiar hora) y 3 (crear): todas mutan este estado.
+ * `norm` y `eje` viven aquí como FUENTE ÚNICA: los comparten la Parrilla (para pintar) y el arrastre
+ * (que necesita el eje para mapear píxeles a horas). Recalcular es barato (computed); duplicar, no.
+ *
+ * Es la FONTANERÍA que heredarán la tanda 3 (crear): también mutará este estado.
  */
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { TURNOS } from '../datos/semana.js';
+import { normaliza, calcularEje } from './useEje.js';
 import { moverTurno } from './moverTurno.js';
+import { retimarTurno } from './retimarTurno.js';
 
 const turnos = ref(TURNOS.map((t) => ({ ...t })));
 
-/** Mueve el turno `id` a la celda destino ({ dia, puesto }), conservando sus horas. */
+const norm = computed(() => turnos.value.map(normaliza));
+const eje = computed(() => calcularEje(norm.value));
+
+/** Mueve el turno `id` a la celda destino ({ dia, puesto }), conservando sus horas (tanda 1). */
 export function mover(id, destino) {
     turnos.value = moverTurno(turnos.value, id, destino);
 }
 
+/** Retima el turno `id` a un nuevo inicio (min, ya ajustado a la granularidad), conservando duración (tanda 2). */
+export function retimar(id, inicioMin) {
+    turnos.value = retimarTurno(turnos.value, id, inicioMin);
+}
+
+export { eje };
+
 export function useCuadrante() {
-    return { turnos };
+    return { turnos, norm, eje };
 }

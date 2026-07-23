@@ -54,15 +54,16 @@ const esFantasma = computed(() =>
 </script>
 
 <template>
-    <!-- Fantasma: hueco punteado neutro en el origen. Sin barra (no hay color que alterar), mismo
-         vocabulario que el hueco de cobertura reservado: «esto estaba aquí / está en tu mano». -->
+    <!-- Fantasma al REUBICAR: hueco punteado neutro en el origen (sin barra: no hay color que alterar),
+         mismo vocabulario que el hueco de cobertura reservado. Al RETIMAR (misma celda) NO se pinta el
+         fantasma: la regla + el contorno-preview de la Celda representan dónde caerá el turno. -->
     <div
-        v-if="esFantasma"
+        v-if="esFantasma && arrastre.modo !== 'retimar'"
         class="min-h-14 rounded border border-dashed border-line"
         aria-hidden="true"
     />
 
-    <div v-else class="flex flex-col gap-1" :class="{ 'cursor-grab touch-none select-none': !esProxy }"
+    <div v-else-if="!esFantasma" class="flex flex-col gap-1" :class="{ 'cursor-grab touch-none select-none': !esProxy }"
         @pointerdown="!esProxy && alCoger($event, turno)">
         <div class="flex items-start gap-1.5">
             <span

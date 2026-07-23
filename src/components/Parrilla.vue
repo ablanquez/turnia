@@ -99,6 +99,13 @@ const turnosDe = (puestoId, diaClave) => norm.value.filter((t) => t.puesto === p
             :style="{ left: (arrastre.x - arrastre.offX) + 'px', top: (arrastre.y - arrastre.offY) + 'px', width: arrastre.ancho + 'px' }"
         >
             <FichaTurno :turno="arrastre.turno" :eje="eje" :color="arrastre.color" :nombre="arrastre.nombre" es-proxy />
+            <!-- Al RETIMAR: la hora resultante (ya snapped) en vivo. Texto, nunca sobre la barra. -->
+            <div
+                v-if="arrastre.modo === 'retimar'"
+                class="mt-1 rounded bg-ink px-1.5 py-0.5 text-center font-mono text-[11px] leading-none text-card"
+            >
+                {{ arrastre.horaIni }}–{{ arrastre.horaFin }}
+            </div>
         </div>
     </div>
 </template>

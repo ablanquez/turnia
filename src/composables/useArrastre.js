@@ -1,54 +1,57 @@
 /*
- * EL ARRASTRE — coger una ficha y soltarla en otra celda (Bloque 4 · tanda 1).
+ * EL ARRASTRE — coger una ficha y, según DÓNDE se suelte, REUBICARLA (otra celda, conserva horas ·
+ * tanda 1) o RETIMARLA (misma celda, otra posición horizontal → nuevo horario · tanda 2).
  *
- * POINTER EVENTS a mano, no HTML5 Drag&Drop ni librería. Y no por gusto: la restricción de Antonio
- * —el arrastre NO toca el color de la barra— descartó la API estándar, porque el DnD nativo genera una
- * drag-image SEMITRANSPARENTE del elemento (altera el color resultante del relleno de identidad, y no
- * hay forma limpia de impedirlo), y las librerías populares clonan con opacidad. Pointer Events da
- * control visual TOTAL: aquí decidimos exactamente qué se mueve y cómo, sin tocar el color. Además
- * unifica ratón/táctil/lápiz. (Ver bitácora: «la API estándar de arrastre viola la restricción».)
+ * POINTER EVENTS a mano, no HTML5 Drag&Drop ni librería: la restricción de no tocar el color de la
+ * barra descartó la API estándar (drag-image semitransparente) y las librerías (clonan con opacidad).
+ * Ver bitácora. Pointer Events da control visual total y unifica ratón/táctil; setPointerCapture
+ * sostiene el gesto; elementFromPoint hace el hit-testing contra los data-celda.
  *
- * `setPointerCapture` resuelve el problema clásico (en cuanto el cursor sale del elemento deja de
- * recibir eventos): capturamos el puntero y seguimos recibiéndolo aunque se vaya lejos. El hit-testing
- * («¿sobre qué celda estoy?») lo hace elementFromPoint contra los data-celda; el proxy lleva
- * pointer-events:none para no taparse a sí mismo.
- *
- * Es la FONTANERÍA que heredarán la tanda 2 (cambiar hora) y la 3 (crear): coger / mover / soltar.
+ * UN SOLO GESTO, el modo lo decide dónde sueltas — extiende «sabes dónde vas a soltar antes de
+ * soltar» con «y a qué hora». A 5,35 px/hora estirar bordes es ingrabbable (ver diseño): esta tanda
+ * DESPLAZA (conserva duración), no redimensiona. El desplazamiento se ajusta a la granularidad
+ * (media hora) y el eje/pista dan la escala px→minutos.
  */
 import { reactive } from 'vue';
-import { mover } from './useCuadrante.js';
+import { mover, retimar, eje } from './useCuadrante.js';
 import { PERSONAS_POR_ID } from '../datos/semana.js';
+import { ajustaGranularidad, formatoHora } from './useEje.js';
 
 const UMBRAL = 5; // px de movimiento antes de considerar que es un arrastre, no un clic
 
-// Estado reactivo del arrastre en curso (uno a la vez). Lo leen la Parrilla (proxy), la Celda
-// (resalte del destino) y la Ficha (fantasma en origen).
 const estado = reactive({
-    activo: false, // ¿pasado el umbral? (hay arrastre de verdad)
-    turno: null, // el turno que se coge (con su id)
-    color: null, // color de identidad, para pintar el proxy a color pleno
-    nombre: null,
-    x: 0, y: 0, // posición actual del puntero
-    offX: 0, offY: 0, // desfase puntero→esquina de la ficha al cogerla (para que el proxy no salte)
-    ancho: 0, // ancho de la ficha original (el proxy conserva su tamaño)
-    destino: null, // { dia, puesto } de la celda bajo el puntero, o null
+    activo: false, // ¿pasado el umbral?
+    turno: null, // el turno cogido (normalizado: iniMin/finMin)
+    color: null, nombre: null, // para pintar el proxy
+    x: 0, y: 0, offX: 0, offY: 0, ancho: 0, // posición y tamaño del proxy
+    destino: null, // { dia, puesto } de la celda bajo el puntero
+    modo: null, // 'reubicar' | 'retimar' | null
+    retIni: null, // nuevo inicio (min, snapped) cuando se retima
+    horaIni: '', horaFin: '', // etiqueta en vivo del horario resultante
 });
 
-let candidato = null; // turno pendiente de superar el umbral
+let candidato = null;
 let inicioX = 0, inicioY = 0;
 
 function celdaBajo(x, y) {
     const el = document.elementFromPoint(x, y);
     const celda = el && el.closest('[data-celda]');
-    if (!celda) return null;
-    return { dia: celda.dataset.dia, puesto: celda.dataset.puesto };
+    return celda ? { dia: celda.dataset.dia, puesto: celda.dataset.puesto } : null;
+}
+
+// Ancho de una pista (constante entre columnas: todas son 1fr). Se mide la regla del arrastre si ya
+// está pintada, o cualquier pista estática (nunca la del proxy). Da la escala px→minutos.
+function anchoPista() {
+    const regla = document.querySelector('[data-regla]');
+    if (regla) return regla.getBoundingClientRect().width;
+    const p = [...document.querySelectorAll('.bg-sunken')].find((x) => !x.closest('[data-proxy]'));
+    return p ? p.getBoundingClientRect().width : 0;
 }
 
 function alMover(e) {
     if (!candidato) return;
     if (!estado.activo) {
         if (Math.hypot(e.clientX - inicioX, e.clientY - inicioY) < UMBRAL) return;
-        // Se supera el umbral: empieza el arrastre de verdad.
         const p = PERSONAS_POR_ID[candidato.persona];
         estado.turno = candidato;
         estado.color = p.color;
@@ -58,26 +61,48 @@ function alMover(e) {
     estado.x = e.clientX;
     estado.y = e.clientY;
     estado.destino = celdaBajo(e.clientX, e.clientY);
+
+    const t = estado.turno;
+    if (estado.destino && estado.destino.dia === t.dia && estado.destino.puesto === t.puesto) {
+        // MISMA celda → RETIMAR: el desplazamiento horizontal (desde el agarre) es el cambio de hora.
+        estado.modo = 'retimar';
+        const w = anchoPista();
+        const span = eje.value.hasta - eje.value.desde;
+        const deltaMin = w ? (e.clientX - inicioX) * (span / w) : 0;
+        const dur = t.finMin - t.iniMin;
+        estado.retIni = ajustaGranularidad(t.iniMin + deltaMin);
+        estado.horaIni = formatoHora(estado.retIni);
+        estado.horaFin = formatoHora(estado.retIni + dur);
+    } else if (estado.destino) {
+        estado.modo = 'reubicar';
+        estado.retIni = null;
+    } else {
+        estado.modo = null;
+        estado.retIni = null;
+    }
 }
 
 function alSoltar() {
-    if (estado.activo && estado.destino && estado.turno) {
-        const d = estado.destino, t = estado.turno;
-        // Fuera de una celda (destino null) o misma celda → no-op (moverTurno ya lo trata, pero
-        // aquí evitamos incluso la llamada). Otra celda → se mueve.
-        if (d.dia !== t.dia || d.puesto !== t.puesto) mover(t.id, d);
+    if (estado.activo && estado.turno) {
+        const t = estado.turno;
+        if (estado.modo === 'reubicar' && estado.destino) mover(t.id, estado.destino);
+        else if (estado.modo === 'retimar' && estado.retIni != null) retimar(t.id, estado.retIni);
     }
     limpiar();
 }
 
 function alTecla(e) {
-    if (e.key === 'Escape') limpiar(); // cancela: la ficha vuelve a su origen, sin mover
+    if (e.key === 'Escape') limpiar(); // cancela: nada se mueve
 }
 
 function limpiar() {
     estado.activo = false;
     estado.turno = null;
     estado.destino = null;
+    estado.modo = null;
+    estado.retIni = null;
+    estado.horaIni = '';
+    estado.horaFin = '';
     candidato = null;
     window.removeEventListener('pointermove', alMover);
     window.removeEventListener('pointerup', alSoltar);
@@ -85,7 +110,6 @@ function limpiar() {
     window.removeEventListener('keydown', alTecla);
 }
 
-/** Se llama en el pointerdown de una ficha. Arma el candidato; no arrastra hasta superar el umbral. */
 function alCoger(e, turno) {
     if (e.button != null && e.button !== 0) return; // solo botón principal
     const r = e.currentTarget.getBoundingClientRect();

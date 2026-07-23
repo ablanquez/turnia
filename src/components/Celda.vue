@@ -16,6 +16,7 @@
 import { computed } from 'vue';
 import { PERSONAS_POR_ID } from '../datos/semana.js';
 import { useArrastre } from '../composables/useArrastre.js';
+import { marcasHoras, posicion } from '../composables/useEje.js';
 import FichaTurno from './FichaTurno.vue';
 
 const props = defineProps({
@@ -34,6 +35,19 @@ const ordenados = computed(() => [...props.turnos].sort((a, b) => a.iniMin - b.i
 const esDestino = computed(() =>
     arrastre.activo && arrastre.destino
     && arrastre.destino.dia === props.dia && arrastre.destino.puesto === props.puesto);
+
+// La REGLA temporal: mientras se arrastra sobre esta celda, se pintan las marcas de hora a lo ancho
+// de una pista —tenga fichas o no—, para no soltar a ciegas (resuelve las celdas sin rejilla). El
+// [data-regla] es además lo que el arrastre mide para mapear píxeles → minutos.
+const marcas = computed(() => marcasHoras(props.eje, 6));
+
+// El CONTORNO-preview: solo al retimar en ESTA celda, dónde caería el turno con su nuevo horario.
+// Es un contorno neutro (marca), sin relleno: no toca el color de identidad.
+const preview = computed(() => {
+    if (arrastre.modo !== 'retimar' || !esDestino.value || arrastre.retIni == null || !arrastre.turno) return null;
+    const dur = arrastre.turno.finMin - arrastre.turno.iniMin;
+    return posicion({ iniMin: arrastre.retIni, finMin: arrastre.retIni + dur }, props.eje);
+});
 </script>
 
 <template>
@@ -53,6 +67,26 @@ const esDestino = computed(() =>
                 :color="PERSONAS_POR_ID[t.persona].color"
                 :nombre="PERSONAS_POR_ID[t.persona].nombre"
             />
+        </div>
+
+        <!-- La regla temporal (solo mientras se arrastra sobre esta celda). Misma geometría que la
+             pista de una ficha (ml/pl [9px], h-4), para que las marcas y el preview caigan donde caería
+             una barra de verdad. El contorno-preview marca el horario resultante al retimar. -->
+        <div v-if="esDestino" class="ml-[9px] mt-2 border-l-2 border-transparent pl-[9px]">
+            <div data-regla class="relative h-4 overflow-hidden rounded bg-sunken">
+                <span
+                    v-for="m in marcas"
+                    :key="m.etiqueta"
+                    class="absolute inset-y-0 w-px bg-line-soft"
+                    :style="{ left: m.left + '%' }"
+                />
+                <div
+                    v-if="preview"
+                    class="absolute inset-y-0 rounded-[3px] border-2 border-brand-600"
+                    :style="{ left: preview.left + '%', width: preview.width + '%' }"
+                    aria-hidden="true"
+                />
+            </div>
         </div>
 
         <!--
